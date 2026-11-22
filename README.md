@@ -10,7 +10,7 @@
 - **SuperAI 地图包**：5 张地图，从 1v7 观战图到 30 人 / 120 人超大混战图。
 
 > English summary: a fan-made mod + spectator map pack for VERA20k. It gives the
-> skirmish AI x1000 starting credits, ~28x build speed, 60 planned copies of each
+> skirmish AI x1001 starting credits, ~28x build speed, 60 planned copies of each
 > production building, 100 base defences, doubled attack task forces, and a custom
 > team script that skips the retail "regroup at base" steps. Maps are uniform flat
 > stages with map triggers for full-map reveal, a permanent Iron Curtain on the
@@ -24,7 +24,7 @@
 
 | 项 | 原版 | SuperAI |
 | --- | --- | --- |
-| AI 开局资金 | `MultiplayerAICM=400,0,0` | **×1000**（10 万开局 → 约 1 亿） |
+| AI 开局资金 | `MultiplayerAICM=400,0,0` | **×1001**（按当前资金追加 1000 倍；10 万开局 → 约 1 亿） |
 | 全局建造速度 | `BuildSpeed=.7` | **`.025`（约 28 倍，玩家同样生效）** |
 | 建筑规划 | 每种 1 个 | **Ares `AIBuildCounts`：电厂/矿场/兵营/战车工厂各 60** |
 | 基地防御 | 25 | **100** |
