@@ -48,11 +48,16 @@ RULES_EDITS = {
     # ai_base_building.rs -- power plants and armed buildings were ALREADY
     # immediate; 0 brings barracks/war factory/lab/depot into line.
     "AIRestrictReplaceTime": ("400", "0"),
-    # Retail turns half the defence draws into walls, and every wall segment is
-    # a plan node taken from the defence budget (ProtectWithWall= buildings get
-    # a ring each).  Measured before this change: 92 GAWALL vs 63 real defences
-    # in one Allied base.  10% keeps the ring as an accent.
-    "AIPickWallDefensePercent": ("50,25,10", "10,10,10"),
+    # ZERO walls.  Walls are the single worst offender for "the AI stops
+    # developing": every wall segment is a base-plan node taken from the defence
+    # budget, and the ring around a `ProtectWithWall=` building also blocks its
+    # own pathing.  This key is the ONLY wall entry point in the engine --
+    # `choose_building` draws `RandomRanged(0, 99)` for a defence node and calls
+    # `build_walls` only when `draw < AIPickWallDefensePercent` -- so 0 means no
+    # house ever plans another wall, and every defence draw becomes a real gun.
+    # (The other path, `scan_base_perimeter`, only runs when a `-3` control node
+    # is consumed; skirmish plan generation never inserts one.)
+    "AIPickWallDefensePercent": ("50,25,10", "0,0,0"),
     # Retail refineries duplicate themselves (`AIExtraRefineries=2,1,0`, see
     # `recalc_base_plan`) *on top of* Ares `AIBuildCounts`.  Yuri's 2x2
     # YAREFN, four copies, plus two random extra insertions, filled 56% of one
@@ -137,28 +142,33 @@ SECTION_KEY_COMMENTS = {
     "AIBuildThis": ";SuperAI: enabled so the AI can build its MCV (see docs/ai-tuning-playbook.md)",
 }
 
-#: Ares ``AIBuildCounts`` per building type -- EMPTY on purpose.
+#: Ares ``AIBuildCounts`` per building type -- only the production buildings
+#: that must exist in numbers, and only where the difficulty should differ.
 #:
-#: This was the mod's biggest tuning lever for three releases and it is now
-#: gone, because the two-mechanism design does not need it:
+#: The value is either one int (all difficulties) or a 3-tuple ordered
+#: ``(hard, normal, easy)`` -- that is the order the engine reads, because
+#: ``difficulty_value``/``ai_extra_copies`` index by
+#: ``HouseDifficulty::table_index()`` and ``Hard == 0``.  A shorter list is not
+#: an error at load time: the missing difficulty simply gets no copies, i.e. one
+#: node, which is why ``assert_build_counts`` insists on three entries.
 #:
-#: * The plan is generated ONCE per match and never recalculated, so the node
-#:   count is a fixed build budget, not a difficulty setting.  Inflating it only
-#:   bought "a very large base", at the cost of the whole build rhythm.
-#: * It is not a "build N of these" knob either: the engine inserts each copy at
-#:   a RANDOM position after that type's first node, so an early type's count
-#:   scatters over the entire plan and starves everything behind it (a flat 60
-#:   produced 403 power plants and 12 war factories).
-#: * Expansion now comes from mechanism 2 (rebuild on loss), and base size from
-#:   the retail difficulty vectors.
+#: What the number means (``ai_extra_copies``): the type always gets its seed
+#: node, then ``count - 1`` extra copies, each inserted at a RANDOM position
+#: after that first node.  So this is "how many of these a computer base plans",
+#: not "how many at the front of the queue" -- the seed node still decides when
+#: the type first appears.
 #:
-#: With the table empty no ``AIBuildCounts`` line is written and Ares falls back
-#: to one node per type -- the retail rhythm, on all three difficulties.
-#:
-#: If you ever do want a bigger base, prefer raising ``*BaseDefenseCounts``
-#: (defence nodes are searched OUTWARD along the perimeter, so they extend the
-#: base without disturbing the build order) over re-adding counts here.
-BUILD_COUNTS = {}
+#: 2.4 emptied this table to hand the build rhythm back to the retail
+#: difficulties; 2.6 reintroduces exactly six entries because a hard computer is
+#: supposed to field three barracks and five war factories.  Keep it at this
+#: size: the 1.x setting of 60 per type scattered copies across the whole plan
+#: and produced 403 power plants against 12 war factories.
+BUILD_COUNTS = {
+    # Hard computer: 3 barracks.  Normal/easy stay at the retail single node.
+    "GAPILE": (3, 1, 1), "NAHAND": (3, 1, 1), "YABRCK": (3, 1, 1),
+    # Hard computer: 5 war factories.
+    "GAWEAP": (5, 1, 1), "NAWEAP": (5, 1, 1), "YAWEAP": (5, 1, 1),
+}
 
 CONSTRUCTION_YARDS = ("GACNST", "NACNST", "YACNST")
 REFINERIES = ("GAREFN", "NAREFN", "YAREFN")
@@ -319,7 +329,8 @@ def build_rules(source_dir, out_dir):
         insert_after_section_header(lines, refn, "ProduceCashDelay=60\r\n")
         insert_after_section_header(lines, refn, "ProduceCashAmount=100\r\n")
 
-    # Ares AIBuildCounts: many planned copies of each building type.
+    # Ares AIBuildCounts: planned copies of the production buildings that must
+    # exist in numbers, keyed by difficulty (hard, normal, easy).
     out = []
     inserted = set()
     for line in lines:
@@ -328,8 +339,14 @@ def build_rules(source_dir, out_dir):
         if m and m.group(1).strip() in BUILD_COUNTS and m.group(1).strip() not in inserted:
             name = m.group(1).strip()
             count = BUILD_COUNTS[name]
-            out.append("AIBuildCounts=%d,%d,%d\r\n" % (count, count, count))
+            vector = count if isinstance(count, tuple) else (count, count, count)
+            out.append("AIBuildCounts=%d,%d,%d\r\n" % vector)
             inserted.add(name)
+    missing = set(BUILD_COUNTS) - inserted
+    if missing:
+        raise SystemExit(
+            "AIBuildCounts targets not found as sections: %r (a typo here is "
+            "silently ignored by the engine)" % sorted(missing))
     lines = out
 
     open(os.path.join(out_dir, "rulesmd.ini"), "wb").write("".join(lines).encode("latin-1"))
@@ -628,6 +645,73 @@ def assert_mcv_triggers_well_formed(aimd_lines):
     return mcv
 
 
+def assert_build_counts(rules_lines):
+    """``AIBuildCounts`` must name existing sections with one entry per difficulty.
+
+    Two silent failures this catches:
+
+    * **a typo in the section name** -- the engine only reads the key inside a
+      building section, so ``[GAPIL]`` looks fine and does nothing;
+    * **a short list** -- ``ai_extra_copies`` indexes by
+      ``HouseDifficulty::table_index()`` (Hard, Normal, Easy), and a missing
+      index yields no copies, i.e. one node.  A two-entry list would therefore
+      quietly give the easy computer the retail single building.
+    """
+    written = []
+    section = None
+    for line in rules_lines:
+        header = re.match(r"^\[([^\]]+)\]\s*$", line)
+        if header:
+            section = header.group(1).strip()
+            continue
+        m = re.match(r"^AIBuildCounts=(.*?)(\s*;.*)?$", line)
+        if not m:
+            continue
+        values = [part.strip() for part in m.group(1).split(",")]
+        if len(values) != 3 or any(not v.lstrip("-").isdigit() for v in values):
+            raise SystemExit(
+                "[%s] AIBuildCounts=%r must be three integers ordered "
+                "hard,normal,easy; a short list silently degrades to one "
+                "node per difficulty" % (section, m.group(1).strip()))
+        written.append((section, [int(v) for v in values]))
+
+    expected = set(BUILD_COUNTS)
+    found = {name for name, _values in written}
+    if found != expected:
+        raise SystemExit(
+            "AIBuildCounts sections mismatch: expected %r, wrote %r"
+            % (sorted(expected), sorted(found)))
+    for name, values in written:
+        wanted = BUILD_COUNTS[name]
+        wanted = wanted if isinstance(wanted, tuple) else (wanted,) * 3
+        if tuple(values) != tuple(wanted):
+            raise SystemExit("[%s] AIBuildCounts=%r, expected %r (hard,normal,easy)"
+                             % (name, values, list(wanted)))
+    return written
+
+
+def assert_no_walls(rules_lines):
+    """No wall may be plannable: ``AIPickWallDefensePercent`` must be all zero.
+
+    ``choose_building`` draws ``RandomRanged(0, 99)`` for every defence node and
+    only calls ``build_walls`` when ``draw < AIPickWallDefensePercent``.  Every
+    wall segment costs a plan node from the defence budget and the ring around a
+    ``ProtectWithWall=`` building blocks its own pathing, so non-zero values
+    trade real defences -- and base growth -- for decoration.
+    """
+    raw = read_ini_value(rules_lines, "General", "AIPickWallDefensePercent")
+    if raw is None:
+        raise SystemExit("AIPickWallDefensePercent not found in [General]")
+    values = [part.strip() for part in raw.split(",")]
+    if any(not v.isdigit() or int(v) != 0 for v in values):
+        raise SystemExit(
+            "AIPickWallDefensePercent=%r: walls must stay disabled (all zeros). "
+            "Every wall segment is a plan node taken from the defence budget and "
+            "the ring blocks pathing; set non-zero only if walls are wanted "
+            "back." % raw)
+    return True
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rules-dir", required=True,
@@ -655,6 +739,8 @@ def main():
     assert_defense_gate_consistent(rules_lines, aimd_lines)
     assert_mcv_recovery_fillable(rules_lines, aimd_lines)
     mcv_triggers = assert_mcv_triggers_well_formed(aimd_lines)
+    counts = assert_build_counts(rules_lines)
+    assert_no_walls(rules_lines)
 
     if not args.no_art:
         source = os.path.join(args.rules_dir, "artmd.ini")

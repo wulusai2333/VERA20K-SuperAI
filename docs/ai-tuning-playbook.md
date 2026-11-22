@@ -143,9 +143,9 @@ BuildSpeed
      ├─ 种子顺序：BuildConst → BuildPower → BuildBarracks(移到 0) → BuildWeapons(移到 1)
      ├─ 前置补全：反复扫候选，Prerequisite 被已有节点满足的就追加
      ├─ 矿场复制：有矿车的国家用 AIExtraRefineries，没有矿车的国家用 AISlaveMinerNumber-1
-     ├─ Ares AIBuildCounts：每个类型的首节点后面随机撒 count-1 个副本
+     ├─ Ares AIBuildCounts：每个类型的首节点后面随机撒 count-1 个副本（按难度取数）
      ├─ 防御节点：*BaseDefenseCounts 个 "-1" 节点，随机位置（≥3）
-     └─ 围墙节点：扫描基地周长时按需追加
+     └─ 围墙节点：**本模组不会产生**（AIPickWallDefensePercent=0，见 §11）
 ② 选建筑
    choose_building
      ├─ 节点是 "-1" → choose_next_production 选防御（前置不满足就删节点）
@@ -158,11 +158,11 @@ BuildSpeed
 | 想控制什么 | 改哪里 | 注意 |
 | --- | --- | --- |
 | 某个建筑造不造 | 该建筑的 `AIBuildThis` | 铁律 4，硬闸门 |
-| 某个建筑造几个 | Ares `AIBuildCounts` | 铁律 2，位置是随机的 |
-| **基地能长多大** | **所有 `AIBuildCounts` 之和 + `*BaseDefenseCounts`** | **节点数就是扩张预算，见 §7.12** |
+| 某个建筑造几个 | Ares `AIBuildCounts` | 铁律 2，位置是随机的；按难度取数（冷酷在前） |
+| **基地能长多大** | **`*BaseDefenseCounts`** | 2.4 起不再靠 `AIBuildCounts` 堆量，见 §7.12 |
 | 科技树种类 | `[AI] BuildConst/BuildPower/BuildRefinery/BuildBarracks/BuildWeapons/BuildTech/BuildRadar` | 只影响种子与 `POWER`/`PROC` 这类前置组的解析 |
 | 防御数量 | `Allied/Soviet/ThirdBaseDefenseCounts` | 是**计划数**，实际落地会少（铁律 3）；同时也是最强的向外扩张驱动 |
-| 防御 vs 围墙 | `AIPickWallDefensePercent` | 围墙每格一个节点，非常吃预算 |
+| **不造围墙** | `AIPickWallDefensePercent=0,0,0` | **唯一的围墙入口**，0 = 完全不造，见 §11 |
 | 矿场数量 | 有矿车：`AIExtraRefineries`；无矿车（Yuri）：`AISlaveMinerNumber` | 见 §4 |
 | 兵种/组队 | `aimd.ini` 的 `[TeamTypes]`/`[AITriggerTypes]` | 权重 5000 是接管标记，别乱用（§5） |
 | **AI 组不组队** | **`UseMinDefenseRule` + `MinimumAIDefensiveTeams`，必须与「有没有守家队类型」配套** | **配错 = AI 一兵不发，见 §7.11** |
@@ -600,7 +600,7 @@ python tools/analyze_log.py --log "F:/Games/VERA20K/logs/ra2.log" --session last
 
 | 撤掉的 | 原因 |
 | --- | --- |
-| 23 个类型的 `AIBuildCounts` | 它不是「难度旋钮」：计划整局只生成一次，副本又是随机撒点，抬高只会破坏建造顺序（60 → 403 电厂 vs 12 战车工厂） |
+| 23 个类型的 `AIBuildCounts` | 它不是「难度旋钮」：计划整局只生成一次，副本又是随机撒点，抬高只会破坏建造顺序（60 → 403 电厂 vs 12 战车工厂）。**2.6 起只保留 6 个生产建筑，见 §11** |
 | 三个 `*BaseDefenseCounts` 的抬升 | 回原版 `25/20/6`，让三个难度各自决定防御规模 |
 | 67 条攻击触发器的 250 权重与难度位全开 | 回原版 `70/60/70`，AI 出手频率交回难度 |
 | TaskForce 编制缩放 | 2.0 之后本来就是空操作（`MULTIPLIER=1`），纯死代码 |
@@ -617,7 +617,7 @@ python tools/analyze_log.py --log "F:/Games/VERA20K/logs/ra2.log" --session last
 | **`AIRestrictReplaceTime`** | **`0`** | **重建** |
 | 3 条 MCV 触发器 | 权重 `5000`、三难度 | 重建基地车 |
 | 维修厂 `AIBuildThis=yes` | — | 重建基地车的**前提** |
-| `AIPickWallDefensePercent` | `10` | 围墙不抢防御名额 |
+| `AIPickWallDefensePercent` | **`0,0,0`** | **完全不造围墙**，见 §11 |
 | `AIExtraRefineries` / `AISlaveMinerNumber` | `0,0,0` / `2,2,2` | 修 Yuri 矿场自我复制与同格重建 |
 | `DissolveUnfilledTeamDelay` | `900` | 凑不齐的队伍尽快腾出编制 |
 | `MultiplayerAICM` / `BuildSpeed` / `Paranoid=no` | — | 模组身份与 FFA 观战 |
@@ -629,3 +629,66 @@ python tools/analyze_log.py --log "F:/Games/VERA20K/logs/ra2.log" --session last
   这是设计的取舍，不是 bug。
 - 想更饱满**只动一处**：`*BaseDefenseCounts`（防御节点沿周长向外找位置，
   是唯一不破坏建造顺序的扩容旋钮）。
+
+---
+
+## 11. 围墙：全部关掉（2.6 起）
+
+**结论：`AIPickWallDefensePercent=0,0,0`，AI 一座围墙都不造。**
+
+### 11.1 为什么这个键就够了
+
+引擎里造墙只有**一个**入口（`ai_base_building.rs`）：
+
+```
+choose_building 处理 "-1"（防御）节点时：
+    draw = RandomRanged(0, 99)
+    if draw < AIPickWallDefensePercent
+        && build_walls(...)              // ← 全源码唯一调用点
+```
+
+`build_walls` 只在这里被调用；`AIPickWallDefensePercent` 也全源码只有一个读取点。
+所以 **0 就是「永远不掷出围墙」**，而且剩下的每一次防御抽签都会落到**真枪**上。
+
+另一条路 `scan_base_perimeter` 只在消费 `-3` 控制节点时跑，而遭遇战的重算计划
+**从不插入 `-3`**（只插 `-1` 防御、副本、矿场复制），所以我们的 5 张图不会走到那条路。
+
+### 11.2 为什么必须关掉
+
+| 代价 | 说明 |
+| --- | --- |
+| 吃掉防御名额 | 每格围墙都是**一个计划节点**，跟真正的防御抢同一份预算（`*BaseDefenseCounts`） |
+| 堵自己的路 | `ProtectWithWall=` 的建筑会绕一圈墙，把自己的出入口和 AI 的寻路一起堵住 |
+| 观感上的假象 | 一座「92 段围墙 + 63 座真防御」的基地，看起来铺得很大，实际火力只有一半 |
+
+### 11.3 想恢复怎么办
+
+把 `AIPickWallDefensePercent` 调回正数即可（零售 `50,25,10`，本模组 2.3–2.5 曾用 `10,10,10`）。
+注意 `tools/build_mod.py` 的 `assert_no_walls` 会**阻止构建**，所以恢复时必须同时删掉那条断言 ——
+这是故意的：围墙的副作用很容易被忘掉，改回来应该是**有意识的决定**。
+
+---
+
+## 12. 按难度给数量：冷酷 3 兵营 / 5 战车工厂（2.6 起）
+
+`AIBuildCounts` 是**按难度**的整数列表，用 `HouseDifficulty::table_index()` 取值，
+而**冷酷 = 0、中等 = 1、简单 = 2**（向量「最难在前」，别按直觉写成「简单在前」）。
+值 `n` 的含义：该类型先占 1 个种子节点，再在**首节点之后随机位置**插 `n-1` 个副本。
+
+| 类型 | `AIBuildCounts` | 冷酷 | 中等 | 简单 |
+| --- | --- | --- | --- | --- |
+| `GAPILE` / `NAHAND` / `YABRCK` | `3,1,1` | **3 个兵营** | 1 | 1 |
+| `GAWEAP` / `NAWEAP` / `YAWEAP` | `5,1,1` | **5 个战车工厂** | 1 | 1 |
+
+只有这 6 条，其余类型不写这个键（回到「一种一个」）。
+
+- 副本会插在首节点**之后**的随机位置，所以**不会推迟战车工厂第一次出现**——
+  那是种子节点决定的。总共只多 6 个节点，也不会重演 1.x「60 → 403 电厂」的偏科。
+- 数量是被**长期维持**的：打掉一栋，节点回到未满足状态，「打掉就重建」会补回来（§9）。
+- `assert_build_counts` 会在构建期检查三件事，因为这三类错误都是**静默失效**：
+
+| 错误 | 后果 | 断言 |
+| --- | --- | --- |
+| 段名拼错（`[GAPIL]`） | 引擎根本读不到，白写 | 目标必须都是存在的段名 |
+| 列表少于 3 项 | 缺的难度**静默退化成 1 个节点** | 必须正好 3 个整数 |
+| 顺序写反（`1,1,5`） | 冷酷拿不到 5 个 | 必须与 `BUILD_COUNTS` 完全一致 |

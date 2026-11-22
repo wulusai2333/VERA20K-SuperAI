@@ -70,13 +70,18 @@ python tools/build_maps.py info --src maps/SuperAI-IceLake-1v7-NoOre.yrm
 python tools/analyze_log.py --log "F:/Games/VERA20K/logs/ra2.log" --session last
 ```
 
-- **战车工厂/高科/维修厂首次出现的序号很靠后**（闸门是 ≤25%）：
-  `AIBuildCounts` 给早期类型的分太高，副本被随机撒到整张计划里，把后期建筑挤到队尾。
-  见 [ai-tuning-playbook.md §1.2](ai-tuning-playbook.md#12-铁律-2aibuildcounts-是随机撒点不是前置倍数)。
+- **战车工厂/高科/维修厂首次出现的序号很靠后**（闸门是 ≤25%）：太多建筑被塞了
+  `AIBuildCounts`，副本被随机撒到整张计划里，把后期建筑挤到队尾。本模组只给 6 个
+  生产建筑（兵营/战车工厂），其余类型不写这个键。
+  见 [ai-tuning-playbook.md §1.2](ai-tuning-playbook.md#12-按难度给数量冷酷-3-兵营-5-战车工厂26-起)。
 - **某种建筑一次都没出现**：先查它的 `AIBuildThis`。原版把不少类型设成 `no`，
   那它们永远进不了计划，和钱、科技等级无关。
 - **防御数量远少于计划数**：正常。防御节点找不到前置已满足的类型时会被**直接删除**，
-  不是延后；围墙也会抢走防御抽签。看日志里的实际落地数。
+  不是延后。看日志里的实际落地数（本模组已关闭围墙，所以不会再有围墙抢占）。
+- **AI 在造围墙 / 基地被墙堵住**：本模组已把 `AIPickWallDefensePercent` 设为 `0,0,0`，
+  AI 不可能造墙。如果你改成非 0 想恢复，注意 `tools/build_mod.py` 的 `assert_no_walls`
+  会阻止构建 —— 那是有意为之。见
+  [ai-tuning-playbook.md §11](ai-tuning-playbook.md#11-围墙全部关掉26-起)。
 - **只改 `[AI]` 里的 `WarRatio` / `DefenseLimit` / `RefineryLimit` 没反应**：那些是死键，
   引擎根本没有读取者。完整清单见
   [ai-tuning-playbook.md §1.5](ai-tuning-playbook.md#15-死键清单)。
