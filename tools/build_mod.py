@@ -23,13 +23,16 @@ RULES_EDITS = {
     "TeamDelays": ("2000,2500,3500", "300,450,600"),
     "MultiplayerAICM": ("400,0,0", "100000,100000,100000"),
     "BuildSpeed": (".7", ".025"),
-    # 40 planned base defences per side.  The plan holds this many "-1"
-    # (defence) nodes; `choose_building` turns each into a real gun when the
-    # house already owns the gun's prerequisites and *deletes* the node
-    # otherwise, so early nodes are spent, not postponed.  Retail is 25/20/6.
-    "AlliedBaseDefenseCounts": ("25,20,6", "40,40,40"),
-    "SovietBaseDefenseCounts": ("25,22,6", "40,40,40"),
-    "ThirdBaseDefenseCounts": ("25,22,6", "40,40,40"),
+    # 200 planned base defences per side.  Each "-1" node becomes a real gun
+    # when `choose_next_diversion`/`choose_next_production` can satisfy the
+    # gun's prerequisites (a node it cannot fill is DELETED, not postponed),
+    # and the site search runs along the base perimeter looking OUTWARD -- so
+    # these nodes are the strongest lever for a base that keeps extending as
+    # long as there is ground.  Retail is 25/20/6.  Capped at 256 by
+    # BASE_PLAN_INSERT_LIMIT.
+    "AlliedBaseDefenseCounts": ("25,20,6", "200,200,200"),
+    "SovietBaseDefenseCounts": ("25,22,6", "200,200,200"),
+    "ThirdBaseDefenseCounts": ("25,22,6", "200,200,200"),
     # Retail turns half the defence draws into walls, and every wall segment is
     # a plan node taken from the defence budget (ProtectWithWall= buildings get
     # a ring each).  Measured before this change: 92 GAWALL vs 63 real defences
@@ -61,12 +64,27 @@ RULES_EDITS = {
     "AISlaveMinerNumber": ("4,3,2", "2,2,2"),
     "Paranoid": ("yes", "no"),
     "TotalAITeamCap": ("30,30,30", "10,10,10"),
-    # One defensive team, not zero.  With zero, a house under attack keeps
-    # throwing every unit into attack teams and never garrisons; the defence
-    # team occupies one of the ten slots.
-    "MaximumAIDefensiveTeams": ("2,2,2", "1,1,1"),
-    "MinimumAIDefensiveTeams": ("1,1,1", "1,1,1"),
-    "UseMinDefenseRule": ("yes", "yes"),
+    # The defensive-team trio must be neutralised, and the reason is a trap
+    # that cost a whole release:
+    #
+    # This mod rewrites EVERY non-MCV team type to `IsBaseDefense=no` (see
+    # `build_aimd`), so a house can never own a base-defence team.  In
+    # `ai_team_creation.rs`:
+    #     base_defense  = <TeamType IsBaseDefense>            -> always false
+    #     defense_teams = <teams whose type is base defence>  -> always 0
+    #     needs_defense = !has_enemy
+    #                     || (use_min_defense_rule && defense_teams < min_defensive)
+    #     if needs_defense { base_defense && !defense_full } else { ... }
+    # Retail values (UseMinDefenseRule=yes, MinimumAIDefensiveTeams=1) are only
+    # self-consistent because retail ships 12 `IsBaseDefense=yes` team types.
+    # Ours has none, so a house with an enemy gets `needs_defense = true`
+    # forever and the gate admits ONLY base-defence triggers -- of which there
+    # are none.  Every trigger fails, no team is ever created, the unit
+    # choosers never get a "team still needs" list, and the AI builds no units
+    # and never attacks while its base fills up perfectly.  That was 2.2.
+    "UseMinDefenseRule": ("yes", "no"),
+    "MinimumAIDefensiveTeams": ("1,1,1", "0,0,0"),
+    "MaximumAIDefensiveTeams": ("2,2,2", "0,0,0"),
     "AIHateDelays": ("30,50,70", "8,12,18"),
     "AIBaseSpacing": ("1", "1"),
     "AIRestrictReplaceTime": ("400", "120"),
@@ -109,27 +127,40 @@ SECTION_KEY_COMMENTS = {
 #: name suggests (``base_plan_generation.rs``, Ares
 #: ``HouseClass_GenerateAIBuildList_CountExtra``): for each type, past the
 #: construction yard, its FIRST node spawns ``count - 1`` copies, each at a
-#: RANDOM position from that node to the end of the plan.  A high count is
-#: therefore not "build six power plants first" but "scatter five more power
-#: plants across the rest of the plan", pushing the war factory, radar, tech
-#: centre and repair depot towards the tail.  Retail Ares defaults are 1.
+#: RANDOM position from that node to the end of the plan.  Per type at most
+#: ``BASE_PLAN_INSERT_LIMIT`` (256) copies are inserted.
 #:
-#: History: a flat 60 (the 1.x setting) produced 403 power plants and 12 war
-#: factories, because power is the first type in the list and inherited the
-#: largest share of the scatter.  Keep the EARLY types small and the LATE
-#: types at their real base count -- the ordering information is what gets
-#: destroyed by high counts, not the totals.
+#: Two things follow, and they are why the numbers look the way they do:
+#:
+#: * ORDER: an early type's copies scatter over the WHOLE plan, a late type's
+#:   only over its tail, so equal counts still mean "early types get more
+#:   front-of-queue slots".  A flat 60 produced 403 power plants and 12 war
+#:   factories.  Keep the early types small.
+#: * SIZE: the plan is generated ONCE per match and never recalculated, and a
+#:   building is only planned while an unsatisfied node remains (a site search
+#:   with nothing to place does nothing).  So the total node count IS the
+#:   base's growth budget: too few nodes and the base simply stops, which is
+#:   what "AI 不扩张" looked like after 2.2 cut every count to 1-3.
+#:
+#: Sizing: ~1 building/second/house is the observed rate, so a total around
+#: 300 nodes plus continuous rebuilding and on-demand power splicing keeps a
+#: base extending for a whole match.  Raise the bulk in the MID and LATE types
+#: (war factories, labs, depots, refineries) where the scatter cannot starve
+#: the front of the queue.
 BUILD_COUNTS = {
-    "GAPOWR": 3, "NAPOWR": 3, "YAPOWR": 3,
-    "GAREFN": 2, "NAREFN": 2, "YAREFN": 2,
-    "GAPILE": 2, "NAHAND": 2, "YABRCK": 2,
-    "GAWEAP": 3, "NAWEAP": 3, "YAWEAP": 3,
-    "GATECH": 2, "NATECH": 2, "YATECH": 2,
-    "GAAIRC": 1, "NARADR": 1, "AMRADR": 1, "NAPSIS": 1,
-    # Now that the depots are in the plan, they must actually be scheduled.
-    "GADEPT": 2, "NADEPT": 2, "YADEPT": 1,
+    # Early: kept small on purpose -- power is on demand (see
+    # `power_plant_to_splice`), and a big count here would own the front.
+    "GAPOWR": 6, "NAPOWR": 6, "YAPOWR": 6,
+    "GAREFN": 10, "NAREFN": 10, "YAREFN": 10,
+    "GAPILE": 14, "NAHAND": 14, "YABRCK": 14,
+    # Mid/late: this is where the growth budget lives.
+    "GAWEAP": 28, "NAWEAP": 28, "YAWEAP": 28,
+    "GATECH": 18, "NATECH": 18, "YATECH": 18,
+    "GAAIRC": 10, "NARADR": 10, "AMRADR": 10, "NAPSIS": 10,
+    # Depots keep the MCV recovery chain exercised all match long.
+    "GADEPT": 8, "NADEPT": 8, "YADEPT": 4,
     # PCV's prerequisite is YAWEAP,YAGRND (YADEPT is commented out retail).
-    "YAGRND": 1,
+    "YAGRND": 4,
 }
 
 CONSTRUCTION_YARDS = ("GACNST", "NACNST", "YACNST")
@@ -176,6 +207,61 @@ def insert_after_section_header(lines, section, text):
             lines.insert(i + 1, text)
             return
     raise SystemExit("section [%s] not found" % section)
+
+
+def read_ini_value(lines, section, key):
+    """The value of ``key`` inside ``section`` as written, comment stripped."""
+    current = None
+    for line in lines:
+        header = re.match(r"^\[([^\]]+)\]\s*$", line)
+        if header:
+            current = header.group(1).strip()
+            continue
+        if current != section:
+            continue
+        m = re.match(r"^" + re.escape(key) + r"=(.*?)(\s*;.*)?(\r?\n)?$", line)
+        if m:
+            return m.group(1).strip()
+    return None
+
+
+def assert_defense_gate_consistent(rules_lines, aimd_lines):
+    """Refuse to ship a rules/AI pair that freezes every AI house.
+
+    ``is_eligible`` gates every AI trigger on ``defense_gate``::
+
+        needs_defense = !has_enemy
+                        || (use_min_defense_rule && defense_teams < min_defensive)
+        if needs_defense { base_defense && !defense_full } else { ... }
+
+    ``base_defense`` and ``defense_teams`` both come from a TeamType's
+    ``IsBaseDefense=``.  This mod rewrites every non-MCV team to
+    ``IsBaseDefense=no``, so both are permanently false/zero; if
+    ``UseMinDefenseRule`` is yes and ``MinimumAIDefensiveTeams`` is positive,
+    ``needs_defense`` is then true whenever an enemy exists and NOTHING is ever
+    eligible: no teams, no units, no attacks.  The AI looks brain-dead while its
+    base builds perfectly -- a bug that already shipped once as 2.2.
+    """
+    base_defense_teams = []
+    for line in aimd_lines:
+        m = re.match(r"^IsBaseDefense=(\w+)", line.strip())
+        if m and m.group(1).lower() == "yes":
+            base_defense_teams.append(line)
+    if base_defense_teams:
+        return
+
+    use_min = read_ini_value(rules_lines, "General", "UseMinDefenseRule")
+    minimum = read_ini_value(rules_lines, "General", "MinimumAIDefensiveTeams")
+    minimum_values = [v.strip() for v in (minimum or "").split(",") if v.strip()]
+    if (use_min or "").lower() == "yes" or any(v not in ("0", "") for v in minimum_values):
+        raise SystemExit(
+            "no TeamType is IsBaseDefense=yes, so no house can ever own a "
+            "defensive team; with UseMinDefenseRule=%r and "
+            "MinimumAIDefensiveTeams=%r every AI trigger is refused and the AI "
+            "never creates a team, never builds units and never attacks. "
+            "Set UseMinDefenseRule=no and MinimumAIDefensiveTeams=0,0,0 (or "
+            "stop rewriting IsBaseDefense in build_aimd)."
+            % (use_min, minimum))
 
 
 def apply_section_key_edits(lines):
@@ -490,6 +576,16 @@ def main():
     os.makedirs(args.out, exist_ok=True)
     buildings = build_rules(args.rules_dir, args.out)
     teams, switched, scaled, boosted, recovered, shared = build_aimd(args.rules_dir, args.out)
+
+    # Refuse to ship the "base builds, AI never moves" combination.
+    with open(os.path.join(args.out, "rulesmd.ini"), "r",
+              encoding="latin-1") as handle:
+        rules_lines = handle.read().splitlines()
+    with open(os.path.join(args.out, "aimd.ini"), "r",
+              encoding="latin-1") as handle:
+        aimd_lines = handle.read().splitlines()
+    assert_defense_gate_consistent(rules_lines, aimd_lines)
+
     if not args.no_art:
         source = os.path.join(args.rules_dir, "artmd.ini")
         if not os.path.isfile(source):

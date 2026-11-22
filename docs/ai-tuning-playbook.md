@@ -152,11 +152,13 @@ BuildSpeed
 | --- | --- | --- |
 | 某个建筑造不造 | 该建筑的 `AIBuildThis` | 铁律 4，硬闸门 |
 | 某个建筑造几个 | Ares `AIBuildCounts` | 铁律 2，位置是随机的 |
+| **基地能长多大** | **所有 `AIBuildCounts` 之和 + `*BaseDefenseCounts`** | **节点数就是扩张预算，见 §7.12** |
 | 科技树种类 | `[AI] BuildConst/BuildPower/BuildRefinery/BuildBarracks/BuildWeapons/BuildTech/BuildRadar` | 只影响种子与 `POWER`/`PROC` 这类前置组的解析 |
-| 防御数量 | `Allied/Soviet/ThirdBaseDefenseCounts` | 是**计划数**，实际落地会少（铁律 3） |
+| 防御数量 | `Allied/Soviet/ThirdBaseDefenseCounts` | 是**计划数**，实际落地会少（铁律 3）；同时也是最强的向外扩张驱动 |
 | 防御 vs 围墙 | `AIPickWallDefensePercent` | 围墙每格一个节点，非常吃预算 |
 | 矿场数量 | 有矿车：`AIExtraRefineries`；无矿车（Yuri）：`AISlaveMinerNumber` | 见 §4 |
 | 兵种/组队 | `aimd.ini` 的 `[TeamTypes]`/`[AITriggerTypes]` | 权重 5000 是接管标记，别乱用（§5） |
+| **AI 组不组队** | **`UseMinDefenseRule` + `MinimumAIDefensiveTeams`，必须与「有没有守家队类型」配套** | **配错 = AI 一兵不发，见 §7.11** |
 
 ---
 
@@ -281,7 +283,23 @@ python tools\analyze_log.py --log "F:/Games/VERA20K/logs/ra2.log" --session all 
 
 放置数少于 25 的房主会被跳过，样本不够不做结论。
 
-### 6.2 改动前基线（2.1，2026-11-22 的日志）
+### 6.2 扩张规模预设
+
+「基地一直往外长」靠的是节点总量（§7.12）。默认值按 **2–8 个 AI** 调。
+换档只改 `tools/build_mod.py` 里的 `BUILD_COUNTS` 与三个 `*BaseDefenseCounts`，
+改完按 §6 的流程重建校验。
+
+| 档位 | 生产节点（每类） | 防御节点 | 适用 |
+| --- | --- | --- | --- |
+| 温和 | 电厂 4、矿场 6、兵营 8、战车工厂 14、高科 10、雷达 6、维修厂 4 | 100 | 长时间对局、想看清每个建筑 |
+| **默认（当前）** | 电厂 6、矿场 10、兵营 14、**战车工厂 28**、高科 18、雷达 10、维修厂 8 | **200** | 2–8 个 AI |
+| 大图降档 | 全部 ×0.4 | 80 | **120 人图必须降档**，否则建筑总量失控 |
+| 疯狂 | 全部 ×2 | 250（上限 256） | 只看铺图，不推荐 |
+
+> 上限：每个类型的副本插入被 `BASE_PLAN_INSERT_LIMIT=256` 截断，
+> 防御节点同样如此，所以单类型标到 300 与标到 256 等价。
+
+### 6.3 改动前基线（2.1，2026-11-22 的日志）
 
 留着做对照，别把「现在也这样」当成「本来就该这样」：
 
@@ -294,6 +312,10 @@ python tools\analyze_log.py --log "F:/Games/VERA20K/logs/ra2.log" --session all 
 | 维修厂落地 | **119 个房主，0 次** |
 | AMCV/SMCV/PCV 落地 | **0 次**（全日志 82,736 行） |
 | MCV 展开被拒 | 89 次/局（58 个不同原点） |
+
+2.2 的对照（14:54Z 那一局，3 个槽位）：科技树已经正常（战车工厂第 4/19 位、维修厂 2 座、
+高科 3–5 座），但**基地只有 98 / 84 栋就停了**，而且完全不出兵 ——
+前者是 §7.12 的节点用尽，后者是 §7.11 的死锁。
 
 ---
 
@@ -372,6 +394,66 @@ python tools\analyze_log.py --log "F:/Games/VERA20K/logs/ra2.log" --session all 
 - **症状**：把 `*BaseDefenseCounts` 调到 100，实际只多出几座。
 - **实际原因**：`-1` 节点找不到可选防御就会被**删除**（§1.3），且围墙会抢抽签。
   验收只看日志里的实际落地数。
+
+### 7.11 没有守家队类型，却打开了 `UseMinDefenseRule`（2.2 的事故）
+
+**这是本项目最隐蔽的一次事故：基地建得漂漂亮亮，AI 却一兵不发。**
+
+- **症状**：科技树全出、超武都造出来了、防御也铺满，但 AI 不造兵、不进攻、地图上没有任何部队。
+  日志里 `placed` 行一切正常，没有任何报错。
+- **当时的错误结论**：怀疑触发器权重、队伍上限、`TeamDelays`、资金，甚至以为地图触发器把它清光了。
+- **实际原因**：两条改动撞在一起，构成永久死锁。
+
+  1. `tools/build_mod.py` 把**所有非 MCV 队伍类型**都改写成 `IsBaseDefense=no`
+     （`build_aimd` 里那句 `("Aggressive","yes"),("IsBaseDefense","no")`）。
+     于是模组里 `IsBaseDefense=yes` 的队伍类型是 **0 个**（零售有 12 个）。
+  2. 2.2 又把 `UseMinDefenseRule` 从 `no` 改成 `yes`、`MinimumAIDefensiveTeams` 从 `0` 改成 `1`。
+
+  而 `ai_team_creation.rs` 的判定是：
+
+  ```
+  base_defense  = <TeamType 的 IsBaseDefense>          -> 恒 false（第 1 步）
+  defense_teams = <队伍类型是守家队的队伍数>            -> 恒 0
+  needs_defense = !has_enemy
+                  || (use_min_defense_rule && defense_teams < min_defensive)
+  if needs_defense { 只放行 base_defense 触发器 } else { 正常 }
+  ```
+
+  有敌人时 `needs_defense = (true && 0 < 1) = true` → 只放行守家队触发器 →
+  **一个都不存在** → 163 条触发器全部被拒 → 不组队 → 出兵选择器没有「队伍还需要什么」
+  → 不造兵 → 不进攻。基地建造走的是另一条路径，完全不受影响，所以看起来「一切正常」。
+
+- **修法**：`UseMinDefenseRule=no`、`MinimumAIDefensiveTeams=0,0,0`、
+  `MaximumAIDefensiveTeams=0,0,0`（`MaximumAIDefensiveTeams` 只是跟着改，没有守家队可限）。
+- **永久防护**：`build_mod.py` 现在有 `assert_defense_gate_consistent`：
+  若 `aimd.ini` 里没有任何 `IsBaseDefense=yes` 的队伍类型，而
+  `UseMinDefenseRule=yes` 或 `MinimumAIDefensiveTeams` 非全零，**构建直接失败**并说明原因。
+  下次谁再想「给 AI 留一支守家队」，会在构建期被拦住，而不是进游戏看 AI 发呆。
+- **教训**：只要我们把某类对象**全部改写**掉（这里是「所有队伍都不是守家队」），
+  就必须回头检查**依赖这类对象存在的所有判定**。零售的默认值是**和零售数据配套**的，
+  不是和我们的数据配套的。
+
+### 7.12 「AI 不扩张」——其实是计划节点用完了
+
+- **症状**：AI 把基地建到某个规模就完全停手，有平地也不再往外铺。
+- **实际原因**：`base_plan` **整局只生成一次**（§1.1），每个节点对应一栋建筑；
+  选址只在 `house.base_reservation().perimeter_cells()` 上做（`ai_base_site.rs` 的
+  `ordinary_site`），没有任何可用周长格时返回 `(0,0)`、放置失败。
+  所以**节点数就是扩张预算**：2.2 把每类压到 1–3，总节点只有十几个，
+  基地十几栋就建完了。
+- **修法**：把量放在**中后期类型**上（分散插入不会占掉队首），并同时抬高
+  `*BaseDefenseCounts` —— 防御节点是**向外**找位置，是最强的扩张驱动。
+- **代价与边界**：这不是真正无限（真无限要引擎中途重算计划）。节点够多 + 持续重建
+  + 按需补电，表现为「整局都在长」。120 人图要降档，否则建筑总量会失控。
+
+### 7.13 单位生产与队伍创建**没有任何日志**
+
+- **症状**：AI 不造兵，但日志里什么都看不出来，`analyze_log.py` 也不会报——因为它只统计建筑。
+- **实际原因**：引擎只记录建筑落地（`placed`）、矿场完成、MCV 展开被拒等，
+  **单位生产和组队完全不写日志**；`replays/replay_tick*.json` 也只有输入指令
+  （`ending.terminal_score_snapshot` 实测为 `null`），没有局面快照。
+- **纪律**：涉及「造不造兵、组不组队、打不打」的问题，**不能只靠日志下结论**，
+  要么进游戏看，要么先做一个可观测的间接信号。这正是 7.11 拖了一整轮才定位的原因。
 
 ---
 

@@ -114,6 +114,37 @@ PCV  Prerequisite=YAWEAP,YAGRND
 > 会把其它所有触发器清掉，结果是这支 AI 完全不进攻。见
 > [ai-tuning-playbook.md §5](ai-tuning-playbook.md#5-触发器权重-5000-是接管标记不是加强)。
 
+### AI 建满基地却不造兵、不进攻
+
+**先查这一条**，它比任何触发器权重问题都常见：
+
+```ini
+UseMinDefenseRule=no
+MinimumAIDefensiveTeams=0,0,0
+```
+
+模组把所有非 MCV 队伍都改成了 `IsBaseDefense=no`（没有守家队类型）。
+如果这时把 `UseMinDefenseRule` 设为 `yes`、`MinimumAIDefensiveTeams` 设为非零，
+引擎会要求「先有 1 支守家队才允许组队」，而守家队永远不存在 ——
+于是 163 条触发器全部被拒：AI 不组队、不造兵、不进攻，但基地照常建造，
+日志里**没有任何报错**。2.2 就这样静默失效过一整轮。
+
+排查顺序：
+
+1. `aimd.ini` 里有没有 `IsBaseDefense=yes` 的队伍类型？没有就该是上面的设置。
+2. 再查 `TotalAITeamCap` 是否为 0，或 `RatioAITriggerTeam` 是否被地图改小。
+3. 仍不正常就查触发器权重：**任何队伍若权重 ≥ 5000，会接管整次抽签**，
+   而一支凑不齐的队伍会把该户其它队伍全部饿死。
+
+> 注意：单位生产和队伍创建**完全不写日志**，`analyze_log.py` 也只统计建筑。
+> 所以「造不造兵」无法从日志判断，只能进游戏看。
+
+### AI 有平地却不继续扩建
+
+计划节点用完了。基地计划**整局只生成一次**，每个节点一栋建筑，节点放完就静止。
+把 `AIBuildCounts` 和 `*BaseDefenseCounts` 调大即可（每类上限 256）。
+详见 [ai-tuning-playbook.md §7.12](ai-tuning-playbook.md#712-ai-不扩张其实是计划节点用完了)。
+
 ### 建造速度太快，玩家也受影响
 
 `BuildSpeed` 是全局键。想只让 AI 快，需要改引擎或给 AI 单独的建造队列，
