@@ -20,14 +20,14 @@ import shutil
 # --------------------------------------------------------------- rules edits
 # key: (retail value, mod value)
 RULES_EDITS = {
-    "TeamDelays": ("2000,2500,3500", "45,60,90"),
+    "TeamDelays": ("2000,2500,3500", "300,450,600"),
     "MultiplayerAICM": ("400,0,0", "100000,100000,100000"),
     "BuildSpeed": (".7", ".025"),
     "AlliedBaseDefenseCounts": ("25,20,6", "100,100,100"),
     "SovietBaseDefenseCounts": ("25,22,6", "100,100,100"),
     "ThirdBaseDefenseCounts": ("25,22,6", "100,100,100"),
     "Paranoid": ("yes", "no"),
-    "TotalAITeamCap": ("30,30,30", "45,45,45"),
+    "TotalAITeamCap": ("30,30,30", "10,10,10"),
     "MaximumAIDefensiveTeams": ("2,2,2", "0,0,0"),
     "MinimumAIDefensiveTeams": ("1,1,1", "0,0,0"),
     "UseMinDefenseRule": ("yes", "no"),
@@ -69,7 +69,7 @@ ATTACK_SCRIPT_BODY = [
     "",
 ]
 
-MAX_ENTRY, MAX_TOTAL, MULTIPLIER = 16, 40, 2
+MAX_ENTRY, MAX_TOTAL, MULTIPLIER = 16, 40, 1
 
 
 def apply_rules_edits(lines):
