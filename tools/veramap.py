@@ -178,6 +178,83 @@ def set_waypoint(text: str, index: int, packed: int) -> str:
     return text[:header_end] + new_body + text[end:]
 
 
+# ------------------------------------------------------------- playfield
+def map_size(text: str):
+    """Return (width, height) from ``[Map] Size=``."""
+    m = re.search(
+        r"(?mi)^Size=\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)",
+        text,
+    )
+    if not m:
+        raise ValueError("missing Size=")
+    return int(m.group(3)), int(m.group(4))
+
+
+def playfield_bounds(text: str):
+    """Mirror ``PlayfieldBounds::from_map_header``: (W, H, left, top, span_x, span_y).
+
+    The playfield is the diamond ``MapClass::IsCellInPlayfield`` accepts, not
+    the ``LocalSize`` rectangle: the bottom-left corner of that rectangle is
+    outside it.  Units seed and buildings deploy only inside the diamond.
+    """
+    width, height = map_size(text)
+    left, top, local_w, local_h = local_size(text)
+    left = max(left, 0)
+    top = max(top, 0)
+    local_w = min(local_w, width - left)
+    local_h = min(local_h, height - top)
+    left = max(left, 2)
+    top = max(top, 2)
+    return (width, height, left, top,
+            min(local_w, width - left - 2), min(local_h, height - top - 6))
+
+
+def in_playfield(bounds, x: int, y: int, level: int = 4, margin: int = 0) -> bool:
+    """``IsCellInPlayfield`` at one cell; ``margin`` shrinks it for clearance.
+
+    Cell coordinates live in the map's diamond, so they run past ``Size=``:
+    a 250x250 map addresses cells up to roughly ``(250+2*250)`` on either axis.
+    """
+    width, height, left, top, span_x, span_y = bounds
+    total = x + y
+    difference = x - y
+    low = width + top * 2 + level
+    high = width + 2 + (span_y + top) * 2 + level
+    right = (span_x + left) * 2 - width
+    left_limit = width - left * 2
+    return (low + margin) < total <= (high - margin) \
+        and difference < (right - margin) \
+        and -difference < (left_limit - margin)
+
+
+def deploy_cell(text: str, deploy: int = 4, margin: int = 2, rim: int = 2,
+                level: int = 4):
+    """Bottom-left cell where a ``deploy``x``deploy`` building fits.
+
+    A deployed yard lands at ``cell - (1, 1)`` (``deploy_origin_from_unit_cell``),
+    so every cell of that footprint must pass ``in_playfield``; ``margin``
+    additionally shrinks the search block for clearance and ``rim`` keeps the
+    footprint off the map's last rows.  The winner is the cell furthest to the
+    bottom-left of the screen: smallest ``x - y``, then largest ``x + y``.
+    """
+    bounds = playfield_bounds(text)
+    width, height = bounds[0], bounds[1]
+    reach = width + 2 * height
+    span = deploy + 2 * margin
+    best = None
+    for y in range(2, height - 3 - rim):
+        for x in range(2, reach):
+            origin = (x - 1 - margin, y - 1 - margin)
+            if all(in_playfield(bounds, origin[0] + i, origin[1] + j, level, 0)
+                   for i in range(span) for j in range(span)):
+                key = (x - y, -(x + y))
+                if best is None or key < best[0]:
+                    best = (key, x, y)
+    if best is None:
+        raise ValueError("no deployable corner cell")
+    return best[1], best[2]
+
+
 # --------------------------------------------------------------- terrain
 def decode_terrain(text: str):
     """Decode [IsoMapPack5] into a list of [x, y, tile, sub, z, legacy]."""

@@ -72,9 +72,10 @@ def cmd_flat(args):
     if args.move_player_corner or args.player_inside:
         left, top, width, height = vm.local_size(text)
         if args.player_inside:
-            # Stay inside the playfield so the 3x3 MCV can deploy on the spot.
-            margin = args.player_inside
-            x, y = left + margin, top + height - margin
+            # The playfield is a diamond, not the LocalSize rectangle: the
+            # bottom-left corner of the rectangle cannot hold a 4x4 yard, and a
+            # unit seeded there is ring-placed elsewhere (out of the curtain).
+            x, y = vm.deploy_cell(text, margin=args.player_inside)
         else:
             x, y = left, top + height + args.corner_gap
         packed = vm.pack_cell(x, y)
@@ -181,7 +182,8 @@ def main():
     flat.add_argument("--move-player-corner", action="store_true",
                       help="move waypoint 0 below the playfield (spectator slot)")
     flat.add_argument("--player-inside", type=int, metavar="N", default=0,
-                      help="place waypoint 0 N cells inside the bottom-left corner")
+                      help="put waypoint 0 on the bottom-left cell where a 4x4 yard "
+                           "fits, N cells clear of the playfield edge")
     flat.add_argument("--corner-gap", type=int, default=3,
                       help="cells between playfield bottom and the player start")
     flat.set_defaults(func=cmd_flat)
