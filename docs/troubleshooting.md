@@ -64,17 +64,55 @@ python tools/build_maps.py info --src maps/SuperAI-IceLake-1v7-NoOre.yrm
 
 ### AI 不铺建筑 / 只造电厂
 
-- 难度必须是冷酷/困难；`TeamDelays` 与防御队设置都按难度分档。
-- 检查 `AIBuildCounts` 是否被其他模组覆盖。
-- 如果基地在约 70 栋时停下，检查 `AIBaseSpacing` 是否被改成 2。
-- 如果只造某一种建筑，可能是把 `AIBuildCounts` 调得过高（例如 250），
-  建造顺序会偏科；回到 60。
+先分清是「计划里没有」还是「计划里有但没落地」。用日志判，不要靠眼看：
+
+```bash
+python tools/analyze_log.py --log "F:/Games/VERA20K/logs/ra2.log" --session last
+```
+
+- **战车工厂/高科/维修厂首次出现的序号很靠后**（闸门是 ≤25%）：
+  `AIBuildCounts` 给早期类型的分太高，副本被随机撒到整张计划里，把后期建筑挤到队尾。
+  见 [ai-tuning-playbook.md §1.2](ai-tuning-playbook.md#12-铁律-2aibuildcounts-是随机撒点不是前置倍数)。
+- **某种建筑一次都没出现**：先查它的 `AIBuildThis`。原版把不少类型设成 `no`，
+  那它们永远进不了计划，和钱、科技等级无关。
+- **防御数量远少于计划数**：正常。防御节点找不到前置已满足的类型时会被**直接删除**，
+  不是延后；围墙也会抢走防御抽签。看日志里的实际落地数。
+- **只改 `[AI]` 里的 `WarRatio` / `DefenseLimit` / `RefineryLimit` 没反应**：那些是死键，
+  引擎根本没有读取者。完整清单见
+  [ai-tuning-playbook.md §1.5](ai-tuning-playbook.md#15-死键清单)。
+- **基地在约 70 栋时停下**：检查 `AIBaseSpacing` 是否被改成 2。
+- **同一格反复放同一个建筑**：只有 Yuri 的矿场会这样，原因见
+  [ai-tuning-playbook.md §4](ai-tuning-playbook.md#4-yuri-的矿场为什么自己复制自己)。
 
 ### AI 不造基地车 / 不扩张
 
-VERA 的 AI 没有「生产 MCV 并展开」的决策路径，这是引擎限制。
-模组保留 3 支 MCV 队伍的原版部署脚本，AI 有 MCV 时会去展开，
-但它不会主动为了扩张而生产 MCV。
+**先说结论：引擎有这样的路径，2.2 起这条路径已经打通。**
+数据里备好了 3 条「本户拥有 0 座建造厂」的 AI 触发器和 3 支 `Max=1` 的 MCV 队伍
+（脚本 `043F23CC-G` = 找空地 + 展开）；真正把它堵死的是原版给三个维修厂标了
+`AIBuildThis=no`，而基地车的前置正好是维修厂：
+
+```ini
+AMCV Prerequisite=GAWEAP,GADEPT
+SMCV Prerequisite=NAWEAP,NADEPT
+PCV  Prerequisite=YAWEAP,YAGRND
+```
+
+模组把 `GADEPT`/`NADEPT`/`YADEPT` 改成 `AIBuildThis=yes`，AI 才可能造出维修厂、进而造出基地车。
+
+如果仍然看不到扩张，按顺序排查：
+
+1. **维修厂有没有落地**：`analyze_log.py` 会在末尾列出「没有维修厂的房主」。
+   一个都没有的话，先解决维修厂（前置是战车工厂 + 建造厂）。
+2. **AI 有没有战车工厂**：产 MCV 需要在线战车工厂；被拆光就无解。
+3. **MCV 是不是展开了但被拒**：日志里搜 `MCV deploy blocked at origin`
+   （`world_spawn.rs` 的 `deploy_mcv` 在 `can_place_building_at` 失败时打印）。
+   一局出现几十次很正常——基地太挤，4×4 空地不够。这跟「不造 MCV」是两个问题。
+4. **建造厂被拆后 AI 是不是完全不动**：没有建造厂就不能造任何建筑，
+   这时唯一的活路就是战车工厂产 MCV。第 1、2 步任一不满足，这一局就结束了。
+
+> 不要为了让 MCV 触发器「更优先」把权重调到 5000：在这个引擎里那是「接管抽签」的标记，
+> 会把其它所有触发器清掉，结果是这支 AI 完全不进攻。见
+> [ai-tuning-playbook.md §5](ai-tuning-playbook.md#5-触发器权重-5000-是接管标记不是加强)。
 
 ### 建造速度太快，玩家也受影响
 
@@ -119,6 +157,26 @@ VERA 的 AI 没有「生产 MCV 并展开」的决策路径，这是引擎限制
 - 观战席位只在 LAN/在线房间生效；本地遭遇战用地图触发器方案。
 
 ## 工具
+
+### `UnicodeDecodeError: 'gbk' codec can't decode byte ...`
+
+Windows 控制台默认 cp936，而引擎和 `ra2.log` 都是 UTF-8。`tools/check.py` 与
+`tools/analyze_log.py` 已显式指定 UTF-8；自己写脚本时也要显式指定
+（`subprocess.run(..., encoding="utf-8", errors="replace")`、
+`open(..., encoding="utf-8", errors="replace")`），不要依赖 `text=True`。
+
+### 日志里同一个 `Computer1` 一会儿造 Yuri 建筑、一会儿造苏军建筑
+
+`vera20k.exe` 追加写同一个 `ra2.log`，重开一局不会重启进程。一次启动里可能有多场对局，
+第二场以 `sim::runtime] Initialized authored native` 开始。切分必须两级：
+先按 `VERA20k <版本> starting` 切启动，再按上面那行切对局。
+`analyze_log.py` 已经这样做，并会打印 `session N, match M`。
+
+### 日志里没有 `Completed refinery YAREFN`，是不是 Yuri 矿场建不起来
+
+不是。那行日志属于「矿场完成时送一台矿车」的路径，只有带 `Refinery=yes`/`FreeUnit=`
+的类型才有（GAREFN、NAREFN）。YAREFN 是建筑变形体，没有这段。
+判断 Yuri 矿场有没有落地，看 `placed YAREFN at (x, y)`。
 
 ### `ModuleNotFoundError: lzokay`
 

@@ -23,14 +23,50 @@ RULES_EDITS = {
     "TeamDelays": ("2000,2500,3500", "300,450,600"),
     "MultiplayerAICM": ("400,0,0", "100000,100000,100000"),
     "BuildSpeed": (".7", ".025"),
-    "AlliedBaseDefenseCounts": ("25,20,6", "100,100,100"),
-    "SovietBaseDefenseCounts": ("25,22,6", "100,100,100"),
-    "ThirdBaseDefenseCounts": ("25,22,6", "100,100,100"),
+    # 40 planned base defences per side.  The plan holds this many "-1"
+    # (defence) nodes; `choose_building` turns each into a real gun when the
+    # house already owns the gun's prerequisites and *deletes* the node
+    # otherwise, so early nodes are spent, not postponed.  Retail is 25/20/6.
+    "AlliedBaseDefenseCounts": ("25,20,6", "40,40,40"),
+    "SovietBaseDefenseCounts": ("25,22,6", "40,40,40"),
+    "ThirdBaseDefenseCounts": ("25,22,6", "40,40,40"),
+    # Retail turns half the defence draws into walls, and every wall segment is
+    # a plan node taken from the defence budget (ProtectWithWall= buildings get
+    # a ring each).  Measured before this change: 92 GAWALL vs 63 real defences
+    # in one Allied base.  10% keeps the ring as an accent.
+    "AIPickWallDefensePercent": ("50,25,10", "10,10,10"),
+    # Retail refineries duplicate themselves (`AIExtraRefineries=2,1,0`, see
+    # `recalc_base_plan`) *on top of* Ares `AIBuildCounts`.  Yuri's 2x2
+    # YAREFN, four copies, plus two random extra insertions, filled 56% of one
+    # base plan.  `AIBuildCounts` now covers the count; the duplicate pass is
+    # what made refineries swamp everything after them.
+    "AIExtraRefineries": ("2,1,0", "0,0,0"),
+    # Yuri is a separate problem in two places, and this one key drives both:
+    #
+    # * `recalc_base_plan` duplicates the refinery `AISlaveMinerNumber - 1`
+    #   times when the country owns NO harvester -- and YuriCountry owns
+    #   neither HARV nor CMIN.  Retail 4 on hard therefore inserted 3 extra
+    #   YAREFNs at random plan positions.  (For Allied/Soviet the same slot is
+    #   `AIExtraRefineries`, which is why setting that alone did not help Yuri.)
+    # * `node_may_replan` lets a resource-gathering building replan its node as
+    #   soon as it is lost, with NO `AIRestrictReplaceTime` wait, for as long as
+    #   the house holds fewer than `AISlaveMinerNumber` gatherers.  YAREFN is
+    #   the game's only `ResourceGatherer=yes` building, so in a fight Yuri
+    #   rebuilds a dying refinery on the same cell forever -- measured: 8
+    #   placements on (817,554) in 11 seconds.
+    #
+    # 2 makes the gate satisfiable (2 refineries, not 4) and halves the
+    # duplication.  The slaves (SLAV) are `Slaved=yes`, not `ResourceGatherer=`,
+    # so they never count towards it.
+    "AISlaveMinerNumber": ("4,3,2", "2,2,2"),
     "Paranoid": ("yes", "no"),
     "TotalAITeamCap": ("30,30,30", "10,10,10"),
-    "MaximumAIDefensiveTeams": ("2,2,2", "0,0,0"),
-    "MinimumAIDefensiveTeams": ("1,1,1", "0,0,0"),
-    "UseMinDefenseRule": ("yes", "no"),
+    # One defensive team, not zero.  With zero, a house under attack keeps
+    # throwing every unit into attack teams and never garrisons; the defence
+    # team occupies one of the ten slots.
+    "MaximumAIDefensiveTeams": ("2,2,2", "1,1,1"),
+    "MinimumAIDefensiveTeams": ("1,1,1", "1,1,1"),
+    "UseMinDefenseRule": ("yes", "yes"),
     "AIHateDelays": ("30,50,70", "8,12,18"),
     "AIBaseSpacing": ("1", "1"),
     "AIRestrictReplaceTime": ("400", "120"),
@@ -39,15 +75,61 @@ RULES_EDITS = {
     "DissolveUnfilledTeamDelay": ("5000", "900"),
 }
 
+#: Per-section key rewrites, applied inside the named section only.
+#:
+#: The three repair depots ship `AIBuildThis=no` and the base-plan generator
+#: (`recalc_candidate_allowed`) only ever admits a type whose `AIBuildThis` is
+#: yes -- so retail ships the *entire* MCV recovery chain unreachable:
+#:
+#:   AMCV Prerequisite=GAWEAP,GADEPT   SMCV ...=NAWEAP,NADEPT
+#:   PCV  Prerequisite=YAWEAP,YAGRND
+#:
+#: plus three "this house owns zero construction yards" AI triggers and three
+#: MCV team types (`Max=1`, script `043F23CC-G` = move somewhere clear and
+#: deploy).  With the depots enabled the chain works; without them the AI can
+#: never satisfy the MCV prerequisite no matter how much money it has.
+SECTION_KEY_EDITS = {
+    "GADEPT": {"AIBuildThis": "yes"},
+    "NADEPT": {"AIBuildThis": "yes"},
+    "YADEPT": {"AIBuildThis": "yes"},
+}
+
+#: Comment written beside a rewritten key, replacing the retail one.  Retail's
+#: note on these lines reads "taken out to remove useless building - DB",
+#: which is exactly the trap this mod is fixing: leaving it in place makes the
+#: next reader think the value is still ``no``.
+SECTION_KEY_COMMENTS = {
+    "AIBuildThis": ";SuperAI: enabled so the AI can build its MCV (see docs/ai-tuning-playbook.md)",
+}
+
 #: Ares AIBuildCounts per building type (planned copies per computer base).
+#:
+#: Ares ``AIBuildCounts`` = how many nodes of that type the base plan holds.
+#: Read carefully what the engine does with them, because it is not what the
+#: name suggests (``base_plan_generation.rs``, Ares
+#: ``HouseClass_GenerateAIBuildList_CountExtra``): for each type, past the
+#: construction yard, its FIRST node spawns ``count - 1`` copies, each at a
+#: RANDOM position from that node to the end of the plan.  A high count is
+#: therefore not "build six power plants first" but "scatter five more power
+#: plants across the rest of the plan", pushing the war factory, radar, tech
+#: centre and repair depot towards the tail.  Retail Ares defaults are 1.
+#:
+#: History: a flat 60 (the 1.x setting) produced 403 power plants and 12 war
+#: factories, because power is the first type in the list and inherited the
+#: largest share of the scatter.  Keep the EARLY types small and the LATE
+#: types at their real base count -- the ordering information is what gets
+#: destroyed by high counts, not the totals.
 BUILD_COUNTS = {
-    "GAPOWR": 60, "NAPOWR": 60, "YAPOWR": 60,
-    "GAREFN": 60, "NAREFN": 60, "YAREFN": 60,
-    "GAPILE": 60, "NAHAND": 60, "YABRCK": 60,
-    "GAWEAP": 60, "NAWEAP": 60, "YAWEAP": 60,
-    "GATECH": 40, "NATECH": 40, "YATECH": 40,
-    "GAAIRC": 20, "NARADR": 40, "AMRADR": 40, "NAPSIS": 20,
-    "GADEPT": 30, "NADEPT": 30,
+    "GAPOWR": 3, "NAPOWR": 3, "YAPOWR": 3,
+    "GAREFN": 2, "NAREFN": 2, "YAREFN": 2,
+    "GAPILE": 2, "NAHAND": 2, "YABRCK": 2,
+    "GAWEAP": 3, "NAWEAP": 3, "YAWEAP": 3,
+    "GATECH": 2, "NATECH": 2, "YATECH": 2,
+    "GAAIRC": 1, "NARADR": 1, "AMRADR": 1, "NAPSIS": 1,
+    # Now that the depots are in the plan, they must actually be scheduled.
+    "GADEPT": 2, "NADEPT": 2, "YADEPT": 1,
+    # PCV's prerequisite is YAWEAP,YAGRND (YADEPT is commented out retail).
+    "YAGRND": 1,
 }
 
 CONSTRUCTION_YARDS = ("GACNST", "NACNST", "YACNST")
@@ -96,11 +178,47 @@ def insert_after_section_header(lines, section, text):
     raise SystemExit("section [%s] not found" % section)
 
 
+def apply_section_key_edits(lines):
+    """Rewrite keys inside named sections, keeping each line's comment.
+
+    Unlike :data:`RULES_EDITS` these keys are not unique in the file (every
+    building has an ``AIBuildThis=``), so the section has to be tracked while
+    scanning.  A section whose key does not exist is an error: it means the
+    retail file is not the one this script was written against.
+    """
+    remaining = {name: dict(edits) for name, edits in SECTION_KEY_EDITS.items()}
+    section = None
+    for i, line in enumerate(lines):
+        header = re.match(r"^\[([^\]]+)\]\s*$", line)
+        if header:
+            section = header.group(1).strip()
+            continue
+        if section not in remaining:
+            continue
+        m = re.match(r"^([A-Za-z]+)=(.*?)(\s*;.*)?(\r?\n)?$", line)
+        if not m or m.group(1) not in remaining[section]:
+            continue
+        key = m.group(1)
+        comment = SECTION_KEY_COMMENTS.get(key, m.group(3) or "")
+        if comment and not comment[0].isspace():
+            comment = " " + comment
+        lines[i] = key + "=" + remaining[section].pop(key) + comment \
+            + (m.group(4) or "")
+        if not remaining[section]:
+            del remaining[section]
+    if remaining:
+        raise SystemExit(
+            "section keys not replaced: "
+            + ", ".join("[%s] %s" % (s, ", ".join(sorted(k)))
+                        for s, k in sorted(remaining.items())))
+
+
 def build_rules(source_dir, out_dir):
     text = open(os.path.join(source_dir, "rulesmd.ini"), "rb").read().decode("latin-1")
     lines = text.splitlines(keepends=True)
 
     apply_rules_edits(lines)
+    apply_section_key_edits(lines)
 
     # Deployed construction yards reveal the map: no power, no radar needed.
     for yard in CONSTRUCTION_YARDS:
@@ -301,8 +419,59 @@ def build_aimd(source_dir, out_dir):
         doc.lines[i] = key + "=" + ",".join(tokens) + eol
         boosted += 1
 
+    # Base recovery.  The stock "this house owns zero Construction Yards"
+    # triggers (condition 1 with GACNST/NACNST/YACNST) rebuild an MCV, but
+    # retail enables them on hard only (`0,0,1`) and weights them 70/60/70,
+    # while our 67 attack triggers now sit at 250 -- so a crippled computer
+    # would keep drawing attack teams it cannot fill instead of restarting.
+    # Put them on every difficulty at the same 250 the attack triggers use.
+    #
+    # Do NOT raise them to 5000.  In `ai_team_creation.rs` PRIORITY_WEIGHT is
+    # 5000 and it is a *takeover* marker, not a boost: the first eligible
+    # 5000-weight trigger clears every other trigger out of the draw, so one
+    # unfillable MCV team would stop that house from ever creating another
+    # team until DissolveUnfilledTeamDelay expired -- forever, since the team
+    # cannot be filled while the depot is missing.
+    recovered = 0
+    start, end = doc.bounds("AITriggerTypes")
+    for i in range(start, end):
+        line = doc.lines[i]
+        if "=" not in line or line.lstrip().startswith(";"):
+            continue
+        key, value = line.split("=", 1)
+        tokens = value.rstrip("\r\n").split(",")
+        if len(tokens) != 18 or "MCV" not in tokens[0].upper():
+            continue
+        eol = line[len(line.rstrip("\r\n")):]
+        tokens[7], tokens[8], tokens[9] = "250.000000", "250.000000", "250.000000"
+        tokens[15], tokens[16], tokens[17] = "1", "1", "1"
+        doc.lines[i] = key + "=" + ",".join(tokens) + eol
+        recovered += 1
+
+    # Guard: PRIORITY_WEIGHT (5000) means "this trigger wins outright" -- the
+    # first eligible 5000-weight trigger clears every other trigger out of the
+    # draw (`ai_team_creation.rs`).  Retail uses it on purpose for
+    # superweapon/spy-guard triggers, whose condition passes only in a narrow
+    # situation.  It is a bug on a team that cannot be filled: the house would
+    # then create nothing at all until DissolveUnfilledTeamDelay expired, and
+    # an MCV team is exactly that while the depot is missing.  So the guard is
+    # aimed at the recovery triggers only.
+    start, end = doc.bounds("AITriggerTypes")
+    for i in range(start, end):
+        line = doc.lines[i]
+        if "=" not in line or line.lstrip().startswith(";"):
+            continue
+        tokens = line.split("=", 1)[1].rstrip("\r\n").split(",")
+        if len(tokens) != 18 or "MCV" not in tokens[0].upper():
+            continue
+        if any(float(tokens[n] or 0) >= 5000 for n in (7, 8, 9)):
+            raise SystemExit(
+                "MCV recovery trigger %s carries the 5000 priority weight; an "
+                "unfillable team at that weight starves every other trigger"
+                % line.split("=", 1)[0])
+
     open(os.path.join(out_dir, "aimd.ini"), "wb").write(doc.text().encode("latin-1"))
-    return len(attack), switched, scaled, boosted, len(shared)
+    return len(attack), switched, scaled, boosted, recovered, len(shared)
 
 
 def main():
@@ -320,7 +489,7 @@ def main():
 
     os.makedirs(args.out, exist_ok=True)
     buildings = build_rules(args.rules_dir, args.out)
-    teams, switched, scaled, boosted, shared = build_aimd(args.rules_dir, args.out)
+    teams, switched, scaled, boosted, recovered, shared = build_aimd(args.rules_dir, args.out)
     if not args.no_art:
         source = os.path.join(args.rules_dir, "artmd.ini")
         if not os.path.isfile(source):
@@ -329,8 +498,9 @@ def main():
 
     print("rules: AIBuildCounts on %d building types" % buildings)
     print("aimd : %d attack teams, %d charged, %d task forces rescaled, "
-          "%d triggers boosted (%d shared task forces skipped)"
-          % (teams, switched, scaled, boosted, shared))
+          "%d triggers boosted, %d MCV triggers re-armed "
+          "(%d shared task forces skipped)"
+          % (teams, switched, scaled, boosted, recovered, shared))
     print("output:", os.path.abspath(args.out))
 
 

@@ -1,6 +1,6 @@
 # Super AI for VERA20k
 
-把《红色警戒 2：尤里的复仇》遭遇战里的电脑，变成一个**会铺满地图、全员冲锋、永不囤兵**的对手；
+把《红色警戒 2：尤里的复仇》遭遇战里的电脑，变成一个**会铺满地图、几乎全员冲锋、永不囤兵**的对手；
 再附上一套专门为「看 AI 打 AI」设计的纯平地图。
 
 本项目面向 [VERA20k](https://github.com/YuriPlanet/vera20k)（YR 的开源重制引擎），
@@ -10,11 +10,14 @@
 - **SuperAI 地图包**：5 张地图，从 1v7 观战图到 30 人 / 120 人超大混战图。
 
 > English summary: a fan-made mod + spectator map pack for VERA20k. It gives the
-> skirmish AI x1001 starting credits, ~28x build speed, 60 planned copies of each
-> production building, 100 base defences, doubled attack task forces, and a custom
-> team script that skips the retail "regroup at base" steps. Maps are uniform flat
-> stages with map triggers for full-map reveal, a permanent Iron Curtain on the
-> spectator slot, and a periodic All-to-Hunt sweep.
+> skirmish AI x1001 starting credits, an aggressive global build speed, a graded
+> per-type building plan (3 power plants, 2 refineries, 2 barracks, 3 war factories,
+> 2 battle labs, 1 radar/airfield, 2 repair depots — 1 for Yuri), 40 base defences
+> per house, a 10-team cap with retail-sized task forces, and a custom team script
+> that skips the retail "regroup at base" steps. Repair depots are now AI-buildable,
+> which is what finally lets the AI rebuild a lost MCV. Maps are uniform flat stages
+> with map triggers for full-map reveal, a permanent Iron Curtain on the spectator
+> slot, and a periodic All-to-Hunt sweep.
 
 ![Super AI Flat 200](previews/flat200.png)
 
@@ -25,9 +28,13 @@
 | 项 | 原版 | SuperAI |
 | --- | --- | --- |
 | AI 开局资金 | `MultiplayerAICM=400,0,0` | **×1001**（按当前资金追加 1000 倍；10 万开局 → 约 1 亿） |
-| 全局建造速度 | `BuildSpeed=.7` | **`.025`（约 28 倍，玩家同样生效）** |
-| 建筑规划 | 每种 1 个 | **Ares `AIBuildCounts`：电厂/矿场/兵营/战车工厂各 60** |
-| 基地防御 | 25 | **100** |
+| 全局建造速度 | `BuildSpeed=.7` | **`.025`（玩家同样生效）**<br>注：该键的读取路径未在引擎抽取源码中确认，见 [playbook §1.5](docs/ai-tuning-playbook.md#15-死键清单) |
+| 建筑规划 | 每种 1 个 | **`AIBuildCounts` 按类型分级**：电厂 3、矿场 2、兵营 2、战车工厂 3、高科 2、雷达 1、维修厂 2（苏/盟）/ 1（尤里）、回收厂 1 |
+| 基地防御 | 25 / 20 / 6 | **`*BaseDefenseCounts=40,40,40`** |
+| 围墙占防御 | 50 / 25 / 10 | **`AIPickWallDefensePercent=10,10,10`**（围墙不再挤掉防御名额） |
+| 额外矿场 | 2 / 1 / 0 | **`AIExtraRefineries=0,0,0`** |
+| 奴隶矿工 | 4 / 3 / 2 | **`AISlaveMinerNumber=2,2,2`**（尤里：矿场复制数，也决定 `YAREFN` 能否就地重建） |
+| 维修厂 | `AIBuildThis=no` | **`yes`**（`GADEPT`/`NADEPT`/`YADEPT`，AI 因此能造基地车） |
 | 矿场收入 | 无 | **每 4 秒 +100**（无矿地图也能运转） |
 | 建造厂 | 无雷达 | **`SpySat=yes`**（展开即全图，不耗电） |
 
@@ -37,10 +44,10 @@
 | --- | --- | --- |
 | 组队间隔 `TeamDelays` | 2000/2500/3500 帧 | **300/450/600 帧（20/30/40 秒）** |
 | 同时队伍上限 | 30 | **10**（每户） |
-| 进攻队编制 | 基准 | **原版规模**（不再 ×2，苏联装甲 7、天启 4、盟军超硬 13） |
-| 进攻触发器权重 | 70 / 下限 10 | **250 / 下限 150，三难度全开** |
-| 集结行为 | 先回基地、再到敌方基地外集结 | **不集结，出生即冲锋**（160 支队伍） |
-| 守家队伍 | 2 支 | **0 支** |
+| 进攻队编制 | 基准 | **原版规模**（65 支作战队伍，不再 ×2；苏联装甲 7、天启 4、盟军超硬 13） |
+| 进攻触发器权重 | 70 / 下限 10 | **67 个进攻触发器 250 / 下限 150，三难度全开** |
+| 集结行为 | 先回基地、再到敌方基地外集结 | **不集结，出生即冲锋**（160 支队伍改用 `ZAIATK01-G`；3 支 MCV 队伍保留原版 `043F23CC-G` 移动并展开） |
+| 守家队伍 | 2 支 | **1 支**（`UseMinDefenseRule=yes`） |
 | 中后期囤兵 | 无处理 | **地图触发器每 20 秒 All to Hunt** |
 
 ### 地图
@@ -92,10 +99,14 @@ VERA20K-SuperAI/
 │   ├── veramap.py         # 地图 INI + IsoMapPack5 读写库
 │   ├── install.py         # 安装到 VERA20k
 │   ├── check.py           # 无窗口加载校验
+│   ├── analyze_log.py     # 从 ra2.log 统计 AI 实际建成了什么
 │   └── sed/               # 随机地图生成参数
-├── docs/                  # 安装、观战、AI 设计、地图格式、排障、构建
+├── docs/                  # 安装、观战、AI 设计、AI 调参、地图格式、排障、构建
 └── previews/              # 地图预览
 ```
+
+AI 设计取舍见 [docs/ai-design.md](docs/ai-design.md)，每个键该调到哪、怎么用日志验收见
+[docs/ai-tuning-playbook.md](docs/ai-tuning-playbook.md)。
 
 ## 已验证
 
@@ -110,14 +121,22 @@ VERA20K-SuperAI/
 
 重建与校验命令见 [docs/build.md](docs/build.md)。
 
+表中 1029 栋 / 320 防御 / 每种 60 这类数字来自 2.2 之前的配置，只作历史记录；
+2.2 把 `AIBuildCounts` 改成按类型分级后，它们不再代表当前配置。
+
 ## 已知限制
 
-这些不是配置能解决的，写在这里避免误解：
+这些是配置解决不了、或者必须满足前置条件的边界，写在这里避免误解：
 
 - **每个 AI 的基地约 100 栋就停**。原因是基地选址的可用周长用完，属于引擎机制；
   换更大的图、减少 AI 数量可以缓解。
-- **AI 不会主动造基地车扩张**。VERA 的 `AI_Choose_Building` 只按已有建造厂选建筑，
-  没有「生产 MCV → 找地方展开」的代码路径；地图预置给 AI 的建造厂也会被引擎跳过。
+- **AI 造基地车是有前提的**。引擎本来就有这条路：3 个「自己 0 座建造厂」的触发器
+  （三难度权重 250）拉起 3 支 MCV 队伍，走原版 `043F23CC-G` 移动并展开脚本。
+  真正把它堵死的是零售给维修厂的 `AIBuildThis=no`——AI 造不出 `GADEPT` / `NADEPT` / `YADEPT`，
+  而 `AMCV` 需要 `GAWEAP`+`GADEPT`、`SMCV` 需要 `NAWEAP`+`NADEPT`、`PCV` 需要 `YAWEAP`+`YAGRND`，
+  所以以前 AI 再富也造不出 MCV，建造厂被拆掉就是永久损失；本版把三个维修厂改为可建。
+  剩下的真实限制：AI 手里得同时有可用的战车工厂和维修厂，MCV 还要找到干净的 4×4 空地
+  才展得开，日志里的 `MCV deploy blocked at origin` 记的就是这些失败。
 - **引擎的类型注册表沿用原版数量**（`[VehicleTypes]` 85 项），新增单位类型不会生效，
   所以本项目不新增单位，只改既有数据。
 - **建造速度是全局的**，玩家也会变快。

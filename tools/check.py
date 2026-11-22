@@ -28,9 +28,14 @@ def ra2_dir(game_dir):
 
 
 def probe(game_dir, args):
+    # The probe prints UTF-8 JSON, and a mod's About/Name may hold non-ASCII
+    # text (this mod's title is "超级AI").  ``text=True`` alone decodes with the
+    # console code page (cp936/GBK on a Chinese Windows) and raises
+    # UnicodeDecodeError on that JSON, so name the encoding explicitly.
     result = subprocess.run(
         [os.path.join(game_dir, "vera20k.exe"), "--probe"] + args,
-        cwd=game_dir, capture_output=True, text=True, timeout=300,
+        cwd=game_dir, capture_output=True, encoding="utf-8",
+        errors="replace", timeout=300,
     )
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or result.stdout.strip())
@@ -38,6 +43,13 @@ def probe(game_dir, args):
 
 
 def main():
+    # A Chinese Windows console defaults to cp936 and raises UnicodeEncodeError
+    # on the mod's own title; write UTF-8 and let an unrenderable glyph become
+    # "?" instead of killing the report.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError):
+        pass
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--game-dir", required=True)
     parser.add_argument("--maps", default=os.path.join(ROOT, "maps"))
