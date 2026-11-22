@@ -440,6 +440,12 @@ def build_aimd(source_dir, out_dir):
                 doc.replace_value(fields["script"][1], "Script", MCV_DEPLOY_SCRIPT)
             if "aggressive" in fields:
                 doc.replace_value(fields["aggressive"][1], "Aggressive", "no")
+            # Two MCVs may be in flight at once, so the expansion triggers can
+            # put up a second base while the first is still driving to its
+            # spot.  `at_max_teams` blocks at `teams >= Max` per house, so the
+            # retail 1 meant one MCV at a time, ever.
+            if "max" in fields:
+                doc.replace_value(fields["max"][1], "Max", "2")
             continue
         if "script" in fields:
             doc.replace_value(fields["script"][1], "Script", ATTACK_SCRIPT)
@@ -483,6 +489,63 @@ def build_aimd(source_dir, out_dir):
         tokens[15], tokens[16], tokens[17] = "1", "1", "1"
         doc.lines[i] = key + "=" + ",".join(tokens) + eol
         recovered += 1
+
+    # EXPANSION triggers: keep (construction yards) at 3, so the base keeps
+    # spreading instead of sitting on the one yard the match starts with.
+    #
+    # An AI trigger can only compare the count of ONE object type
+    # (`owned_count_holds`), so "yards + MCVs < 3" cannot be written directly.
+    # The approximation: count the YARDS and require `< 3`, and cap the MCVs in
+    # flight with the team's `Max=2` (above).  The sum therefore converges:
+    # 1 yard -> build an MCV -> deploy -> 2 yards -> ... -> 3 yards, stop.
+    # A destroyed yard drops the count and the chain restarts, which is what
+    # keeps expansion alive for the whole match.
+    #
+    # Weight 5000 for the same reason as the recovery triggers: this has to
+    # happen NOW, not "some draw soon".  The visible cost is that a house below
+    # three yards stops forming attack teams while it expands (units already on
+    # the map keep fighting); the window is bounded by how fast two MCVs can be
+    # built and deployed, and the count self-clears at three.
+    #
+    # Comparison mask: 32 bytes, `compare` reads word(0) as the amount and
+    # word(4) as the operator (0 `<`, 1 `<=`, 2 `==`, 3 `>=`, 4 `>`, 5 `!=`).
+    # Retail's "owns zero" is amount 0 / op 2 -> `0000000002000000…`; this is
+    # amount 3 / op 0 -> `0300000000000000…`.
+    expansion_mask = "0300000000000000" + "0" * 48
+    expansion_ids = {"GACNST": "ZAIEXP01-G", "NACNST": "ZAIEXP02-G",
+                     "YACNST": "ZAIEXP03-G"}
+    expansion_names = {"GACNST": "Allied MCV - Expand",
+                       "NACNST": "Soviet MCV - Expand",
+                       "YACNST": "Yuri MCV - Expand"}
+    added = 0
+    start, end = doc.bounds("AITriggerTypes")
+    new_lines = []
+    for i in range(start, end):
+        line = doc.lines[i]
+        if "=" not in line or line.lstrip().startswith(";"):
+            continue
+        tokens = line.split("=", 1)[1].rstrip("\r\n").split(",")
+        if len(tokens) != 18 or "MCV" not in tokens[0].upper():
+            continue
+        yard = tokens[5].strip()
+        if yard not in expansion_ids:
+            continue
+        tokens[0] = expansion_names[yard]
+        tokens[6] = expansion_mask
+        tokens[7], tokens[8], tokens[9] = "5000.000000", "5000.000000", "5000.000000"
+        tokens[15], tokens[16], tokens[17] = "1", "1", "1"
+        new_lines.append(expansion_ids[yard] + "=" + ",".join(tokens) + "\r\n")
+        added += 1
+    if added != 3:
+        raise SystemExit(
+            "expected one MCV trigger per construction yard (GACNST/NACNST/"
+            "YACNST), matched %d" % added)
+    # Append inside the section, before whatever follows it.
+    start, end = doc.bounds("AITriggerTypes")
+    for offset, line in enumerate(new_lines):
+        doc.lines.insert(end + offset, line)
+    doc.reindex()
+    recovered += added
 
     open(os.path.join(out_dir, "aimd.ini"), "wb").write(doc.text().encode("latin-1"))
     return switched, recovered
@@ -530,6 +593,41 @@ def assert_mcv_recovery_fillable(rules_lines, aimd_lines):
             % (mcv_triggers, ", ".join(unbuildable)))
 
 
+def assert_mcv_triggers_well_formed(aimd_lines):
+    """The MCV trigger family must survive the INI reader intact.
+
+    ``AITriggerTypeClass::Read_INI`` needs exactly 18 comma-separated fields and
+    ``parse_ai_trigger_comparison`` needs a 64-character hex mask; anything else
+    is dropped **silently** at load time, which would look exactly like "the AI
+    never expands".  So verify the shape here, where a mistake is loud.
+    """
+    seen = set()
+    mcv = []
+    for line in aimd_lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith(";") or "=" not in stripped:
+            continue
+        key, value = stripped.split("=", 1)
+        tokens = value.split(",")
+        if len(tokens) != 18 or "MCV" not in tokens[0].upper():
+            continue
+        if key in seen:
+            raise SystemExit("duplicate AITriggerTypes id %s" % key)
+        seen.add(key)
+        mask = tokens[6]
+        if len(mask) != 64 or any(c not in "0123456789abcdefABCDEF" for c in mask):
+            raise SystemExit(
+                "trigger %s has a malformed comparison mask %r (needs 64 hex "
+                "chars; the reader drops the whole trigger otherwise)"
+                % (key, mask))
+        mcv.append((key, tokens[0].strip(), tokens[5].strip(), mask[:16]))
+    if len(mcv) != 6:
+        raise SystemExit(
+            "expected 6 MCV triggers (3 recovery + 3 expansion), found %d: %s"
+            % (len(mcv), ", ".join(entry[0] for entry in mcv)))
+    return mcv
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rules-dir", required=True,
@@ -556,6 +654,7 @@ def main():
         aimd_lines = handle.read().splitlines()
     assert_defense_gate_consistent(rules_lines, aimd_lines)
     assert_mcv_recovery_fillable(rules_lines, aimd_lines)
+    mcv_triggers = assert_mcv_triggers_well_formed(aimd_lines)
 
     if not args.no_art:
         source = os.path.join(args.rules_dir, "artmd.ini")
