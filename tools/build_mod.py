@@ -19,20 +19,35 @@ import shutil
 
 # --------------------------------------------------------------- rules edits
 # key: (retail value, mod value)
+#
+# Kept deliberately small.  The design is "vanilla three-difficulty AI + two
+# mechanisms", so everything that is not needed by one of those mechanisms
+# stays at its retail value:
+#
+#   1. ATTACK HARD  -- teams never regroup, every team charges, no team stays
+#      home (the team-type rewrite in build_aimd), map All-to-Hunt clears the
+#      base.  Needs only `TeamDelays` (retail 2000/2500/3500 = 33-58 s is far
+#      too slow to "send units out as soon as they exist").
+#   2. REBUILD ON LOSS -- a lost building's plan node is replanned immediately.
+#      `AIRestrictReplaceTime=0` is the whole mechanism: 0 means "never
+#      restrict", so an ordinary building is replannable the frame it dies,
+#      the same way power plants and armed buildings already are.
+#
+# Everything else (AIBuildCounts, the three *BaseDefenseCounts, AIHateDelays,
+# the trigger weight deltas) is gone on purpose: the three retail difficulties
+# decide the build rhythm, and expansion comes from mechanism 2, not from a
+# oversized plan.
 RULES_EDITS = {
     "TeamDelays": ("2000,2500,3500", "300,450,600"),
     "MultiplayerAICM": ("400,0,0", "100000,100000,100000"),
     "BuildSpeed": (".7", ".025"),
-    # 200 planned base defences per side.  Each "-1" node becomes a real gun
-    # when `choose_next_diversion`/`choose_next_production` can satisfy the
-    # gun's prerequisites (a node it cannot fill is DELETED, not postponed),
-    # and the site search runs along the base perimeter looking OUTWARD -- so
-    # these nodes are the strongest lever for a base that keeps extending as
-    # long as there is ground.  Retail is 25/20/6.  Capped at 256 by
-    # BASE_PLAN_INSERT_LIMIT.
-    "AlliedBaseDefenseCounts": ("25,20,6", "200,200,200"),
-    "SovietBaseDefenseCounts": ("25,22,6", "200,200,200"),
-    "ThirdBaseDefenseCounts": ("25,22,6", "200,200,200"),
+    # MECHANISM 2.  Retail 400 frames (~27 s) restricts replacement to walls,
+    # base defences and power only, right after a building was attacked.  0
+    # removes the restriction entirely: any lost building is replannable at
+    # once, which is what "被打掉就造" means.  See `node_may_replan` in
+    # ai_base_building.rs -- power plants and armed buildings were ALREADY
+    # immediate; 0 brings barracks/war factory/lab/depot into line.
+    "AIRestrictReplaceTime": ("400", "0"),
     # Retail turns half the defence draws into walls, and every wall segment is
     # a plan node taken from the defence budget (ProtectWithWall= buildings get
     # a ring each).  Measured before this change: 92 GAWALL vs 63 real defences
@@ -41,8 +56,7 @@ RULES_EDITS = {
     # Retail refineries duplicate themselves (`AIExtraRefineries=2,1,0`, see
     # `recalc_base_plan`) *on top of* Ares `AIBuildCounts`.  Yuri's 2x2
     # YAREFN, four copies, plus two random extra insertions, filled 56% of one
-    # base plan.  `AIBuildCounts` now covers the count; the duplicate pass is
-    # what made refineries swamp everything after them.
+    # base plan.
     "AIExtraRefineries": ("2,1,0", "0,0,0"),
     # Yuri is a separate problem in two places, and this one key drives both:
     #
@@ -56,13 +70,18 @@ RULES_EDITS = {
     #   the house holds fewer than `AISlaveMinerNumber` gatherers.  YAREFN is
     #   the game's only `ResourceGatherer=yes` building, so in a fight Yuri
     #   rebuilds a dying refinery on the same cell forever -- measured: 8
-    #   placements on (817,554) in 11 seconds.
+    #   placements on (817,554) in 11 seconds.  (Since mechanism 2 sets
+    #   AIRestrictReplaceTime=0 this matters less, but the duplication count
+    #   still does.)
     #
     # 2 makes the gate satisfiable (2 refineries, not 4) and halves the
     # duplication.  The slaves (SLAV) are `Slaved=yes`, not `ResourceGatherer=`,
     # so they never count towards it.
     "AISlaveMinerNumber": ("4,3,2", "2,2,2"),
     "Paranoid": ("yes", "no"),
+    # Ten teams per house.  Retail is 30; with charging teams and no regrouping
+    # that is a thousand-strong army per house and the frame cost that comes
+    # with it.  TEAM SIZE stays retail -- only the count of teams is capped.
     "TotalAITeamCap": ("30,30,30", "10,10,10"),
     # The defensive-team trio must be neutralised, and the reason is a trap
     # that cost a whole release:
@@ -82,14 +101,12 @@ RULES_EDITS = {
     # are none.  Every trigger fails, no team is ever created, the unit
     # choosers never get a "team still needs" list, and the AI builds no units
     # and never attacks while its base fills up perfectly.  That was 2.2.
+    #
+    # "Nobody stays home" also needs these at zero, not just for safety.
     "UseMinDefenseRule": ("yes", "no"),
     "MinimumAIDefensiveTeams": ("1,1,1", "0,0,0"),
     "MaximumAIDefensiveTeams": ("2,2,2", "0,0,0"),
-    "AIHateDelays": ("30,50,70", "8,12,18"),
-    "AIBaseSpacing": ("1", "1"),
-    "AIRestrictReplaceTime": ("400", "120"),
-    "AITriggerSuccessWeightDelta": ("20", "50"),
-    "AITriggerFailureWeightDelta": ("-50", "0"),
+    # A team that cannot be filled frees its slot instead of holding it.
     "DissolveUnfilledTeamDelay": ("5000", "900"),
 }
 
@@ -120,48 +137,28 @@ SECTION_KEY_COMMENTS = {
     "AIBuildThis": ";SuperAI: enabled so the AI can build its MCV (see docs/ai-tuning-playbook.md)",
 }
 
-#: Ares AIBuildCounts per building type (planned copies per computer base).
+#: Ares ``AIBuildCounts`` per building type -- EMPTY on purpose.
 #:
-#: Ares ``AIBuildCounts`` = how many nodes of that type the base plan holds.
-#: Read carefully what the engine does with them, because it is not what the
-#: name suggests (``base_plan_generation.rs``, Ares
-#: ``HouseClass_GenerateAIBuildList_CountExtra``): for each type, past the
-#: construction yard, its FIRST node spawns ``count - 1`` copies, each at a
-#: RANDOM position from that node to the end of the plan.  Per type at most
-#: ``BASE_PLAN_INSERT_LIMIT`` (256) copies are inserted.
+#: This was the mod's biggest tuning lever for three releases and it is now
+#: gone, because the two-mechanism design does not need it:
 #:
-#: Two things follow, and they are why the numbers look the way they do:
+#: * The plan is generated ONCE per match and never recalculated, so the node
+#:   count is a fixed build budget, not a difficulty setting.  Inflating it only
+#:   bought "a very large base", at the cost of the whole build rhythm.
+#: * It is not a "build N of these" knob either: the engine inserts each copy at
+#:   a RANDOM position after that type's first node, so an early type's count
+#:   scatters over the entire plan and starves everything behind it (a flat 60
+#:   produced 403 power plants and 12 war factories).
+#: * Expansion now comes from mechanism 2 (rebuild on loss), and base size from
+#:   the retail difficulty vectors.
 #:
-#: * ORDER: an early type's copies scatter over the WHOLE plan, a late type's
-#:   only over its tail, so equal counts still mean "early types get more
-#:   front-of-queue slots".  A flat 60 produced 403 power plants and 12 war
-#:   factories.  Keep the early types small.
-#: * SIZE: the plan is generated ONCE per match and never recalculated, and a
-#:   building is only planned while an unsatisfied node remains (a site search
-#:   with nothing to place does nothing).  So the total node count IS the
-#:   base's growth budget: too few nodes and the base simply stops, which is
-#:   what "AI 不扩张" looked like after 2.2 cut every count to 1-3.
+#: With the table empty no ``AIBuildCounts`` line is written and Ares falls back
+#: to one node per type -- the retail rhythm, on all three difficulties.
 #:
-#: Sizing: ~1 building/second/house is the observed rate, so a total around
-#: 300 nodes plus continuous rebuilding and on-demand power splicing keeps a
-#: base extending for a whole match.  Raise the bulk in the MID and LATE types
-#: (war factories, labs, depots, refineries) where the scatter cannot starve
-#: the front of the queue.
-BUILD_COUNTS = {
-    # Early: kept small on purpose -- power is on demand (see
-    # `power_plant_to_splice`), and a big count here would own the front.
-    "GAPOWR": 6, "NAPOWR": 6, "YAPOWR": 6,
-    "GAREFN": 10, "NAREFN": 10, "YAREFN": 10,
-    "GAPILE": 14, "NAHAND": 14, "YABRCK": 14,
-    # Mid/late: this is where the growth budget lives.
-    "GAWEAP": 28, "NAWEAP": 28, "YAWEAP": 28,
-    "GATECH": 18, "NATECH": 18, "YATECH": 18,
-    "GAAIRC": 10, "NARADR": 10, "AMRADR": 10, "NAPSIS": 10,
-    # Depots keep the MCV recovery chain exercised all match long.
-    "GADEPT": 8, "NADEPT": 8, "YADEPT": 4,
-    # PCV's prerequisite is YAWEAP,YAGRND (YADEPT is commented out retail).
-    "YAGRND": 4,
-}
+#: If you ever do want a bigger base, prefer raising ``*BaseDefenseCounts``
+#: (defence nodes are searched OUTWARD along the perimeter, so they extend the
+#: base without disturbing the build order) over re-adding counts here.
+BUILD_COUNTS = {}
 
 CONSTRUCTION_YARDS = ("GACNST", "NACNST", "YACNST")
 REFINERIES = ("GAREFN", "NAREFN", "YAREFN")
@@ -181,8 +178,6 @@ ATTACK_SCRIPT_BODY = [
     "4=0,5",
     "",
 ]
-
-MAX_ENTRY, MAX_TOTAL, MULTIPLIER = 16, 40, 1
 
 
 def apply_rules_edits(lines):
@@ -403,59 +398,26 @@ class Aimd:
 
 
 def build_aimd(source_dir, out_dir):
+    """Rewrite the AI teams for mechanism 1: charge, and nobody stays home.
+
+    Deliberately minimal.  Retail's team types, task forces, trigger weights
+    and per-difficulty trigger flags are all left alone -- the three retail
+    difficulties are supposed to keep deciding how the AI fights.  Only two
+    things change per TeamType:
+
+    * ``Script`` becomes :data:`ATTACK_SCRIPT` (skip "regroup at base"), except
+      the three MCV teams, which keep the retail move-and-deploy script;
+    * ``Aggressive=yes`` and ``IsBaseDefense=no``.
+
+    ``IsBaseDefense=no`` is what makes "nobody stays home" true: with no
+    base-defence team types in the set, a house cannot own a defensive team.
+    That is only safe because ``UseMinDefenseRule=no`` and the two
+    ``*AIDefensiveTeams`` are zero -- see ``assert_defense_gate_consistent``.
+    """
     text = open(os.path.join(source_dir, "aimd.ini"), "rb").read().decode("latin-1")
     doc = Aimd(text)
 
     team_ids = doc.team_ids()
-
-    # Retail attack teams exclude engineers, spies, miners and base defences;
-    # only their task forces are rescaled, so support teams keep their size.
-    exclude = re.compile(
-        r"(Engineer|Spy|Capture|Guard|Defense|Miner|MCV|Naval|Bombard|Anti-|Repair|Scout)",
-        re.I,
-    )
-    attack = []
-    for tid in team_ids:
-        fields = doc.values(tid)
-        if fields.get("aggressive", ("", 0))[0].lower() != "yes":
-            continue
-        if fields.get("isbasedefense", ("", 0))[0].lower() == "yes":
-            continue
-        if exclude.search(fields.get("name", ("", 0))[0]):
-            continue
-        attack.append(tid)
-
-    attack_tf = {doc.values(t)[ "taskforce" ][0] for t in attack if "taskforce" in doc.values(t)}
-    other_tf = set()
-    for tid in team_ids:
-        if tid in attack:
-            continue
-        fields = doc.values(tid)
-        if "taskforce" in fields:
-            other_tf.add(fields["taskforce"][0])
-    shared = attack_tf & other_tf
-
-    scaled = 0
-    for task_force in sorted(attack_tf - shared):
-        if task_force not in doc.starts:
-            continue
-        rows, total = [], 0
-        for line_no, index, count, unit, rest, eol in doc.members(task_force):
-            new_count = min(MAX_ENTRY, count * MULTIPLIER)
-            rows.append([line_no, index, count, new_count, unit, rest, eol])
-            total += new_count
-        if total > MAX_TOTAL:
-            over = total - MAX_TOTAL
-            for row in sorted(rows, key=lambda r: -r[3]):
-                if over <= 0:
-                    break
-                cut = min(over, max(0, row[3] - row[2]))
-                row[3] -= cut
-                over -= cut
-        for line_no, index, count, new_count, unit, rest, eol in rows:
-            if new_count != count:
-                doc.lines[line_no] = "%d=%d,%s%s%s" % (index, new_count, unit, rest, eol)
-        scaled += 1
 
     # Register and append the no-assembly attack script.
     start, end = doc.bounds("ScriptTypes")
@@ -488,36 +450,24 @@ def build_aimd(source_dir, out_dir):
             else:
                 doc.insert_value(tid, key, wanted)
 
-    # Attack triggers: high weight, floor at 150, enabled on every difficulty.
-    boosted = 0
-    start, end = doc.bounds("AITriggerTypes")
-    for i in range(start, end):
-        line = doc.lines[i]
-        if "=" not in line or line.lstrip().startswith(";"):
-            continue
-        key, value = line.split("=", 1)
-        tokens = value.rstrip("\r\n").split(",")
-        if len(tokens) != 18 or tokens[1].strip() not in attack:
-            continue
-        eol = line[len(line.rstrip("\r\n")):]
-        tokens[7], tokens[8], tokens[9] = "250.000000", "150.000000", "250.000000"
-        tokens[15], tokens[16], tokens[17] = "1", "1", "1"
-        doc.lines[i] = key + "=" + ",".join(tokens) + eol
-        boosted += 1
-
     # Base recovery.  The stock "this house owns zero Construction Yards"
     # triggers (condition 1 with GACNST/NACNST/YACNST) rebuild an MCV, but
-    # retail enables them on hard only (`0,0,1`) and weights them 70/60/70,
-    # while our 67 attack triggers now sit at 250 -- so a crippled computer
-    # would keep drawing attack teams it cannot fill instead of restarting.
-    # Put them on every difficulty at the same 250 the attack triggers use.
+    # retail enables them on hard only (`0,0,1`) with weight 70.
     #
-    # Do NOT raise them to 5000.  In `ai_team_creation.rs` PRIORITY_WEIGHT is
-    # 5000 and it is a *takeover* marker, not a boost: the first eligible
-    # 5000-weight trigger clears every other trigger out of the draw, so one
-    # unfillable MCV team would stop that house from ever creating another
-    # team until DissolveUnfilledTeamDelay expired -- forever, since the team
-    # cannot be filled while the depot is missing.
+    # Weight 5000 is `PRIORITY_WEIGHT` in `ai_team_creation.rs`: the first
+    # eligible 5000 trigger CLEARS every other trigger out of that draw, so
+    # while a house owns no construction yard it does one thing only -- rebuild
+    # the MCV.  That is exactly the "yard destroyed -> new MCV now" behaviour,
+    # and it is what the stock data intended with this trigger pair (three
+    # GC-rebuild triggers + three Max=1 move-and-deploy MCV teams).
+    #
+    # This is only safe because the repair depots are AI-buildable (see
+    # SECTION_KEY_EDITS): the MCV prerequisite needs one, so the team can
+    # actually be filled.  With the depots still `AIBuildThis=no` -- retail's
+    # state -- the team could NEVER fill and this weight would silence the
+    # house permanently until DissolveUnfilledTeamDelay expired.  That trap
+    # shipped once; `assert_mcv_recovery_fillable` now refuses to build the
+    # combination.
     recovered = 0
     start, end = doc.bounds("AITriggerTypes")
     for i in range(start, end):
@@ -529,35 +479,55 @@ def build_aimd(source_dir, out_dir):
         if len(tokens) != 18 or "MCV" not in tokens[0].upper():
             continue
         eol = line[len(line.rstrip("\r\n")):]
-        tokens[7], tokens[8], tokens[9] = "250.000000", "250.000000", "250.000000"
+        tokens[7], tokens[8], tokens[9] = "5000.000000", "5000.000000", "5000.000000"
         tokens[15], tokens[16], tokens[17] = "1", "1", "1"
         doc.lines[i] = key + "=" + ",".join(tokens) + eol
         recovered += 1
 
-    # Guard: PRIORITY_WEIGHT (5000) means "this trigger wins outright" -- the
-    # first eligible 5000-weight trigger clears every other trigger out of the
-    # draw (`ai_team_creation.rs`).  Retail uses it on purpose for
-    # superweapon/spy-guard triggers, whose condition passes only in a narrow
-    # situation.  It is a bug on a team that cannot be filled: the house would
-    # then create nothing at all until DissolveUnfilledTeamDelay expired, and
-    # an MCV team is exactly that while the depot is missing.  So the guard is
-    # aimed at the recovery triggers only.
-    start, end = doc.bounds("AITriggerTypes")
-    for i in range(start, end):
-        line = doc.lines[i]
-        if "=" not in line or line.lstrip().startswith(";"):
+    open(os.path.join(out_dir, "aimd.ini"), "wb").write(doc.text().encode("latin-1"))
+    return switched, recovered
+
+
+def assert_mcv_recovery_fillable(rules_lines, aimd_lines):
+    """A 5000-weight MCV trigger is only safe if the MCV can actually be built.
+
+    ``PRIORITY_WEIGHT`` (5000) makes a trigger clear every other trigger out of
+    the draw.  That is correct for "my construction yard is gone, rebuild the
+    MCV now" -- but if the MCV team can never be filled, the house stops
+    creating any team at all and goes silent (2.2's failure mode, in its other
+    form).  The MCV prerequisite names a repair depot, so the depots must be
+    AI-buildable for this to be sound:
+
+        AMCV Prerequisite=GAWEAP,GADEPT    SMCV ...=NAWEAP,NADEPT
+        PCV  Prerequisite=YAWEAP,YAGRND
+
+    Retail ships all three depots with ``AIBuildThis=no``.
+    """
+    mcv_triggers = 0
+    for line in aimd_lines:
+        line = line.strip()
+        if "=" not in line or line.startswith(";"):
             continue
-        tokens = line.split("=", 1)[1].rstrip("\r\n").split(",")
+        tokens = line.split("=", 1)[1].split(",")
         if len(tokens) != 18 or "MCV" not in tokens[0].upper():
             continue
         if any(float(tokens[n] or 0) >= 5000 for n in (7, 8, 9)):
-            raise SystemExit(
-                "MCV recovery trigger %s carries the 5000 priority weight; an "
-                "unfillable team at that weight starves every other trigger"
-                % line.split("=", 1)[0])
+            mcv_triggers += 1
+    if not mcv_triggers:
+        return
 
-    open(os.path.join(out_dir, "aimd.ini"), "wb").write(doc.text().encode("latin-1"))
-    return len(attack), switched, scaled, boosted, recovered, len(shared)
+    unbuildable = [
+        depot for depot in ("GADEPT", "NADEPT", "YADEPT")
+        if (read_ini_value(rules_lines, depot, "AIBuildThis") or "").lower() != "yes"
+    ]
+    if unbuildable:
+        raise SystemExit(
+            "%d MCV trigger(s) carry the 5000 priority weight, which clears "
+            "every other AI trigger for a yardless house, but %s still has "
+            "AIBuildThis != yes -- the MCV team can never be filled, so the "
+            "house would stop creating any team at all. Enable the depots "
+            "(SECTION_KEY_EDITS) or drop the MCV weight."
+            % (mcv_triggers, ", ".join(unbuildable)))
 
 
 def main():
@@ -575,7 +545,7 @@ def main():
 
     os.makedirs(args.out, exist_ok=True)
     buildings = build_rules(args.rules_dir, args.out)
-    teams, switched, scaled, boosted, recovered, shared = build_aimd(args.rules_dir, args.out)
+    switched, recovered = build_aimd(args.rules_dir, args.out)
 
     # Refuse to ship the "base builds, AI never moves" combination.
     with open(os.path.join(args.out, "rulesmd.ini"), "r",
@@ -585,6 +555,7 @@ def main():
               encoding="latin-1") as handle:
         aimd_lines = handle.read().splitlines()
     assert_defense_gate_consistent(rules_lines, aimd_lines)
+    assert_mcv_recovery_fillable(rules_lines, aimd_lines)
 
     if not args.no_art:
         source = os.path.join(args.rules_dir, "artmd.ini")
@@ -592,11 +563,10 @@ def main():
             raise SystemExit("missing artmd.ini in %s" % args.rules_dir)
         shutil.copyfile(source, os.path.join(args.out, "artmd.ini"))
 
-    print("rules: AIBuildCounts on %d building types" % buildings)
-    print("aimd : %d attack teams, %d charged, %d task forces rescaled, "
-          "%d triggers boosted, %d MCV triggers re-armed "
-          "(%d shared task forces skipped)"
-          % (teams, switched, scaled, boosted, recovered, shared))
+    print("rules: AIBuildCounts on %d building types (empty table = retail rhythm)"
+          % buildings)
+    print("aimd : %d team types charging, %d MCV triggers re-armed"
+          % (switched, recovered))
     print("output:", os.path.abspath(args.out))
 
 

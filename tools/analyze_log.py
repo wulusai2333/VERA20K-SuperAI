@@ -39,6 +39,8 @@ MATCH_RE = re.compile(r"sim::runtime\] Initialized authored native")
 PLACED_RE = re.compile(
     r"\] (\S+) placed (\S+) at \((\d+), (\d+)\)"
 )
+#: The ISO timestamp at the head of every log line.
+STAMP_RE = re.compile(r"^\[(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})Z")
 #: An MCV that could not deploy where it stood.
 BLOCKED_RE = re.compile(r"MCV deploy blocked at origin \((\d+), (\d+)\)")
 
@@ -116,7 +118,11 @@ def read_sessions(path):
 
 
 def parse(groups):
-    """Per (session, match): the placements, the blocked MCVs and the houses."""
+    """Per (session, match): the placements, the blocked MCVs and the houses.
+
+    A placement is ``(type, (x, y), seconds_since_midnight)``; the time comes
+    from the line's own ISO stamp so rebuild gaps can be measured.
+    """
     out = []
     for session, match, lines in groups:
         houses = defaultdict(list)
@@ -125,7 +131,12 @@ def parse(groups):
             placed = PLACED_RE.search(line)
             if placed:
                 house, type_id, x, y = placed.groups()
-                houses[house].append((type_id, (int(x), int(y))))
+                stamp = STAMP_RE.match(line)
+                seconds = (
+                    int(stamp.group(4)) * 3600 + int(stamp.group(5)) * 60
+                    + int(stamp.group(6))
+                ) if stamp else 0
+                houses[house].append((type_id, (int(x), int(y)), seconds))
                 continue
             if BLOCKED_RE.search(line):
                 blocked += 1
@@ -136,10 +147,10 @@ def parse(groups):
 
 def house_report(placements):
     """Everything one house's placement list says about itself."""
-    types = Counter(type_id for type_id, _ in placements)
-    cells = Counter(placements)
+    types = Counter(type_id for type_id, _cell, _ts in placements)
+    cells = Counter((type_id, cell) for type_id, cell, _ts in placements)
     first = {}
-    for index, (type_id, _) in enumerate(placements):
+    for index, (type_id, _cell, _ts) in enumerate(placements):
         first.setdefault(type_id, index)
     total = len(placements)
 
@@ -227,6 +238,46 @@ def judge(house, report):
     return checks
 
 
+def report_rebuilds(matches, gap_seconds):
+    """Count "this type came back after a gap, somewhere else".
+
+    The engine does not log a building being lost, so a rebuild has to be
+    inferred: the same type landing again after ``gap_seconds`` of silence for
+    that type, on a different cell.  That is also what the mod's rebuild
+    mechanism produces -- a lost building's plan node is replanned, its old cell
+    is cleared and the site search picks a new one -- so the pattern is a fair
+    proxy.  It cannot separate a rebuild from a slow new build, so treat the
+    numbers as advisory and read them next to the gate report.
+    """
+    total = 0
+    reported = 0
+    for session, match, houses, _blocked in matches:
+        print("=" * 78)
+        print("session %d, match %d: rebuild-ish events "
+              "(same type, >=%ds later, different cell)"
+              % (session + 1, match, gap_seconds))
+        for house in sorted(houses):
+            per_type = defaultdict(list)
+            for type_id, cell, seconds in houses[house]:
+                per_type[type_id].append((seconds, cell))
+            events = Counter()
+            for type_id, entries in per_type.items():
+                for (previous_ts, previous_cell), (ts, cell) in zip(
+                        entries, entries[1:]):
+                    if cell != previous_cell and ts - previous_ts >= gap_seconds:
+                        events[type_id] += 1
+            if not events:
+                continue
+            reported += 1
+            total += sum(events.values())
+            print("  %-12s %3d  %s"
+                  % (house, sum(events.values()),
+                     ", ".join("%s x%d" % pair for pair in events.most_common(6))))
+    print("=" * 78)
+    print("%d rebuild-ish event(s) across %d house(s)" % (total, reported))
+    return total
+
+
 def report_text(matches, strict):
     failures = 0
     judged = 0
@@ -302,6 +353,10 @@ def main():
     parser.add_argument("--json", action="store_true", help="machine-readable")
     parser.add_argument("--strict", action="store_true",
                         help="exit 1 when any gate fails")
+    parser.add_argument("--rebuilds", nargs="?", type=int, const=20,
+                        default=None, metavar="SECONDS",
+                        help="report rebuild-ish events instead of the gate "
+                             "report (default gap: 20s)")
     args = parser.parse_args()
 
     matches = parse(read_sessions(args.log))
@@ -326,6 +381,9 @@ def main():
                           for s, m, _, _ in matches[-5:]))
         return 1
 
+    if args.rebuilds is not None:
+        report_rebuilds(chosen, args.rebuilds)
+        return 0
     if args.json:
         print(report_json(chosen))
         return 0

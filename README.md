@@ -11,14 +11,15 @@
 
 > English summary: a fan-made mod + spectator map pack for VERA20k. It gives the
 > skirmish AI x1001 starting credits, an aggressive global build speed, a graded
-> per-type building plan (6 power plants, 10 refineries, 14 barracks, 28 war
-> factories, 18 battle labs, 10 radar/airfield, 8 repair depots — 4 for Yuri),
-> 200 base defences per house, a 10-team cap with retail-sized task forces, and a
-> custom team script that skips the retail "regroup at base" steps. The plan is
-> sized so the base keeps extending outward for a whole match. Repair depots are
-> now AI-buildable, which is what finally lets the AI rebuild a lost MCV. Maps are
-> uniform flat stages with map triggers for full-map reveal, a permanent Iron
-> Curtain on the spectator
+> per-type building plan at the retail three-difficulty rhythm (no AIBuildCounts
+> tuning), 25/20/6 base defences, instant rebuild of any destroyed building
+> (`AIRestrictReplaceTime=0`) which is also how the base grows, a 10-team cap with
+> retail-sized task forces, and a custom team script that skips the retail
+> "regroup at base" steps. Repair depots are now AI-buildable, which is what
+> finally lets the AI rebuild a lost MCV — its rebuild triggers carry the engine's
+> 5000 priority weight, so a yardless house does exactly that. Maps are uniform
+> flat stages with map triggers for full-map reveal, a permanent Iron Curtain on
+> the spectator
 > slot, and a periodic All-to-Hunt sweep.
 
 ![Super AI Flat 200](previews/flat200.png)
@@ -31,8 +32,9 @@
 | --- | --- | --- |
 | AI 开局资金 | `MultiplayerAICM=400,0,0` | **×1001**（按当前资金追加 1000 倍；10 万开局 → 约 1 亿） |
 | 全局建造速度 | `BuildSpeed=.7` | **`.025`（玩家同样生效）**<br>注：该键的读取路径未在引擎抽取源码中确认，见 [playbook §1.5](docs/ai-tuning-playbook.md#15-死键清单) |
-| 建筑规划 | 每种 1 个 | **`AIBuildCounts` 按类型分级**：电厂 6、矿场 10、兵营 14、战车工厂 28、高科 18、雷达 10、维修厂 8（尤里 4） |
-| 基地防御 | 25 / 20 / 6 | **`*BaseDefenseCounts=200,200,200`**（防御节点沿周长向外找位置，是扩建主力） |
+| 建筑规划 | 每种 1 个 | **不调**：`AIBuildCounts` 整表清空，建造节奏交给三个原版难度 |
+| 基地防御 | 25 / 20 / 6 | **原版 `25/20/6`**；想要更大基地就只调这里（防御节点沿周长向外找位置） |
+| **被打掉就重建** | `AIRestrictReplaceTime=400`（约 27 秒内只补墙/防御/电厂） | **`0`**：任何建筑丢失后立刻重建，扩建由此被动发生 |
 | 围墙占防御 | 50 / 25 / 10 | **`AIPickWallDefensePercent=10,10,10`**（围墙不再挤掉防御名额） |
 | 额外矿场 | 2 / 1 / 0 | **`AIExtraRefineries=0,0,0`** |
 | 奴隶矿工 | 4 / 3 / 2 | **`AISlaveMinerNumber=2,2,2`**（尤里：矿场复制数，也决定 `YAREFN` 能否就地重建） |
@@ -124,18 +126,20 @@ AI 设计取舍见 [docs/ai-design.md](docs/ai-design.md)，每个键该调到�
 重建与校验命令见 [docs/build.md](docs/build.md)。
 
 表中 1029 栋 / 320 防御 / 每种 60 这类数字来自 2.2 之前的配置，只作历史记录；
-2.2 起 `AIBuildCounts` 改成按类型分级，2.3 又按「扩张预算」重新定标，它们不再代表当前配置。
+2.2 起 `AIBuildCounts` 改成分级，2.4 直接清空回到原版节奏，它们不再代表当前配置。
 
 ## 已知限制
 
 这些是配置解决不了、或者必须满足前置条件的边界，写在这里避免误解：
 
-- **基地规模没有硬上限，但计划节点用完就停**。基地计划整局只生成一次，每个节点一栋建筑；
-  节点放完，即使还有平地也不会再铺。当前配置约 300 个节点/户，按实测速率够建满一整局。
-  想更大就调 `AIBuildCounts` 与 `*BaseDefenseCounts`（每类上限 256）；
-  120 人图建议按 `docs/ai-tuning-playbook.md` 的预设降档，否则建筑总量会失控。
+- **基地规模就是计划节点数，建完就停**。基地计划整局只生成一次，每个节点一栋建筑；
+  节点放完，即使还有平地也不会再铺 —— **扩张靠「打掉就重建」被动发生**。
+  没人打它，基地就静止。这是 2.4 的设计取舍，不是故障。
+  想让基地本身更大，只调 `*BaseDefenseCounts`；不建议再动 `AIBuildCounts`。
+- **触发器不能下建造令**。`[AITriggerTypes]` 只能组队，所以「造建筑」只有计划节点一条路。
 - **AI 造基地车是有前提的**。引擎本来就有这条路：3 个「自己 0 座建造厂」的触发器
-  （三难度权重 250）拉起 3 支 MCV 队伍，走原版 `043F23CC-G` 移动并展开脚本。
+  （权重 5000 = 引擎的接管权重，命中即清空其它触发器）拉起 3 支 MCV 队伍，
+  走原版 `043F23CC-G` 移动并展开脚本。
   真正把它堵死的是零售给维修厂的 `AIBuildThis=no`——AI 造不出 `GADEPT` / `NADEPT` / `YADEPT`，
   而 `AMCV` 需要 `GAWEAP`+`GADEPT`、`SMCV` 需要 `NAWEAP`+`NADEPT`、`PCV` 需要 `YAWEAP`+`YAGRND`，
   所以以前 AI 再富也造不出 MCV，建造厂被拆掉就是永久损失；本版把三个维修厂改为可建。
