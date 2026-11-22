@@ -1,0 +1,17 @@
+* text=auto eol=lf
+
+*.py  text eol=lf
+*.md  text eol=lf
+*.txt text eol=lf
+
+# The engine expects CRLF in INI files.
+*.ini text eol=crlf
+*.sed text eol=crlf
+
+# Map files are INI text with binary LZO payloads: never convert line endings.
+*.yrm binary
+*.mmx binary
+*.map binary
+*.mpr binary
+*.mix binary
+*.png binary

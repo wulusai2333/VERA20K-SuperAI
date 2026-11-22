@@ -1,0 +1,38 @@
+MIT License
+
+Copyright (c) 2026 VERA20K-SuperAI contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---------------------------------------------------------------------------
+NOTICE
+
+The MIT license above covers the Python tooling and the documentation in this
+repository.
+
+The files under mod/ and maps/ are fan-made derivative data for Command &
+Conquer: Yuri's Revenge. The original game, its rules, artwork, audio and map
+format are the property of their respective rights holders (Westwood Studios /
+Electronic Arts). This repository contains no original artwork, audio, video or
+other binary game assets: the mod files are plain-text INI data, and the maps
+are INI terrain/trigger data that reference artwork shipped with the game.
+
+These files are provided for non-commercial fan use with a legitimately owned
+copy of the game. Do not sell them, and do not redistribute them as if they
+were original content.
