@@ -130,6 +130,18 @@ VERA20K-SuperAI/
 - 需要完整的 YR 规则与 AI 文件作为基底，仓库中的 `rulesmd.ini` 等即为完整替换文件。
 - 本项目不包含任何原版美术、音频或影片资源；地图仅包含地形与触发器数据。
 
+## 发布到 GitHub
+
+仓库已经初始化并提交（`main` 分支）。创建远端后：
+
+```bash
+git remote add origin git@github.com:<你的账号>/VERA20K-SuperAI.git
+git push -u origin main
+```
+
+建议仓库描述写明「VERA20k / Yuri's Revenge fan mod + spectator maps」，
+并在 README 保留许可与第三方地图来源说明。
+
 ## 许可
 
 - **工具与文档**：MIT，见 [LICENSE](LICENSE)。
