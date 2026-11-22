@@ -14,6 +14,8 @@
   建筑重建是引擎原生机制；哪些类型本来就「立即」、怎么让全部类型都立即、三条硬边界。
 - [§10 设计取向：原版三难度 + 两条机制](#10-设计取向原版三难度--两条机制24-起) ——
   2.4 撤掉了哪些调参、为什么，以及每条保留项的归属。
+- [§13 超级武器：AI 为什么「充满不放」](#13-超级武器ai-为什么充满不放) ——
+  `SW.*` 开关全表、证据链、以及 `AISuperDefense*` 只管 ForceShield 这个易误判点。
 
 ---
 
@@ -692,3 +694,69 @@ choose_building 处理 "-1"（防御）节点时：
 | 段名拼错（`[GAPIL]`） | 引擎根本读不到，白写 | 目标必须都是存在的段名 |
 | 列表少于 3 项 | 缺的难度**静默退化成 1 个节点** | 必须正好 3 个整数 |
 | 顺序写反（`1,1,5`） | 冷酷拿不到 5 个 | 必须与 `BUILD_COUNTS` 完全一致 |
+
+---
+
+## 13. 超级武器：AI 为什么「充满不放」
+
+### 13.1 结论（证据等级：**中**，未能进游戏实测）
+
+**改动**：给 AI 能造出来的 6 个带目标超武，显式写上 Ares 的 `SW.*` 开关。
+零售数据里 12 个超武段**一条 `SW.*` 都没有**，AI 就停在默认瞄准状态。
+
+| 超武 | 建筑 | AI 可造 | 写入的 `SW.AITargeting` |
+| --- | --- | --- | --- |
+| `NukeSpecial` | `NAMISL` | 是 | `offensive_cell_clear` |
+| `LightningStormSpecial` | `GAWEAT` | 是 | `offensive_cell_clear` |
+| `PsychicDominatorSpecial` | `YAPPET` | 是 | `offensive_cell_clear` |
+| `GeneticConverterSpecial` | `YAGNTC` | 是 | `offensive_cell_clear` |
+| `ChronoSphereSpecial` | `GACSPH` | 是 | `offensive_cell_clear` |
+| `IronCurtainSpecial` | `NAIRON` | 是 | `defensive_cell_clear`（它罩自己人） |
+
+每个段都同时写：
+
+```ini
+SW.AllowPlayer=yes
+SW.AllowAI=yes
+SW.AutoFire=yes        ; ← 关键：自动发射（AI 没有「点击」这条路径）
+SW.UseAITargeting=yes
+SW.RequiresTarget=yes
+```
+
+**不动的**：`ForceShieldSpecial`（本来就在放）、`ParaDropSpecial`、`SpyPlaneSpecial`、
+`PsychicRevealSpecial`、`ChronoWarpSpecial`（`GADUMY` 是 `AIBuildThis=no`，AI 造不出来）。
+
+### 13.2 证据链（为什么这么判断）
+
+| 证据 | 出处 |
+| --- | --- |
+| AI **确实会**放超武 | 日志：`sim::superweapon::force_shield  ForceShield launched at (657,293) by 'Computer2'` |
+| 但进攻型一次都没放过 | 全日志没有任何 `SuperWeapon launch queued` / 核弹 / 闪电风暴 / 心灵控制器记录 |
+| 引擎会记录发射 | 二进制里有日志串 `SuperWeapon launch queued: owner=` |
+| 引擎实现了 Ares 的 SW 扩展 | 二进制键名：`SW.AllowPlayer SW.AllowAI SW.AutoFire SW.ManualFire SW.AffectsHouse SW.UseAITargeting SW.AITargeting SW.RequiresTarget SW.FireIntoShroud SW.Shots SW.AlwaysGranted` |
+| `SW.AutoFire` 就是「自动发射」那条路 | `house_state.rs:891`：「launched that was neither **PostClick** nor **`SW.AutoFire`**」——发射只分「玩家点击」和「自动」两类，AI 只能走后者 |
+| `SW.AITargeting` 的合法取值 | 二进制：`offensive_cell_clear`、`defensive_cell_clear`、`offensive_cell_set`、`defensive_cell_set`、`attacked`、`lightningstorm_inactive`、`dominator_inactive` |
+
+**为什么只算「中」等级**：真正决定 AI 是否发射的代码
+（`superweapon/` 下除 `iron_curtain.rs` 之外的模块）**不在 93 文件抽取集里**，
+所以这是「按引擎自身的键名与语义推导 + 有旁证」，不是读源码得出的定论。
+`assert_superweapon_autofire` 只保证「键写对了、值合法」，**不能保证引擎真的会开火**。
+
+### 13.3 一个必须记住的误判
+
+`AISuperDefenseProbability` / `AISuperDefenseFrames` / `AISuperDefenseDistance`
+**不是**这个问题的开关。零售注释写明它们只管 **ForceShield**
+（"this is the percent chance to use ForceShield"）。
+这也正好解释了为什么偏偏只有 ForceShield 在放 —— 它是唯一走那条通道的超武。
+看到「只有 ForceShield 生效」时，不要以为「AI 会用超武，所以进攻型的只是没瞄准好」。
+
+### 13.4 怎么验证
+
+进游戏（**无法用脚本自测**：引擎没有无头模拟入口，`--probe` 只加载规则和地图）：
+
+1. 让一个 AI 造出核弹井/天气控制器/心灵控制器，等它充满；
+2. 应看到它**自动**把超武丢到敌方基地的空地上；
+3. 若仍然不放，按顺序试，**每次只改一个变量**：
+   - 去掉 `SW.RequiresTarget`（某些实现里它会让找不到目标的超武一直等待）；
+   - 把 `SW.AITargeting` 换成 `attacked`；
+   - 暂时把 `RechargeTime` 从 `10` 改小，确认「是不是根本没充满」这个前提。

@@ -1,6 +1,37 @@
 # Changelog
 
-本项目在 2026-11-22 从零迭代到 2.0，同日继续到 2.6；以下是可复现的功能节点。
+本项目在 2026-11-22 从零迭代到 2.0，同日继续到 2.7；以下是可复现的功能节点。
+
+## 2.7 — 超级武器充满即自动发射
+
+- 零售数据的 12 个超武段**一条 `SW.*`（Ares 超武扩展）键都没有**，AI 停在默认瞄准状态：
+  ForceShield 这种自施放超武照常工作，**带目标**的核弹/闪电风暴/心灵控制器从不发射。
+- 2.7 起给 AI 能造出来的 6 个带目标超武显式写：
+
+```ini
+SW.AllowPlayer=yes
+SW.AllowAI=yes
+SW.AutoFire=yes        ; 关键：AI 没有「玩家点击」这条路，只能走自动发射
+SW.UseAITargeting=yes
+SW.RequiresTarget=yes
+SW.AITargeting=offensive_cell_clear   ; 铁幕用 defensive_cell_clear
+```
+
+  对应超武与建筑：`NukeSpecial`/`NAMISL`、`LightningStormSpecial`/`GAWEAT`、
+  `PsychicDominatorSpecial`/`YAPPET`、`GeneticConverterSpecial`/`YAGNTC`、
+  `ChronoSphereSpecial`/`GACSPH`、`IronCurtainSpecial`/`NAIRON`（全部 `AIBuildThis=yes`）。
+- 不动的：`ForceShield`（本来正常）、`ParaDrop`/`SpyPlane`/`PsychicReveal`（支援类）、
+  `ChronoWarp`（`GADUMY` 是 `AIBuildThis=no`，AI 造不出来）。
+- 新增 `assert_superweapon_autofire`：校验 6 个段的键齐全、`SW.AITargeting` 必须落在引擎
+  认识的词表里（`offensive_cell_clear` / `defensive_cell_clear` / `offensive_cell_set` /
+  `defensive_cell_set` / `attacked` / `lightningstorm_inactive` / `dominator_inactive`）——
+  拼错会被**静默丢弃**；并禁止把这些键写进那 5 个不该动的段。
+- **证据等级：中**。决定 AI 是否发射的代码不在 93 文件抽取集里，本结论由「引擎自身的键名 +
+  `house_state.rs` 对 `SW.AutoFire` 的说明（发射只分 PostClick 与 AutoFire 两类）+
+  日志里只有 ForceShield 在放」推导而来，**尚未进游戏实测**（引擎没有无头模拟入口）。
+  判定步骤与回退顺序写在 `docs/ai-tuning-playbook.md` §13。
+- 顺带记一个易误判点：`AISuperDefenseProbability/Frames/Distance` **只管 ForceShield**，
+  调它们不会让核弹开火。
 
 ## 2.6 — 不造围墙、冷酷 3 兵营 / 5 战车工厂
 

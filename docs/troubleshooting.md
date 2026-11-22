@@ -119,6 +119,26 @@ PCV  Prerequisite=YAWEAP,YAGRND
 > 会把其它所有触发器清掉，结果是这支 AI 完全不进攻。见
 > [ai-tuning-playbook.md §5](ai-tuning-playbook.md#5-触发器权重-5000-是接管标记不是加强)。
 
+### AI 有超武却不发射
+
+ForceShield 这类**不用选目标**的超武由 AI 自动使用（日志里有
+`superweapon::force_shield ForceShield launched at ...`），
+而核弹/闪电风暴/心灵控制器这类**要选目标**的过去从不发射 —— 因为零售数据里
+一个 `SW.*`（Ares 超武扩展）键都没有。2.7 起已给 6 个带目标超武显式打开
+`SW.AutoFire=yes` + `SW.UseAITargeting=yes`。
+
+若仍然不放，按顺序排查，**每次只改一个变量**：
+
+1. `RechargeTime` 是**分钟**（`10` = 十分钟），确认它真的充满了，而不是显示满；
+2. `SW.RequiresTarget=yes` 在某些实现里会让「找不到目标」的超武一直等待 —— 试着去掉；
+3. 换 `SW.AITargeting` 的取值：`offensive_cell_clear` → `attacked`（词表见
+   [ai-tuning-playbook.md §13](ai-tuning-playbook.md#13-超级武器ai-为什么充满不放)）；
+4. 确认超武建筑在不在、有没有断电：`[NAMSIL]`/`[YAPPET]` 这类 `Powered=true`，
+   断电时充能不涨。
+
+> 别去调 `AISuperDefenseProbability` / `AISuperDefenseFrames` / `AISuperDefenseDistance`：
+> 零售注释写明它们**只管 ForceShield**，改了不会让核弹开火。
+
 ### AI 建筑被打掉了却不重建
 
 「打掉就重建」是引擎原生的节点重规划，不需要触发器，但**按类型分档**：

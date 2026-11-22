@@ -189,7 +189,40 @@ Name=SuperAI Charge
 > `tools/build_mod.py` 的 `assert_mcv_recovery_fillable` 强制两者必须同时成立：
 > 用了 5000 就必须三个维修厂都可建，否则构建直接失败。
 > 掩码写法与收敛过程见 [playbook §9.2](ai-tuning-playbook.md#92-基地车救急-扩建共-6-条触发器)。
-> 详见 [playbook §9.2](ai-tuning-playbook.md#92-基地车救急-扩建共-6-条触发器)。
+
+### 3.4 超级武器自动发射
+
+零售的 12 个超武段**一条 `SW.*`（Ares 超武扩展）都没有**，AI 于是停在默认瞄准状态：
+ForceShield 这类自施放超武照常工作，核弹/闪电风暴/心灵控制器这类**带目标**的从不发射。
+2.7 起给 AI 能造出来的 6 个带目标超武显式写上：
+
+```ini
+SW.AllowPlayer=yes
+SW.AllowAI=yes
+SW.AutoFire=yes        ; 关键：AI 没有「玩家点击」这条路径，只能走自动发射
+SW.UseAITargeting=yes
+SW.RequiresTarget=yes
+SW.AITargeting=offensive_cell_clear   ; 铁幕用 defensive_cell_clear
+```
+
+| 超武 | 建筑 |
+| --- | --- |
+| `NukeSpecial` | `NAMISL` |
+| `LightningStormSpecial` | `GAWEAT` |
+| `PsychicDominatorSpecial` | `YAPPET` |
+| `GeneticConverterSpecial` | `YAGNTC` |
+| `ChronoSphereSpecial` | `GACSPH` |
+| `IronCurtainSpecial` | `NAIRON` |
+
+`ForceShield`/`ParaDrop`/`SpyPlane`/`PsychicReveal`/`ChronoWarp` 不动 ——
+前四个本来正常，最后一个的 `GADUMY` 是 `AIBuildThis=no`，AI 造不出来。
+`assert_superweapon_autofire` 会校验键是否齐全、`SW.AITargeting` 是否落在引擎认识的词表里
+（拼错会被**静默丢弃**），并禁止把 `SW.*` 写进那 5 个不该动的段。
+
+> 证据等级：**中**。决定 AI 是否发射的代码不在抽取集里，本结论由「引擎自身的键名 +
+> `house_state.rs` 对 `SW.AutoFire` 的说明 + 日志里 ForceShield 能放而进攻型从未发射」推导而来，
+> 尚未进游戏实测。判定方法与回退顺序见
+> [playbook §13](ai-tuning-playbook.md#13-超级武器ai-为什么充满不放)。
 
 ## 4. 地图层：All to Hunt
 

@@ -142,6 +142,71 @@ SECTION_KEY_COMMENTS = {
     "AIBuildThis": ";SuperAI: enabled so the AI can build its MCV (see docs/ai-tuning-playbook.md)",
 }
 
+#: Ares ``SW.*`` keys for the superweapons a computer can actually build.
+#:
+#: Why they are needed: the AI fires ForceShield (proved by
+#: ``sim::superweapon::force_shield  ForceShield launched at ... by 'Computer2'``
+#: in ra2.log) but never launches a targeted one -- the log contains no
+#: ``SuperWeapon launch queued`` line at all, although that message exists in the
+#: binary.  Retail's superweapon sections carry **none** of these keys (all 12
+#: have zero ``SW.*`` lines), so the computers were left on whatever the default
+#: targeting state is.
+#:
+#: The engine implements the Ares superweapon extension; the key names below come
+#: from the binary (``SW.AllowPlayer SW.AllowAI SW.AutoFire SW.ManualFire
+#: SW.AffectsHouse SW.UseAITargeting SW.AITargeting SW.RequiresTarget
+#: SW.FireIntoShroud SW.Shots SW.AlwaysGranted``), and ``house_state.rs`` refers
+#: to ``SW.AutoFire`` by name.
+#:
+#: Only the six offensive superweapons the AI can actually build are listed --
+#: every one of them belongs to an ``AIBuildThis=yes`` building:
+#:
+#:   GAWEAT LightningStorm   NAMISL Nuke          YAPPET PsychicDominator
+#:   YAGNTC GeneticConverter NAIRON IronCurtain   GACSPH ChronoSphere
+#:
+#: The support ones (ForceShield already works, ParaDrop, SpyPlane,
+#: PsychicReveal) and the AI-unbuildable ChronoWarp (GADUMY has
+#: ``AIBuildThis=no``) are deliberately left alone: changing something that
+#: already behaves correctly would hide the effect of this change.
+#:
+#: ``SW.AITargeting`` values are the vocabulary the binary accepts
+#: (``offensive_cell_clear``, ``defensive_cell_clear``, ``offensive_cell_set``,
+#: ``defensive_cell_set``, ``attacked``, ``lightningstorm_inactive``,
+#: ``dominator_inactive``).  An unknown word is ignored silently, which is why
+#: ``assert_superweapon_autofire`` checks every value against that list.
+SUPERWEAPON_EDITS = {
+    # Area-damage weapons: hit a clear cell inside the enemy base.
+    "NukeSpecial": {"SW.AITargeting": "offensive_cell_clear"},
+    "LightningStormSpecial": {"SW.AITargeting": "offensive_cell_clear"},
+    "PsychicDominatorSpecial": {"SW.AITargeting": "offensive_cell_clear"},
+    "GeneticConverterSpecial": {"SW.AITargeting": "offensive_cell_clear"},
+    "ChronoSphereSpecial": {"SW.AITargeting": "offensive_cell_clear"},
+    # Iron Curtain is dropped on the house's OWN units, so it wants the
+    # defensive target selector, not the offensive one.
+    "IronCurtainSpecial": {"SW.AITargeting": "defensive_cell_clear"},
+}
+
+#: Keys written into every section of :data:`SUPERWEAPON_EDITS`.
+SUPERWEAPON_SHARED_KEYS = {
+    "SW.AllowPlayer": "yes",
+    "SW.AllowAI": "yes",
+    "SW.AutoFire": "yes",
+    "SW.UseAITargeting": "yes",
+    "SW.RequiresTarget": "yes",
+}
+
+#: The ``SW.AITargeting`` words this engine understands (from the binary).  A
+#: misspelt word is dropped without a warning.
+ALLOWED_AITARGETING = {
+    "offensive_cell_clear",
+    "defensive_cell_clear",
+    "offensive_cell_set",
+    "defensive_cell_set",
+    "attacked",
+    "lightningstorm_inactive",
+    "dominator_inactive",
+}
+
 #: Ares ``AIBuildCounts`` per building type -- only the production buildings
 #: that must exist in numbers, and only where the difficulty should differ.
 #:
@@ -304,6 +369,46 @@ def apply_section_key_edits(lines):
                         for s, k in sorted(remaining.items())))
 
 
+def apply_superweapon_edits(lines):
+    """Write the ``SW.*`` auto-fire keys into the AI's superweapon sections.
+
+    Retail has none of these keys, so the computers stay on the default
+    targeting state and never launch a targeted superweapon.  Each section gets
+    :data:`SUPERWEAPON_SHARED_KEYS` plus its own ``SW.AITargeting``.
+
+    Idempotent on purpose: any existing line for one of these keys is dropped
+    first, so re-running the build cannot accumulate duplicates (the INI reader
+    would silently keep the last one).
+    """
+    for name, targeting in SUPERWEAPON_EDITS.items():
+        wanted = dict(SUPERWEAPON_SHARED_KEYS)
+        wanted.update(targeting)
+        start = None
+        for i, line in enumerate(lines):
+            header = re.match(r"^\[([^\]]+)\]\s*$", line)
+            if header and header.group(1).strip() == name:
+                start = i
+                break
+        if start is None:
+            raise SystemExit("superweapon section [%s] not found" % name)
+        end = len(lines)
+        for i in range(start + 1, len(lines)):
+            if re.match(r"^\[[^\]]+\]\s*$", lines[i]):
+                end = i
+                break
+        # Drop any stale copies of the keys we are about to write.
+        keys = {key.lower() for key in wanted}
+        kept = []
+        for i in range(start + 1, end):
+            m = re.match(r"^([^=;\s]+)=", lines[i])
+            if m and m.group(1).lower() in keys:
+                continue
+            kept.append(lines[i])
+        new_lines = ["%s=%s\r\n" % (key, value) for key, value in wanted.items()]
+        lines[start + 1:end] = new_lines + kept
+    return len(SUPERWEAPON_EDITS)
+
+
 def build_rules(source_dir, out_dir):
     text = open(os.path.join(source_dir, "rulesmd.ini"), "rb").read().decode("latin-1")
     lines = text.splitlines(keepends=True)
@@ -328,6 +433,9 @@ def build_rules(source_dir, out_dir):
     for refn in REFINERIES:
         insert_after_section_header(lines, refn, "ProduceCashDelay=60\r\n")
         insert_after_section_header(lines, refn, "ProduceCashAmount=100\r\n")
+
+    # Ares SW.* : make a charged superweapon actually get launched by the AI.
+    apply_superweapon_edits(lines)
 
     # Ares AIBuildCounts: planned copies of the production buildings that must
     # exist in numbers, keyed by difficulty (hard, normal, easy).
@@ -712,6 +820,65 @@ def assert_no_walls(rules_lines):
     return True
 
 
+def assert_superweapon_autofire(rules_lines):
+    """Every offensive superweapon must carry the auto-fire keys, correctly.
+
+    Two silent failures this catches:
+
+    * an unknown ``SW.AITargeting`` word -- the engine drops it without a word,
+      which looks exactly like "the AI still does not fire";
+    * a key that never made it into a section, e.g. because the section name
+      changed or the insert landed in the wrong block.
+    """
+    for name, targeting in SUPERWEAPON_EDITS.items():
+        wanted = dict(SUPERWEAPON_SHARED_KEYS)
+        wanted.update(targeting)
+        found = {}
+        section = None
+        for line in rules_lines:
+            header = re.match(r"^\[([^\]]+)\]\s*$", line)
+            if header:
+                section = header.group(1).strip()
+                continue
+            if section != name:
+                continue
+            m = re.match(r"^([^=;\s]+)=(.*?)(\s*;.*)?$", line.rstrip("\r\n"))
+            if not m:
+                continue
+            key = m.group(1).strip()
+            if key.lower() in {k.lower() for k in wanted}:
+                found[key.lower()] = m.group(2).strip()
+        for key, value in wanted.items():
+            actual = found.get(key.lower())
+            if actual is None:
+                raise SystemExit("[%s] is missing %s=%s" % (name, key, value))
+            if actual.lower() != value.lower():
+                raise SystemExit("[%s] %s=%r, expected %r"
+                                 % (name, key, actual, value))
+        word = found.get("sw.aitargeting", "")
+        if word.lower() not in ALLOWED_AITARGETING:
+            raise SystemExit(
+                "[%s] SW.AITargeting=%r is not a value this engine knows; it "
+                "would be dropped silently. Known: %s"
+                % (name, word, ", ".join(sorted(ALLOWED_AITARGETING))))
+
+    # Superweapons that already work (or are support type) must stay untouched.
+    untouched = ("ForceShieldSpecial", "ParaDropSpecial",
+                 "AmericanParaDropSpecial", "SpyPlaneSpecial",
+                 "PsychicRevealSpecial", "ChronoWarpSpecial")
+    section = None
+    for line in rules_lines:
+        header = re.match(r"^\[([^\]]+)\]\s*$", line)
+        if header:
+            section = header.group(1).strip()
+            continue
+        if section in untouched and re.match(r"^SW\.", line.strip()):
+            raise SystemExit(
+                "[%s] must not carry %s -- it already behaves correctly and "
+                "changing it would mask this fix" % (section, line.strip()))
+    return len(SUPERWEAPON_EDITS)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rules-dir", required=True,
@@ -741,6 +908,7 @@ def main():
     mcv_triggers = assert_mcv_triggers_well_formed(aimd_lines)
     counts = assert_build_counts(rules_lines)
     assert_no_walls(rules_lines)
+    superweapons = assert_superweapon_autofire(rules_lines)
 
     if not args.no_art:
         source = os.path.join(args.rules_dir, "artmd.ini")
