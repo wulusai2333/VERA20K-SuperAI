@@ -5,6 +5,7 @@ Subcommands
 -----------
 ``ice``     sample 1v7 map -> spectator edition, plus a no-ore variant
 ``flat``    a generated random map -> uniform flat stage with spectator triggers
+``retrigger`` replace an existing map's trigger block, terrain untouched
 ``uniform`` rewrite every terrain cell to one tile / one height
 ``info``    print what a map contains (sizes, waypoints, terrain, triggers)
 
@@ -68,9 +69,14 @@ def cmd_flat(args):
 
     players = args.players or vm.count_waypoints(text)
 
-    if args.move_player_corner:
+    if args.move_player_corner or args.player_inside:
         left, top, width, height = vm.local_size(text)
-        x, y = left, top + height + args.corner_gap
+        if args.player_inside:
+            # Stay inside the playfield so the 3x3 MCV can deploy on the spot.
+            margin = args.player_inside
+            x, y = left + margin, top + height - margin
+        else:
+            x, y = left, top + height + args.corner_gap
         packed = vm.pack_cell(x, y)
         text = vm.set_waypoint(text, 0, packed)
         print("player start -> cell (%d, %d) = %d, LocalSize=%s"
@@ -83,6 +89,7 @@ def cmd_flat(args):
             players,
             reveal=full,
             iron_curtain=full,
+            iron_curtain_initial=full,
             hunt=True,
         ),
     )
@@ -91,6 +98,29 @@ def cmd_flat(args):
     vm.write_text(args.out, text)
     print("written %s (%d cells, %d players, triggers=%s, %d bytes)"
           % (args.out, records, players, args.triggers, len(text)))
+
+
+def cmd_retrigger(args):
+    """Rewrite only the four trigger sections, leaving terrain and starts."""
+    text = vm.read_text(args.src)
+    newline = "\r\n" if "\r\n" in text else "\n"
+    text = vm.drop_sections(text, vm.TRIGGER_SECTIONS, separator=newline)
+    players = args.players or vm.count_waypoints(text)
+    full = args.triggers == "full"
+    text = vm.add_triggers(
+        text,
+        vm.trigger_block(
+            players,
+            reveal=full,
+            iron_curtain=full,
+            iron_curtain_initial=full,
+            hunt=True,
+            newline=newline,
+        ),
+    )
+    vm.write_text(args.out, text)
+    print("written %s (%d players, triggers=%s, %d bytes)"
+          % (args.out, players, args.triggers, len(text)))
 
 
 def cmd_uniform(args):
@@ -150,9 +180,20 @@ def main():
                       help="full = reveal + iron curtain + hunt; hunt = All to Hunt only")
     flat.add_argument("--move-player-corner", action="store_true",
                       help="move waypoint 0 below the playfield (spectator slot)")
+    flat.add_argument("--player-inside", type=int, metavar="N", default=0,
+                      help="place waypoint 0 N cells inside the bottom-left corner")
     flat.add_argument("--corner-gap", type=int, default=3,
                       help="cells between playfield bottom and the player start")
     flat.set_defaults(func=cmd_flat)
+
+    retrigger = sub.add_parser("retrigger", help="replace a map's trigger block")
+    retrigger.add_argument("--src", required=True)
+    retrigger.add_argument("--out", required=True)
+    retrigger.add_argument("--players", type=int, default=0,
+                           help="start slots (default: read from [Waypoints])")
+    retrigger.add_argument("--triggers", choices=("full", "hunt"), default="full",
+                           help="full = reveal + iron curtain + hunt; hunt = All to Hunt only")
+    retrigger.set_defaults(func=cmd_retrigger)
 
     uniform = sub.add_parser("uniform", help="rewrite terrain only")
     uniform.add_argument("--src", required=True)

@@ -35,6 +35,10 @@ OBJECT_SECTIONS = (
 )
 
 
+#: Sections that hold the spectator trigger block.
+TRIGGER_SECTIONS = ("Triggers", "Events", "Actions", "Tags")
+
+
 # --------------------------------------------------------------------- text
 def read_text(path: str) -> str:
     return open(path, "rb").read().decode("latin-1")
@@ -252,6 +256,7 @@ def trigger_block(
     player_count: int,
     reveal: bool = True,
     iron_curtain: bool = True,
+    iron_curtain_initial: bool = False,
     hunt: bool = True,
     hunt_chunk: int = 10,
     newline: str = "\n",
@@ -281,6 +286,12 @@ def trigger_block(
         actions.append("01000000=1,16,0,0,0,0,0,0,0")
         tags.append("01000001=0,RevealAll,01000000")
     if iron_curtain:
+        if iron_curtain_initial:
+            # Cover the MCV/base during the first ten seconds.
+            triggers.append("01000020=Americans,<none>,IronCurtainStart,0,1,1,1,0")
+            events.append("01000020=1,13,0,1")
+            actions.append("01000020=1,109,0,0,0,0,0,0,A")
+            tags.append("01000021=0,IronCurtainStart,01000020")
         triggers.append("01000010=Americans,<none>,IronCurtain,0,1,1,1,0")
         events.append("01000010=1,13,0,10")
         actions.append("01000010=1,109,0,0,0,0,0,0,A")

@@ -58,21 +58,21 @@ vera20k.exe --generate-map --sed tools/sed/flat200.sed --output Flat200-raw.yrm 
 再改造成纯平观战图：
 
 ```bash
-# 200：只加 All to Hunt，玩家在普通角落
+# 200：与 30/120 同一套触发器（揭图 + 铁幕 + 猎杀），玩家出生点沿用原始航点
 python tools/build_maps.py flat \
   --src Flat200-raw.yrm --out maps/SuperAI-Flat200.yrm \
-  --name "Super AI Flat 200" --players 8 --triggers hunt \
+  --name "Super AI Flat 200" --players 8 --triggers full \
   --terrain-newline crlf
 
-# 30：揭图 + 铁幕 + 猎杀，玩家移到左下角可玩区外
+# 30：揭图 + 铁幕（1 秒起）+ 猎杀，玩家在左下角内侧 4 格
 python tools/build_maps.py flat \
   --src Flat30-raw.yrm --out maps/SuperAI-Flat30.yrm \
-  --name "Super AI Flat 30" --players 30 --triggers full --move-player-corner
+  --name "Super AI Flat 30" --players 30 --triggers full --player-inside 4
 
 # 120：同上，500×500
 python tools/build_maps.py flat \
   --src Flat120-raw.yrm --out maps/SuperAI-Flat120.yrm \
-  --name "Super AI Flat 120" --players 120 --triggers full --move-player-corner
+  --name "Super AI Flat 120" --players 120 --triggers full --player-inside 4
 ```
 
 参数：
@@ -81,7 +81,8 @@ python tools/build_maps.py flat \
 | --- | --- |
 | `--players` | 出生点数量；省略时从 `[Waypoints]` 读取 |
 | `--triggers full\|hunt` | `full` = 揭图 + 铁幕 + 猎杀；`hunt` = 只加猎杀 |
-| `--move-player-corner` | 把 0 号位移到可玩区下方 `--corner-gap` 格（默认 3） |
+| `--player-inside N` | 把 0 号位放在可玩区左下角内 N 格（3×3 可展开，推荐 4） |
+| `--move-player-corner` | 把 0 号位移到可玩区下方 `--corner-gap` 格（老方案，需先把 MCV 开进来） |
 | `--tile` / `--sub` / `--height` | 统一地形参数，默认 418 / 0 / 4 |
 | `--terrain-newline lf\|crlf` | 仅影响 `[IsoMapPack5]` 的换行，纯外观 |
 
@@ -89,6 +90,16 @@ python tools/build_maps.py flat \
 
 ```bash
 python tools/build_maps.py uniform --src raw.yrm --out flat.yrm --tile 418 --height 4
+```
+
+### 2.4 只补触发器
+
+已有地图要换成同一套观战触发器（地形、出生点、其余段落逐字节保留）：
+
+```bash
+python tools/build_maps.py retrigger \
+  --src maps/SuperAI-Flat200.yrm --out maps/SuperAI-Flat200.yrm \
+  --players 8 --triggers full
 ```
 
 ## 3. 校验
@@ -135,8 +146,8 @@ python tools/install.py --game-dir "F:/Games/VERA20K" --enable
 
 1. 生成底图（或找一张 8 人图）。
 2. 用 `build_maps.py flat` 统一地形、加触发器。
-3. 玩家位放在可玩区外、留够 3 格；或者不加 `--move-player-corner`，
-   把玩家放在地图角落自己部署。
+3. 玩家位用 `--player-inside 4` 放在可玩区内，保证 3×3 地基能落地；
+   不要用可玩区外的位置，MCV 能生成但无法就地展开。
 4. `check.py` 确认 `starts` 数量正确。
 5. 在 `docs/spectator-guide.md` 的地图表里补一行。
 
