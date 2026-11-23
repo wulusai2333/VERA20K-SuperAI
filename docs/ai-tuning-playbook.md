@@ -1242,6 +1242,28 @@ INFO vera20k_core::rules::ruleset::loading] SuperWeaponTypes: 12 loaded
 | 弹丸 | `ZAINukeMissileProj`（AA+AG 追踪弹） | `ZAINukeRifleProj`（弹道弹：`Arcing`+`Ranged`+`Inaccurate`+`FlakScatter`，无 `Arm`/`ROT`） |
 | 弹头 | `[NUKE]`（零售，未改） | `ZAINukeWH`（3 星无畏 `[DMISLEWH]` 克隆：`CellSpread=3`、`MININUKE`、弹头级 `BallisticScatter=200`） |
 
+**`[CombatDamage]` 是全局唯一段，不能"给某个单位单独来一份"**（3.11.1）：
+
+```ini
+[CombatDamage]
+BallisticScatter=200     ; 唯一的全局散布半径（格）
+```
+
+写第二个 `[CombatDamage]` 只会覆盖第一个，所有单位仍共用一个值。要"只让某个单位大散布"，
+正确做法是**全局调大 + 把其它使用者关掉**：
+
+```ini
+[FlakProj]    ; 零售高炮弹丸——这个全局值的唯一其它使用者
+FlakScatter=no
+Inaccurate=no
+[FlakTProj]
+FlakScatter=no
+Inaccurate=no
+```
+
+这样只有第二艘飞艇的弹道弹会撒 200 格，AI 的高射炮只是变准、不会跟着乱撒。
+守卫把这条"受控例外"固化：`BallisticScatter>=100` **且** 两枚高炮弹丸已关散布，缺一即报错。
+
 **素材版本来源**：飞行兵那套武器取的是它**最后可用的一版（3.10.6）**。
 注意当时"满地乱飞"还有一半来自全局 `[CombatDamage] BallisticScatter=200`（已按边界要求撤回），
 所以第二艘只能靠弹丸的 `Inaccurate`/`FlakScatter` + 弹头级 `BallisticScatter=200` 来散，

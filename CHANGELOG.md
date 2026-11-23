@@ -2,6 +2,24 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## 3.11.1 — 第二艘飞艇的散布：走 `[CombatDamage]`（全局唯一段）+ 关掉零售高炮的散布
+
+`[CombatDamage]` **没有"按单位一份"这种东西** —— 引擎只读一个全局段。所以：
+
+```ini
+[CombatDamage]
+BallisticScatter=200     ; 全局散布半径（格）
+
+[FlakProj]  FlakScatter=no  Inaccurate=no     ; 零售高炮弹丸：关掉散布
+[FlakTProj] FlakScatter=no  Inaccurate=no
+```
+
+效果：只有第二艘飞艇的弹道弹撒 200 格，AI 的高射炮恢复精确、不会跟着乱撒。
+`[ZAINukeWH]` 上的弹头级 `BallisticScatter=200` 保留，两道保险。
+
+守卫把这条固化成"受控例外"：`BallisticScatter>=100` **且**两枚高炮弹丸已关散布，
+缺一即构建失败（实测 `BallisticScatter=1.0`、`FlakScatter=yes` 都会被拦）。
+
 ## 3.11.0 — 两艘核弹飞艇：短程版 + 复用「核弹火箭飞行兵」武器版
 
 **边界（都已核对）**：两艘都是**全局、打包进 mod** 的新类型（`rulesmd.ini` 的

@@ -895,6 +895,48 @@ def apply_nuke_gunship2(lines):
         body += ["%s=%s\r\n" % pair for pair in fields]
         _replace_section(lines, name, body)
     _append_registry(lines, "VehicleTypes", GUNSHIP2_UNIT)
+
+    # Widen the global ballistic spread, then take it away from retail flak so the
+    # AI's anti-air keeps its accuracy.
+    combat = None
+    for i, line in enumerate(lines):
+        if re.match(r"^\[CombatDamage\]\s*(;.*)?$", line, re.I):
+            combat = i
+            break
+    if combat is None:
+        raise SystemExit("[CombatDamage] not found")
+    end = len(lines)
+    for i in range(combat + 1, len(lines)):
+        if re.match(r"^\[[^\]]+\]\s*(;.*)?$", lines[i]):
+            end = i
+            break
+    replaced = False
+    for i in range(combat + 1, end):
+        if re.match(r"^BallisticScatter\s*=", lines[i], re.I):
+            eol = "\r\n" if lines[i].endswith("\r\n") else "\n"
+            lines[i] = "BallisticScatter=%s%s" % (COMBAT_SCATTER, eol)
+            replaced = True
+            break
+    if not replaced:
+        lines.insert(combat + 1, "BallisticScatter=%s\r\n" % COMBAT_SCATTER)
+
+    for section in FLAK_PROJECTILES:
+        out, inside = [], False
+        for line in lines:
+            header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
+            if header:
+                inside = header.group(1).strip().lower() == section.lower()
+                out.append(line)
+                continue
+            if inside:
+                key = line.split("=", 1)[0].strip()
+                hit = [v for k, v in FLAK_DAMPING if k.lower() == key.lower()]
+                if hit:
+                    eol = "\r\n" if line.endswith("\r\n") else "\n"
+                    out.append("%s=%s%s" % (key, hit[0], eol))
+                    continue
+            out.append(line)
+        lines[:] = out
     return True
 
 
@@ -907,6 +949,13 @@ DROP_SW_TYPES = ("UnitDelivery",)
 #: New units need an artmd.ini section as well; without one the engine has no model
 #: to draw and the unit is simply invisible until it fires.  Image=ZEP reuses the
 #: Kirov's voxel and cameo, so no new art is needed.
+#: [CombatDamage] is a single global section -- there is no per-unit copy -- so a
+#: wide spread for the missile gunship has to be set there.  The retail flak
+#: projectiles are the only other users of that value, and they get their scatter
+#: switched off, so widening it does not blind the AI's anti-air.
+COMBAT_SCATTER = "200"
+FLAK_PROJECTILES = ("FlakProj", "FlakTProj")
+FLAK_DAMPING = (("FlakScatter", "no"), ("Inaccurate", "no"))
 DROP_SW2 = "ZAINukeGunship2Drop"
 
 
@@ -993,6 +1042,21 @@ def assert_nuke_gunship2(rules_lines, aimd_lines):
         spread = 0.0
     if spread < 2.5 or spread > 4:
         problems.append("%s CellSpread=%r (want 2.5..4)" % (GUNSHIP2_WARHEAD, spread))
+    combat2 = values("CombatDamage")
+    try:
+        global_scatter2 = float(combat2.get("ballisticscatter", "0"))
+    except ValueError:
+        global_scatter2 = 0.0
+    if global_scatter2 < 100:
+        problems.append("[CombatDamage] BallisticScatter=%r (want >=100: this ship "
+                        "relies on the global spread)"
+                        % combat2.get("ballisticscatter"))
+    for flak in FLAK_PROJECTILES:
+        damped = values(flak)
+        for key, want in FLAK_DAMPING:
+            if damped.get(key.lower(), "").lower() != want:
+                problems.append("[%s] %s=%r (want %s, so the AI's flak keeps its "
+                                "accuracy)" % (flak, key, damped.get(key.lower()), want))
     if GUNSHIP2_UNIT not in " ".join(sections.get("VehicleTypes", [])):
         problems.append("%s is not in [VehicleTypes]" % GUNSHIP2_UNIT)
     registry = set()
@@ -1071,10 +1135,26 @@ def assert_unit_delivery(rules_lines, aimd_lines):
     if general.get("amerparadropinf", "").strip() != "E1":
         problems.append("[General] AmerParaDropInf=%r; the shared drop table must "
                         "stay at retail" % general.get("amerparadropinf", "<missing>"))
+    # [CombatDamage] is a single global section, so the wide spread for the missile
+    # gunship has to live there.  That is allowed only together with the retail
+    # flak projectiles having their own scatter switched off, so the AI's anti-air
+    # is not affected by it.
     combat = values("CombatDamage")
-    if combat.get("ballisticscatter", "").strip() != "1.0":
-        problems.append("[CombatDamage] BallisticScatter=%r; it must stay at retail"
+    try:
+        global_scatter = float(combat.get("ballisticscatter", "0"))
+    except ValueError:
+        global_scatter = 0.0
+    if global_scatter < 100:
+        problems.append("[CombatDamage] BallisticScatter=%r (want >=100: the "
+                        "missile gunship's spread comes from it)"
                         % combat.get("ballisticscatter", "<missing>"))
+    for flak in FLAK_PROJECTILES:
+        damped = values(flak)
+        for key, want in FLAK_DAMPING:
+            if damped.get(key.lower(), "").lower() != want:
+                problems.append("[%s] %s=%r (want %s, or the AI's flak inherits the "
+                                "wide scatter)" % (flak, key,
+                                                   damped.get(key.lower()), want))
     for name in ("ParaDropSpecial", "AmericanParaDropSpecial"):
         extra = [k for k in values(name) if k.startswith("sw.")]
         if extra:
