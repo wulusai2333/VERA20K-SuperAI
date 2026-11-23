@@ -112,7 +112,7 @@ RULES_EDITS = {
     "MinimumAIDefensiveTeams": ("1,1,1", "0,0,0"),
     "MaximumAIDefensiveTeams": ("2,2,2", "0,0,0"),
     # A team that cannot be filled frees its slot instead of holding it.
-    "DissolveUnfilledTeamDelay": ("5000", "900"),
+    "DissolveUnfilledTeamDelay": ("5000", "2400"),
 }
 
 #: Per-section key rewrites, applied inside the named section only.
@@ -1234,12 +1234,29 @@ def boost_air_and_aa(doc):
         if not factor:
             continue
         eol = line[len(line.rstrip("\r\n")):]
+        boosted = []
         for slot in (7, 8, 9):
             try:
                 weight = float(tokens[slot])
             except ValueError:
-                continue
-            tokens[slot] = "%.6f" % min(weight * factor, WEIGHT_CAP)
+                boosted = []
+                break
+            boosted.append(min(weight * factor, WEIGHT_CAP))
+        if not boosted:
+            continue
+        if team in team_air:
+            # `AiTriggerTrackRecord::record` clamps the running weight to
+            # `[weights[1], weights[2]]` and subtracts AITriggerFailureWeightDelta
+            # (-50) every time a team dies without reaching script action 49.
+            # Aircraft almost always die before that, so an air trigger sinks to
+            # its floor within three losses and stops being drawn -- "the air
+            # force never comes back".  Three equal slots make the clamp range a
+            # single point, so the weight is constant however many teams are
+            # lost.
+            top = max(boosted)
+            boosted = [top, top, top]
+        for slot, weight in zip((7, 8, 9), boosted):
+            tokens[slot] = "%.6f" % weight
         doc.lines[i] = key + "=" + ",".join(tokens) + eol
         if factor == AIR_WEIGHT_FACTOR:
             air_triggers += 1
@@ -1267,6 +1284,64 @@ def assert_air_and_aa_boosted(aimd_lines):
                                 % (m.group(3), m.group(2)))
     if air_tfs < 5:
         problems.append("only %d air task-force entries" % air_tfs)
+
+    # The air triggers must stay pinned: `AiTriggerTrackRecord::record` clamps
+    # the running weight to [weights[1], weights[2]] and takes
+    # AITriggerFailureWeightDelta off it for every team that dies before
+    # reaching script action 49, which is what aircraft do.  Unequal slots mean
+    # the weight starts decaying again and the air force disappears for minutes
+    # after every loss.
+    sections, current = {}, None
+    for line in aimd_lines:
+        header = re.match(r"^\[([^\]]+)\]\s*$", line)
+        if header:
+            current = header.group(1).strip()
+            sections.setdefault(current, [])
+            continue
+        if current is not None:
+            sections[current].append(line)
+
+    team_tf = {}
+    for line in sections.get("TeamTypes", []):
+        entry = line.strip()
+        if entry.lower().startswith("taskforce=") or not entry:
+            continue
+        m = re.match(r"^(\d+)=([^,\s]+)", entry)
+        if m:
+            team_tf.setdefault(m.group(1), m.group(2))
+    team_taskforce = {}
+    for name, body in sections.items():
+        for line in body:
+            if line.strip().lower().startswith("taskforce="):
+                team_taskforce[name] = line.split("=", 1)[1].strip()
+                break
+
+    air_team_ids = set()
+    for tid, tf in team_taskforce.items():
+        units = {m.group(1) for m in
+                 (re.match(r"^\d+=\d+,([A-Za-z][\w]*)", x.strip()) for x in sections.get(tf, []))
+                 if m}
+        if units & AIR_UNITS:
+            air_team_ids.add(tid)
+
+    unpinned = []
+    for line in sections.get("AITriggerTypes", []):
+        entry = line.strip()
+        if "=" not in entry or entry.startswith(";"):
+            continue
+        key, value = entry.split("=", 1)
+        tokens = value.split(",")
+        if len(tokens) != 18 or tokens[1].strip() not in air_team_ids:
+            continue
+        try:
+            weights = [float(tokens[slot]) for slot in (7, 8, 9)]
+        except ValueError:
+            continue
+        if len(set(weights)) != 1:
+            unpinned.append("%s=%s" % (key.strip(), "/".join("%.0f" % w for w in weights)))
+    if unpinned:
+        problems.append("air trigger weights are not pinned: " + ", ".join(unpinned[:3]))
+
     if problems:
         raise SystemExit("air/AA boost missing: " + "; ".join(problems[:4]))
     return air_tfs
