@@ -1271,6 +1271,15 @@ YuriParaDropInf=ZAINukeTrooper  YuriParaDropNum=1
 | 武器/节奏像火箭飞行兵 | `[ZAINukeRifle]` 克隆天启副武器 `[MammothTusk]` | `ROF=80`、`Burst=2`、`Range=200`、`Speed=20` |
 | 弹道要飘、落点要随机 | `[Weapon] Inaccurate=yes` + `[Projectile] FlakScatter=yes` + `ROT=10` | 不吸附目标点 + 落点随机 + 慢转向 |
 
+**射速换算（3.10.4）**：要"3 星某单位的攻击间隔"，直接乘 `[General] VeteranROF`：
+
+```
+3 星间隔 = 该武器 ROF × VeteranROF      例：神盾 [Medusa] ROF=15 × 0.6 = 9 帧
+```
+
+引擎 15 帧/秒，所以 9 帧 ≈ 每秒 1.7 发；神盾看着"一秒十几发"是多管齐射的观感，
+单管间隔就是 9 帧这个量级。核弹兵现在 `ROF=9` + `Burst=1`（单发）。
+
 **追踪弹永远不会撒（3.10.3 实测）**：`FlakScatter` 只对**非追踪弹**（`Ranged=yes`、无 `Arm`/`ROT`）
 生效；追踪弹最后一定会咬住目标点，所以 `HomingScatter` 调到 200 也照样精确命中。
 要真撒，弹丸必须写成零售高炮那种弹道弹：

@@ -804,9 +804,11 @@ TROOPER_WEAPON_FIELDS = (
     # Inaccurate=yes stops the shot snapping onto the target point; together with
     # the projectile's FlakScatter this is what makes the landing spot random.
     ("Damage", "600"),
-    ("ROF", "80"),
+    # 3-star Aegis cadence: [Medusa] ROF=15 times [General] VeteranROF=0.6 is 9
+    # frames.  Single shot -- Burst is what made it feel like a machine gun.
+    ("ROF", "9"),
     ("Range", "200"),
-    ("Burst", "2"),
+    ("Burst", "1"),
     ("Speed", "20"),
     ("Projectile", TROOPER_PROJECTILE),
     ("Warhead", TROOPER_WARHEAD),
@@ -1240,9 +1242,17 @@ def assert_nuke_gunship(rules_lines, aimd_lines):
         rof = int(float(rifle.get("rof", "0")))
     except ValueError:
         rof = 0
-    if rof < 60:
-        problems.append("%s ROF=%r (want >=60: the Rocketeer's 30 fired far too "
-                        "often)" % (TROOPER_WEAPON, rifle.get("rof")))
+    if rof < 1 or rof > 15:
+        problems.append("%s ROF=%r (want 1..15: it is meant to match the 3-star "
+                        "Aegis, Medusa 15 x VeteranROF 0.6 = 9)"
+                        % (TROOPER_WEAPON, rifle.get("rof")))
+    try:
+        burst = int(float(rifle.get("burst", "0")))
+    except ValueError:
+        burst = 0
+    if burst != 1:
+        problems.append("%s Burst=%r (want 1: one missile per attack)"
+                        % (TROOPER_WEAPON, rifle.get("burst")))
     if rifle.get("inaccurate"):
         problems.append("%s has Inaccurate on the WEAPON; it is a projectile key "
                         "and does nothing there" % TROOPER_WEAPON)

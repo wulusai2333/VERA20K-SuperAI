@@ -2,6 +2,22 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## 3.10.4 — 核弹兵改单发，射速对齐 3 星神盾
+
+射速换算（记进 playbook）：
+
+```
+3 星间隔 = 武器 ROF × [General] VeteranROF
+神盾 [Medusa] ROF=15 × 0.6 = 9 帧  （15 帧/秒 → 约 1.7 发/秒）
+```
+
+- `[ZAINukeRifle]`：`ROF` 80 → **9**，`Burst` 2 → **1**（单发）；
+- 弹丸/弹头/散布全部不变（`Arcing=true`、`FlakScatter=yes`、`Inaccurate=yes`、
+  `[CombatDamage] BallisticScatter=200`、`Warhead=ZAINukeWH`）。
+
+守卫改成：`Burst == 1`、`1 <= ROF <= 15`（不许退回慢节奏，也不许 0）；
+实测 `Burst=2`、`ROF=80`、`ROF=0` 全部被拦。
+
 ## 3.10.3 — 弹丸改成高炮式弹道弹，散布才真的生效
 
 实测发现：**追踪弹永远不会撒** —— `FlakScatter` 只对非追踪弹生效，追踪弹最后一定咬住目标点，
