@@ -113,6 +113,13 @@ RULES_EDITS = {
     "MaximumAIDefensiveTeams": ("2,2,2", "0,0,0"),
     # A team that cannot be filled frees its slot instead of holding it.
     "DissolveUnfilledTeamDelay": ("5000", "2400"),
+    # The AI never builds a second airfield at retail: `BuildRadar=` gives it
+    # one (GAAIRC for the Allies) and `AirstripLimit=0` forbids any more, so a
+    # house owns four pads.  Aircraft are `AirportBound=yes` with `Ammo=1`, so
+    # every shot needs a landing, and they crash when there is no free pad --
+    # which is exactly what an over-sized air team looks like in game.
+    "AirstripLimit": ("0", "4"),
+    "AirstripRatio": (".12", ".25"),
 }
 
 #: Per-section key rewrites, applied inside the named section only.
@@ -621,6 +628,21 @@ AIR_UNITS = {"ORCA", "BEAG", "ZEP", "BPLN", "HORNET", "ASW", "APACHE", "SPYP",
 
 #: Ground units that can shoot at aircraft.  Teams carrying one are "AA teams".
 AA_UNITS = {"FV", "FLAKT", "YTNK", "APOC", "TELE", "HIND", "AEGIS", "JUMPJET", "GGI"}
+
+#: Aircraft that must land on an airfield pad: ``AirportBound=yes`` and
+#: ``Dock=GAAIRC`` in rulesmd.ini, with ``Ammo=1`` so every shot means a landing.
+#: A house can only keep as many of these alive as it has pads --
+#: ``[GAAIRC] NumberOfDocks=4`` -- and retail's own comment says it crashes when
+#: it has nowhere to land.  These teams get a small size and a low cap instead of
+#: the big numbers the free-flying units get.
+AIRPORT_AIRCRAFT = {"ORCA", "BEAG"}
+#: Aircraft per airport-bound team, and how many such teams may exist: 3 x 3 = 9
+#: aircraft against 4 pads per airfield, so two extra airfields are already enough.
+AIRPORT_TEAM_SIZE = 3
+AIRPORT_TEAM_MAX = 3
+#: The flying infantry fills slowly (one barracks, expensive men), so a team that
+#: is too big is dissolved before it can form.  Six fits in one dissolve window.
+AIR_INFANTRY_SIZE = 6
 
 #: How many of a team type a house may have at once after the boost.
 AIR_TEAM_MAX = 6
@@ -1199,6 +1221,15 @@ def boost_air_and_aa(doc):
         elif units & AA_UNITS:
             team_aa.add(tid)
 
+    # Teams whose aircraft must land on a pad get the pad-safe cap instead.
+    team_airport = set()
+    for tid in team_air:
+        tf = team_tf.get(tid)
+        if tf in doc.starts:
+            units = {unit for _i, _idx, _count, unit, _rest, _eol in doc.members(tf)}
+            if units & AIRPORT_AIRCRAFT:
+                team_airport.add(tid)
+
     # 1. A house may keep AIR_TEAM_MAX air teams alive at once.
     capped = 0
     for tid in sorted(team_air):
@@ -1210,8 +1241,9 @@ def boost_air_and_aa(doc):
             value = int(current)
         except ValueError:
             continue
-        if value < AIR_TEAM_MAX:
-            doc.replace_value(fields["max"][1], "Max", str(AIR_TEAM_MAX))
+        wanted = AIRPORT_TEAM_MAX if tid in team_airport else AIR_TEAM_MAX
+        if value < wanted:
+            doc.replace_value(fields["max"][1], "Max", str(wanted))
             capped += 1
 
     # 2. One more aircraft per air task force.
@@ -1220,8 +1252,13 @@ def boost_air_and_aa(doc):
         for index, slot, count, unit, rest, eol in doc.members(tf):
             if unit not in AIR_UNITS or count >= AIR_UNIT_CAP:
                 continue
-            wanted = min(max(count + 1, AIR_UNIT_MIN) * AIR_SIZE_FACTOR,
-                         AIR_UNIT_CAP)
+            if unit in AIRPORT_AIRCRAFT:
+                wanted = AIRPORT_TEAM_SIZE
+            elif unit == "JUMPJET":
+                wanted = AIR_INFANTRY_SIZE
+            else:
+                wanted = min(max(count + 1, AIR_UNIT_MIN) * AIR_SIZE_FACTOR,
+                             AIR_UNIT_CAP)
             doc.lines[index] = "%d=%d,%s%s%s" % (slot, wanted, unit, rest, eol)
             grown += 1
 
@@ -1285,11 +1322,24 @@ def assert_air_and_aa_boosted(aimd_lines):
     air_tfs = 0
     for line in aimd_lines:
         m = re.match(r"^(\d+)=(\d+),([A-Za-z][\w]*)", line)
-        if m and m.group(3) in AIR_UNITS:
-            air_tfs += 1
-            if int(m.group(2)) < AIR_UNIT_MIN * AIR_SIZE_FACTOR:
-                problems.append("air task force entry %s has only %s aircraft"
-                                % (m.group(3), m.group(2)))
+        if not m or m.group(3) not in AIR_UNITS:
+            continue
+        unit, count = m.group(3), int(m.group(2))
+        air_tfs += 1
+        if unit in AIRPORT_AIRCRAFT:
+            # These need a pad for every aircraft: 4 pads per airfield, and the
+            # aircraft crashes when it cannot land, so never exceed one airfield's
+            # worth in a single team.
+            if count > 4:
+                problems.append("%s team holds %d aircraft but an airfield has "
+                                "only 4 pads" % (unit, count))
+        elif unit == "JUMPJET":
+            if not 4 <= count <= 8:
+                problems.append("JUMPJET team holds %d men (want 4-8: big enough "
+                                "to matter, small enough to fill)" % count)
+        elif count < AIR_UNIT_MIN * AIR_SIZE_FACTOR:
+            problems.append("air task force entry %s has only %s aircraft"
+                            % (unit, count))
     if air_tfs < 5:
         problems.append("only %d air task-force entries" % air_tfs)
 
@@ -1362,6 +1412,35 @@ def assert_air_and_aa_boosted(aimd_lines):
             unpinned.append("%s=%s" % (key.strip(), "/".join("%.0f" % w for w in weights)))
     if unpinned:
         problems.append("air trigger weights are not pinned: " + ", ".join(unpinned[:3]))
+
+    # Pad-safe team caps: AIRPORT_TEAM_SIZE x AIRPORT_TEAM_MAX aircraft per house
+    # must fit in the pads the AI can build.
+    for line in aimd_lines:
+        m = re.match(r"^\d+=([0-9A-Fa-f]{8}-G)$", line.strip())
+        if m:
+            continue
+    unpadded = []
+    for name, body in sections.items():
+        tf = next((l.split("=", 1)[1].strip() for l in body
+                   if l.strip().lower().startswith("taskforce=")), None)
+        if not tf:
+            continue
+        units = {m.group(1) for m in
+                 (re.match(r"^\d+=\d+,([A-Za-z][\w]*)", x.strip())
+                  for x in sections.get(tf, [])) if m}
+        if not (units & AIRPORT_AIRCRAFT):
+            continue
+        for l in body:
+            if l.strip().lower().startswith("max="):
+                try:
+                    cap = int(l.split("=", 1)[1].strip())
+                except ValueError:
+                    continue
+                if cap > AIRPORT_TEAM_MAX:
+                    unpadded.append("%s Max=%d" % (name, cap))
+    if unpadded:
+        problems.append("airport-bound teams may hold at most %d teams: %s"
+                        % (AIRPORT_TEAM_MAX, ", ".join(unpadded[:3])))
 
     if problems:
         raise SystemExit("air/AA boost missing: " + "; ".join(problems[:4]))

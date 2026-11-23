@@ -1102,3 +1102,59 @@ PASS  AA defences 6 of 17 (35% of defences, gate 20%)
 **防回归**：守卫新增两条 —— 必须存在 `JUMPJET` 编队条目，且每一条 ≥6 人。
 实测：把火箭兵改回 5 人会报 `air task force entry JUMPJET has only 5 aircraft`；
 整条删掉会报 `no JUMPJET task-force entry`。
+
+---
+
+## 16. 飞机为什么「起飞就坠毁」：停机位是硬约束（3.6 修掉）
+
+### 16.1 链条（全部在零售数据里）
+
+```ini
+[ORCA]  AirportBound=yes   ; If I ever need to land and there are no airports I crash
+        Dock=GAAIRC,AMRADR  Ammo=1        ; 打一发就必须降落补给
+[BEAG]  同上
+[GAAIRC] NumberOfDocks=4                  ; 一座空指部 = 4 个停机位
+[AI]
+BuildRadar=GAAIRC,NARADR,AMRADR,NAPSIS    ; 盟军的"雷达"槽位就是空指部 → 只造 1 座
+AirstripLimit=0                           ; ← 额外机库上限是 0：永远不造第二座
+```
+
+所以盟军 AI 全场**只有 4 个停机位**。而 3.3–3.5 给了它每队 10 架、上限 6 队 →
+单户理论 60 架抢 4 个停机位 → 打一发就没地方落 → 盘旋到燃料耗尽 → **坠毁**。
+
+**基洛夫 `ZEP` 没有 `AirportBound`**（不需要停机位），所以它一直正常 ——
+这正是"基洛夫飞到脸上、飞机却全在坠毁"的原因。
+
+### 16.2 修法
+
+| 项 | 零售/旧 | 3.6 |
+| --- | --- | --- |
+| `[AI] AirstripLimit` | `0` | **`4`**（1 座雷达位 + 4 座机库 = 5 座 = 20 个停机位） |
+| `[AI] AirstripRatio` | `.12` | **`.25`** |
+| 机场型飞机（`ORCA`/`BEAG`）每队 | 6–10 | **`3`**（一座空指部的容量内） |
+| 机场型空军队伍 `Max` | `6` | **`3`**（3×3=9 架 ≤ 12 个停机位，两座机库就够） |
+| 火箭飞行兵 `JUMPJET` 每队 | 12 | **`6`**（6 人能在 40 秒解散窗口内补齐，才会真的出现在场上） |
+| 基洛夫 `ZEP` | 6–8 | **不变**（不需要停机位） |
+
+**不变量**：`每户机场型飞机数 ≤ 空指部数 × 4`。
+`AIRPORT_AIRCRAFT = {"ORCA","BEAG"}` 在 `boost_air_and_aa` 里单独走一条分支。
+
+### 16.3 防回归
+
+`assert_air_and_aa_boosted` 现在检查：
+
+- 机场型飞机**每队 ≤ 4 架**（一座空指部的停机位），否则报
+  `ORCA team holds 10 aircraft but an airfield has only 4 pads`；
+- 机场型空军队伍 `Max ≤ 3`；
+- `JUMPJET` 每队 4–8 人；
+- 其它飞行单位仍 ≥6 架。
+
+### 16.4 验收
+
+1. 盟军基地里能看到**多座空指部**（不再只有一座）；
+2. 飞机**打完会回去降落补给**，不再在空中盘旋坠毁；
+3. 火箭飞行兵成批出现（每批 6 人，最多 6 批）。
+
+> 如果实测发现 AI 仍然只造一座空指部（`AirstripLimit` 语义与注释不符），
+> 退路是把机场型飞机压到每队 2 架、`Max=2`（4 架 = 一座空指部的容量），
+> 至少保证不再坠毁。
