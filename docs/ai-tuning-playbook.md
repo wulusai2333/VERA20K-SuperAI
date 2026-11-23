@@ -1224,7 +1224,24 @@ INFO vera20k_core::rules::ruleset::loading] SuperWeaponTypes: 12 loaded
      但触发器只能按**国家**定位房子（`resolve_trigger_house` 用 `CountryIdx`），
      所以需要固定玩家用哪个国家。
 
-### 17.13 空投定论：只有按阵营的**步兵**列表生效（3.10.0）
+### 17.14 教训：VERA 的空投表是**公共**的，不要拿它做"玩家专属"（3.10.8 已全部撤回）
+
+做"专属核弹兵空投"时我把 `[General] AmerParaDropInf / AllyParaDropInf / SovParaDropInf /
+YuriParaDropInf` 四张表指向了自定义兵种 —— 结果**电脑也开始投核弹兵**。原因：这四张表是
+**按阵营、玩家与电脑共用**的，没有"每个超武各一份列表"这种东西。
+
+结论（以后不要再试）：
+
+- 想让某个空投/超武**只给玩家**，只能靠 `SW.AllowAI=no` 卡在**超武类型**上，
+  **不能**去改它读取的公共数据表；
+- 一旦发现"改了公共表"，正确做法是**整体撤回**，而不是顺手把电脑的超武也关掉
+  （那等于改 AI 的兵种逻辑，属于越权）；
+- 3.10.8 已撤回：四张 `*ParaDropInf`、`[CombatDamage] BallisticScatter/HomingScatter`、
+  `[FlakProj]`/`[FlakTProj]` 的散布、两个零售空投超武的 `SW.AllowAI=no`、
+  以及 `ZAIWorldNuke` / `ZAINukeTrooper` / `ZAINukeRifle` / `ZAINukeRifleProj` / `ZAINukeWH`。
+  保留的只有**我们自己新建**的 `ZAIUnlimitedNuke`（超武）与 `ZAINukeGunship`（载具）。
+
+### 17.13 空投定论：只有按阵营的**步兵**列表生效（3.10.0，已随 3.10.8 撤回）
 
 三次实测，结论固定下来：
 

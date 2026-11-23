@@ -622,31 +622,10 @@ def assert_player_nuke_section(rules_lines):
 
 
 #: The nuclear gunship: a Kirov-class airship firing homing missiles with nuke
-#: warheads.
-#:
-#: Three earlier shapes failed for engine reasons, all recorded in the playbook:
-#: a nuke superweapon cannot scatter its warheads (the payload is the global
-#: `[General] Nuke.Payload`), the spy-plane superweapon never uses its aircraft's
-#: weapon and flies a hard-coded route, and a normal aircraft dies to anti-air.
-#: A Kirov clone avoids all of it: `BalloonHover=yes` never lands (no pads), it is
-#: a plain buildable vehicle (war factory only), and Strength plus Insignificant
-#: keep it alive and untargeted.
-#:
-#: The missile is cloned from `[AAHeatSeeker2]` (the IFV's) rather than the
-#: Aegis's `[MedusaProjectile]`, because the Aegis projectile is `AA=yes AG=no`:
-#: it cannot hit the ground at all.
+#: warheads.  Everything here is OUR own type; no shared table is touched.
 GUNSHIP_UNIT = "ZAINukeGunship"
 GUNSHIP_WEAPON = "ZAINukeMissile"
 GUNSHIP_PROJECTILE = "ZAINukeMissileProj"
-#: Delivery.  Verified the hard way, in this order:
-#:
-#: * `[General] ParaDrop.Types` is NOT read by VERA: its paradrop keeps per-side
-#:   INFANTRY lists (`GeneralTypeLists { paradrop_infantry }`), so a vehicle there
-#:   fell back to `AllyParaDropInf=E1` and dropped riflemen;
-#: * `Type=DropPod` with `DropPod.Types` produced no effect at all.
-#:
-#: What does work is the retail path itself: point the four per-side infantry
-#: lists at our own flying nuke trooper, and the drop delivers the real thing.
 GUNSHIP_UNIT_FIELDS = (
     ("UIName", "Name:ZEP"),
     ("Name", "Nuclear Gunship"),
@@ -722,152 +701,6 @@ GUNSHIP_PROJECTILE_FIELDS = (
     ("SubjectToElevation", "no"),
     ("SubjectToWalls", "no"),
 )
-TROOPER_INF = "ZAINukeTrooper"
-TROOPER_WEAPON = "ZAINukeRifle"
-GUNSHIP_SW = "ZAIWorldNuke"
-GUNSHIP_GENERAL_KEYS = (
-    ("AmerParaDropInf", TROOPER_INF),
-    ("AmerParaDropNum", "1"),
-    ("AllyParaDropInf", TROOPER_INF),
-    ("AllyParaDropNum", "1"),
-    ("SovParaDropInf", TROOPER_INF),
-    ("SovParaDropNum", "1"),
-    ("YuriParaDropInf", TROOPER_INF),
-    ("YuriParaDropNum", "1"),
-)
-#: Keys from the failed attempts, stripped every build so they cannot quietly
-#: change what a drop delivers again.
-STALE_GENERAL_KEYS = ("ParaDrop.", "DropPod", "MinimumDropPod", "MaximumDropPod",
-                      "minimumdroppod", "maximumdroppod")
-GUNSHIP_SW_FIELDS = (
-    ("UIName", "Name:Para"),
-    ("Name", "N U K E !!! (airdrop)"),
-    ("Type", "ParaDrop"),
-    ("Action", "ParaDrop"),
-    ("SidebarImage", "PARAICON"),
-    ("ShowTimer", "no"),
-    ("RechargeTime", "0.01"),
-    ("SW.AllowPlayer", "yes"),
-    ("SW.AllowAI", "no"),
-    ("SW.AlwaysGranted", "yes"),
-    ("SW.RequiresTarget", "yes"),
-)
-TROOPER_INF_FIELDS = (
-    ("UIName", "Name:JUMPJET"),
-    ("Name", "Nuke Trooper"),
-    ("Image", "ROCK"),
-    ("Category", "Soldier"),
-    ("JumpJet", "yes"),
-    ("Primary", TROOPER_WEAPON),
-    ("Strength", "100000"),
-    ("Fearless", "yes"),
-    ("Armor", "none"),
-    ("TechLevel", "-1"),
-    ("Sight", "10"),
-    ("Pip", "white"),
-    ("Speed", "9"),
-    ("Owner", "British,French,Germans,Americans,Alliance,Russians,Confederation,"
-              "Africans,Arabs,Yuri"),
-    ("AllowedToStartInMultiplayer", "no"),
-    ("Cost", "600"),
-    ("Soylent", "300"),
-    ("Points", "15"),
-    ("IsSelectableCombatant", "yes"),
-    ("Locomotor", "{92612C46-F71F-11d1-AC9F-006008055BB5}"),
-    ("PhysicalSize", "1"),
-    ("MovementZone", "Fly"),
-    ("ConsideredAircraft", "yes"),
-    ("ThreatPosed", "0"),
-    ("JumpjetSpeed", "30"),
-    ("JumpjetClimb", "20"),
-    ("JumpjetCrash", "25"),
-    ("JumpJetAccel", "10"),
-    ("JumpJetTurnRate", "10"),
-    ("JumpjetHeight", "500"),
-    ("JumpjetWobbles", ".01"),
-    ("JumpjetDeviation", "1"),
-    ("JumpjetNoWobbles", "yes"),
-    ("Size", "1"),
-    ("SpeedType", "Hover"),
-    ("HoverAttack", "yes"),
-    ("Crashable", "yes"),
-    ("BalloonHover", "yes"),
-    ("GuardRange", "200"),
-    ("CanPassiveAquire", "yes"),
-    ("OpportunityFire", "yes"),
-)
-TROOPER_PROJECTILE = "ZAINukeRifleProj"
-TROOPER_WARHEAD = "ZAINukeWH"
-TROOPER_WEAPON_FIELDS = (
-    # Clone of the Apocalypse's [MammothTusk] missile: ROF 80 is the slow cadence
-    # the Rocketeer's 20mm (ROF 30) lacked, and Burst 2 is what that missile has.
-    # Inaccurate=yes stops the shot snapping onto the target point; together with
-    # the projectile's FlakScatter this is what makes the landing spot random.
-    ("Damage", "600"),
-    # 3-star Aegis cadence: [Medusa] ROF=15 times [General] VeteranROF=0.6 is 9
-    # frames.  Single shot -- Burst is what made it feel like a machine gun.
-    ("ROF", "9"),
-    ("Range", "200"),
-    ("Burst", "1"),
-    ("Speed", "20"),
-    ("Projectile", TROOPER_PROJECTILE),
-    ("Warhead", TROOPER_WARHEAD),
-    ("OmniFire", "yes"),
-    ("Report", "ApocalypseAttackAir"),
-)
-TROOPER_PROJECTILE_FIELDS = (
-    # Modelled on retail [FlakTProj], the only shape in the game that actually
-    # scatters: FlakScatter only works on a NON-homing projectile, which is why the
-    # homing version always hit its mark no matter what HomingScatter said.
-    ("Image", "DRAGON"),
-    ("Arcing", "true"),
-    ("Inviso", "no"),
-    ("AA", "yes"),
-    ("AG", "yes"),
-    ("Shadow", "no"),
-    ("Ranged", "yes"),
-    ("Inaccurate", "yes"),
-    ("FlakScatter", "yes"),
-    ("SubjectToCliffs", "no"),
-    ("SubjectToElevation", "yes"),
-    ("SubjectToWalls", "no"),
-)
-#: Our own nuke warhead: [NUKE] stays untouched for the computer.  BallisticScatter
-#: also exists as a warhead field in the binary, so this is the isolated place to
-#: ask for a wide spread without disturbing anything else.
-#: Retail flak projectiles share the global scatter, so their scatter is switched
-#: off; otherwise raising BallisticScatter would blind the AI's anti-air.
-#: [CombatDamage] scatter distances, in CELLS per the retail comments.
-HOMING_SCATTER = "200"
-BALLISTIC_SCATTER = "200"
-PLANE_TYPE = "PDPLANE"
-PLANE_FIELDS = (
-    ("Strength", "100000"),
-    ("Armor", "heavy"),
-    ("Insignificant", "yes"),
-)
-FLAK_PROJECTILES = ("FlakProj", "FlakTProj")
-FLAK_DAMPING = (("FlakScatter", "no"), ("Inaccurate", "no"))
-TROOPER_WARHEAD_FIELDS = (
-    # Blast copied from [DMISLEWH], the ELITE (3-star) Dreadnought missile warhead:
-    # CellSpread 3 with AnimList=MININUKE, the small mushroom cloud.  The normal
-    # [DMISLWH] is only CellSpread 1.5 with the XGRY explosions -- that one was a
-    # mis-read on my part.  Damage stays 600 = [General] DMislEliteDamage.
-    ("CellSpread", "3"),
-    ("PercentAtMax", ".5"),
-    ("Wall", "yes"),
-    ("Wood", "yes"),
-    ("Verses", "100%,90%,80%,100%,80%,80%,85%,65%,28%,80%,0%"),
-    ("Conventional", "yes"),
-    ("Rocker", "no"),
-    ("InfDeath", "2"),
-    ("AnimList", "MININUKE"),
-    ("Tiberium", "yes"),
-    ("Sparky", "no"),
-    ("Bright", "yes"),
-    ("ProneDamage", "70%"),
-    ("BallisticScatter", "200"),
-)
 
 
 def _replace_section(lines, name, body):
@@ -897,7 +730,7 @@ def _append_registry(lines, section, name):
         raise SystemExit("[%s] not found" % section)
     end = len(lines)
     for i in range(reg + 1, len(lines)):
-        if re.match(r"^\[[^\]]+\]\s*$", lines[i]):
+        if re.match(r"^\[[^\]]+\]\s*(;.*)?$", lines[i]):
             end = i
             break
     kept, highest = [], 0
@@ -918,201 +751,23 @@ def _append_registry(lines, section, name):
 
 
 def apply_nuke_gunship(lines):
-    """Write the gunship, its missile and its projectile; drop the old plane."""
-    for stale in ("ZAINukePlane", "ZAINukeBomb"):
-        out, skip = [], False
-        for line in lines:
-            header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
-            if header:
-                skip = header.group(1).strip() == stale
-            if not skip:
-                out.append(line)
-        lines[:] = out
-    # and its registry entry
-    reg = None
-    for i, line in enumerate(lines):
-        if re.match(r"^\[AircraftTypes\]\s*$", line):
-            reg = i
-            break
-    if reg is not None:
-        end = len(lines)
-        for i in range(reg + 1, len(lines)):
-            if re.match(r"^\[[^\]]+\]\s*$", lines[i]):
-                end = i
-                break
-        lines[reg + 1:end] = [l for l in lines[reg + 1:end]
-                              if not re.match(r"^\d+\s*=\s*ZAINukePlane\b", l)]
-
+    """Write the gunship, its missile and its projectile.  Our types only."""
     unit = ["[%s]\r\n" % GUNSHIP_UNIT,
-            ";SuperAI: player-built nuclear gunship (Kirov hull). The AI never gets it.\r\n"]
+            ";SuperAI: player-built nuclear gunship. The AI never gets it.\r\n"]
     unit += ["%s=%s\r\n" % pair for pair in GUNSHIP_UNIT_FIELDS]
     _replace_section(lines, GUNSHIP_UNIT, unit)
 
     weapon = ["[%s]\r\n" % GUNSHIP_WEAPON,
-              ";SuperAI: Aegis-style homing missile with a nuke warhead.\r\n"]
+              ";SuperAI: homing missile with a nuke warhead.\r\n"]
     weapon += ["%s=%s\r\n" % pair for pair in GUNSHIP_WEAPON_FIELDS]
     _replace_section(lines, GUNSHIP_WEAPON, weapon)
 
     proj = ["[%s]\r\n" % GUNSHIP_PROJECTILE,
-            ";SuperAI: AA+AG homing missile; the Aegis one is AG=no and cannot hit ground.\r\n"]
+            ";SuperAI: AA+AG homing missile.\r\n"]
     proj += ["%s=%s\r\n" % pair for pair in GUNSHIP_PROJECTILE_FIELDS]
     _replace_section(lines, GUNSHIP_PROJECTILE, proj)
 
     _append_registry(lines, "VehicleTypes", GUNSHIP_UNIT)
-
-    trooper = ["[%s]\r\n" % TROOPER_INF,
-               ";SuperAI: what the airdrop actually delivers -- the engine only\r\n",
-               ";SuperAI: paradrops infantry, so this flies (JumpJet) and packs a nuke.\r\n"]
-    trooper += ["%s=%s\r\n" % pair for pair in TROOPER_INF_FIELDS]
-    _replace_section(lines, TROOPER_INF, trooper)
-    _append_registry(lines, "InfantryTypes", TROOPER_INF)
-
-    rifle = ["[%s]\r\n" % TROOPER_WEAPON,
-             ";SuperAI: Apocalypse-missile clone with a nuke warhead.\r\n"]
-    rifle += ["%s=%s\r\n" % pair for pair in TROOPER_WEAPON_FIELDS]
-    _replace_section(lines, TROOPER_WEAPON, rifle)
-
-    proj = ["[%s]\r\n" % TROOPER_PROJECTILE,
-            ";SuperAI: wanders (ROT 10) and lands at a random spot (FlakScatter).\r\n"]
-    proj += ["%s=%s\r\n" % pair for pair in TROOPER_PROJECTILE_FIELDS]
-    _replace_section(lines, TROOPER_PROJECTILE, proj)
-
-    warhead = ["[%s]\r\n" % TROOPER_WARHEAD,
-               ";SuperAI: [NUKE] clone so the computer's nuke stays exact.\r\n"]
-    warhead += ["%s=%s\r\n" % pair for pair in TROOPER_WARHEAD_FIELDS]
-    _replace_section(lines, TROOPER_WARHEAD, warhead)
-
-    # Retail flak shares [CombatDamage] BallisticScatter; turn its scatter off so
-    # widening the global value only affects our projectile.
-    for section in FLAK_PROJECTILES:
-        patched, seen = [], False
-        inside = False
-        out = []
-        for line in lines:
-            header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
-            if header:
-                inside = header.group(1).strip().lower() == section.lower()
-                out.append(line)
-                continue
-            if inside:
-                key = line.split("=", 1)[0].strip()
-                hit = [v for k, v in FLAK_DAMPING if k.lower() == key.lower()]
-                if hit:
-                    eol = "\r\n" if line.endswith("\r\n") else "\n"
-                    out.append("%s=%s%s" % (key, hit[0], eol))
-                    continue
-            out.append(line)
-        lines[:] = out
-
-    # [CombatDamage] HomingScatter: the maximum distance (cells) an inaccurate
-    # homing shot may land from its target.  BallisticScatter stays at retail 1.0
-    # because the AI's flak cannons are what use it.
-    combat = None
-    for i, line in enumerate(lines):
-        if re.match(r"^\[CombatDamage\]\s*$", line, re.I):
-            combat = i
-            break
-    if combat is None:
-        raise SystemExit("[CombatDamage] not found")
-    end = len(lines)
-    for i in range(combat + 1, len(lines)):
-        if re.match(r"^\[[^\]]+\]\s*$", lines[i]):
-            end = i
-            break
-    for key, value in (("HomingScatter", HOMING_SCATTER),
-                       ("BallisticScatter", HOMING_SCATTER)):
-        found = False
-        for i in range(combat + 1, end):
-            if re.match(r"^%s\s*=" % re.escape(key), lines[i], re.I):
-                eol = "\r\n" if lines[i].endswith("\r\n") else "\n"
-                lines[i] = "%s=%s%s" % (key, value, eol)
-                found = True
-                break
-        if not found:
-            lines.insert(combat + 1, "%s=%s\r\n" % (key, value))
-            combat += 1
-            end += 1
-
-    # Harden the cargo plane the drop uses; without this the delivery is shot down.
-    plane_lines, inside = [], False
-    for line in lines:
-        header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
-        if header:
-            inside = header.group(1).strip().upper() == PLANE_TYPE
-        if inside:
-            plane_lines.append(line)
-    if plane_lines:
-        patched, seen = [], set()
-        for line in plane_lines:
-            m = re.match(r"^([A-Za-z.]+)\s*=", line)
-            key = m.group(1).strip() if m else None
-            if key is not None and key.lower() in [k.lower() for k, _ in PLANE_FIELDS]:
-                want = dict((k.lower(), v) for k, v in PLANE_FIELDS)[key.lower()]
-                eol = "\r\n" if line.endswith("\r\n") else "\n"
-                patched.append("%s=%s%s" % (key, want, eol))
-                seen.add(key.lower())
-            else:
-                patched.append(line)
-        for k, v in PLANE_FIELDS:
-            if k.lower() not in seen:
-                patched.append("%s=%s\r\n" % (k, v))
-        out, inside = [], False
-        for line in lines:
-            header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
-            if header:
-                inside = header.group(1).strip().upper() == PLANE_TYPE
-                if inside:
-                    out.extend(patched)
-                    continue
-            if not inside:
-                out.append(line)
-        lines[:] = out
-
-    # The airdrop superweapon.
-    sw = ["[%s]\r\n" % GUNSHIP_SW,
-          ";SuperAI: click to have the gunship flown in and dropped.\r\n"]
-    sw += ["%s=%s\r\n" % pair for pair in GUNSHIP_SW_FIELDS]
-    _replace_section(lines, GUNSHIP_SW, sw)
-    _append_registry(lines, "SuperWeaponTypes", GUNSHIP_SW)
-
-    # Drop any leftover ParaDrop.* overrides: they make the engine fall back to
-    # the per-side infantry list, which is the bug this replaces.
-    general = None
-    for i, line in enumerate(lines):
-        if re.match(r"^\[General\]\s*$", line):
-            general = i
-            break
-    if general is None:
-        raise SystemExit("[General] not found")
-    end = len(lines)
-    for i in range(general + 1, len(lines)):
-        if re.match(r"^\[[^\]]+\]\s*$", lines[i]):
-            end = i
-            break
-    i = general + 1
-    while i < end:
-        head = lines[i].split("=", 1)[0].strip()
-        if any(head.lower().startswith(stale.lower()) for stale in STALE_GENERAL_KEYS):
-            del lines[i]
-            end -= 1
-            continue
-        i += 1
-    for key, value in GUNSHIP_GENERAL_KEYS:
-        end = len(lines)
-        for i in range(general + 1, len(lines)):
-            if re.match(r"^\[[^\]]+\]\s*$", lines[i]):
-                end = i
-                break
-        replaced = False
-        for i in range(general + 1, end):
-            if re.match(r"^%s\s*=" % re.escape(key), lines[i], re.I):
-                eol = "\r\n" if lines[i].endswith("\r\n") else "\n"
-                lines[i] = "%s=%s%s" % (key, value, eol)
-                replaced = True
-                break
-        if not replaced:
-            lines.insert(general + 1, "%s=%s\r\n" % (key, value))
-            general += 1
     return True
 
 
@@ -1163,61 +818,6 @@ def assert_nuke_gunship(rules_lines, aimd_lines):
         if unit.get("balloonhover", "").lower() != "yes":
             problems.append("BalloonHover=%r; it must never need a landing pad"
                             % unit.get("balloonhover"))
-    weapon = values(GUNSHIP_WEAPON)
-    if weapon.get("warhead", "").strip() != "NUKE":
-        problems.append("%s Warhead=%r (want NUKE)"
-                        % (GUNSHIP_WEAPON, weapon.get("warhead")))
-    trooper_wh = values(TROOPER_WARHEAD)
-    if not trooper_wh:
-        problems.append("no [%s] section" % TROOPER_WARHEAD)
-    else:
-        try:
-            spread = float(trooper_wh.get("cellspread", "0"))
-        except ValueError:
-            spread = 0.0
-        if spread < 2.5 or spread > 4:
-            problems.append("[%s] CellSpread=%r (want 2.5..4: the 3-star Dreadnought "
-                            "[DMISLEWH] is 3, the normal [DMISLWH] is only 1.5)"
-                            % (TROOPER_WARHEAD, trooper_wh.get("cellspread")))
-        if trooper_wh.get("wallabsolutedestroyer", "").lower() == "yes":
-            problems.append("[%s] has WallAbsoluteDestroyer; that is the nuke's "
-                            "trait" % TROOPER_WARHEAD)
-        anims = trooper_wh.get("animlist", "").strip().upper()
-        if "NUKEANIM" in anims:
-            problems.append("[%s] AnimList has NUKEANIM; the 3-star Dreadnought uses "
-                            "MININUKE" % TROOPER_WARHEAD)
-        if "MININUKE" not in anims:
-            problems.append("[%s] AnimList=%r (want MININUKE: the small mushroom "
-                            "cloud of the elite Dreadnought missile)"
-                            % (TROOPER_WARHEAD, trooper_wh.get("animlist")))
-        try:
-            wh_scatter = float(trooper_wh.get("ballisticscatter", "0"))
-        except ValueError:
-            wh_scatter = 0.0
-        if wh_scatter < 100:
-            problems.append("[%s] BallisticScatter=%r (want >=100: the spread is "
-                            "part of this warhead too)"
-                            % (TROOPER_WARHEAD, trooper_wh.get("ballisticscatter")))
-    if weapon.get("projectile", "").strip() != GUNSHIP_PROJECTILE:
-        problems.append("%s Projectile=%r" % (GUNSHIP_WEAPON, weapon.get("projectile")))
-    try:
-        reach = int(float(weapon.get("range", "0")))
-    except ValueError:
-        reach = 0
-    if reach < 100:
-        problems.append("%s Range=%r (want >=100: the gunship shoots across the "
-                        "map)" % (GUNSHIP_WEAPON, weapon.get("range")))
-    try:
-        burst = int(float(weapon.get("burst", "0")))
-    except ValueError:
-        burst = 0
-    if burst < 2:
-        problems.append("%s Burst=%r (want >=2: the bombs go out in sequence)"
-                        % (GUNSHIP_WEAPON, weapon.get("burst")))
-    if weapon.get("omnifire", "").lower() != "yes":
-        problems.append("%s OmniFire=%r; it must fire at any angle"
-                        % (GUNSHIP_WEAPON, weapon.get("omnifire")))
-    if unit:
         try:
             guard = int(float(unit.get("guardrange", "0")))
         except ValueError:
@@ -1231,144 +831,24 @@ def assert_nuke_gunship(rules_lines, aimd_lines):
         if unit.get("opportunityfire", "").lower() != "yes":
             problems.append("OpportunityFire=%r; it must fire while moving"
                             % unit.get("opportunityfire"))
+    weapon = values(GUNSHIP_WEAPON)
+    if weapon.get("warhead", "").strip() != "NUKE":
+        problems.append("%s Warhead=%r (want NUKE)"
+                        % (GUNSHIP_WEAPON, weapon.get("warhead")))
+    try:
+        reach = int(float(weapon.get("range", "0")))
+    except ValueError:
+        reach = 0
+    if reach < 100:
+        problems.append("%s Range=%r (want >=100)" % (GUNSHIP_WEAPON, weapon.get("range")))
+    if weapon.get("projectile", "").strip() != GUNSHIP_PROJECTILE:
+        problems.append("%s Projectile=%r" % (GUNSHIP_WEAPON, weapon.get("projectile")))
     proj = values(GUNSHIP_PROJECTILE)
     if proj.get("ag", "").lower() != "yes":
-        problems.append("%s AG=%r; without AG it cannot hit the ground (that is why "
-                        "the Aegis projectile is unusable)"
+        problems.append("%s AG=%r; without AG it cannot hit the ground"
                         % (GUNSHIP_PROJECTILE, proj.get("ag")))
     if GUNSHIP_UNIT not in " ".join(sections.get("VehicleTypes", [])):
         problems.append("%s is not in [VehicleTypes]" % GUNSHIP_UNIT)
-
-    leftovers = [name for name in ("ZAINukePlane", "ZAINukeBomb") if values(name)]
-    if leftovers:
-        problems.append("old sections survived: " + ", ".join(leftovers))
-
-    # Airdrop delivery: ParaDrop.Types is what makes a vehicle droppable; the
-    # retail *ParaDropInf lists only ever carry infantry.
-    general = values("General")
-    for key in ("amerparadropinf", "allyparadropinf", "sovparadropinf",
-                "yuriparadropinf"):
-        if general.get(key, "").strip() != TROOPER_INF:
-            problems.append("[General] %s=%r (want %s; this is the only drop list "
-                            "the engine reads)"
-                            % (key, general.get(key, "<missing>"), TROOPER_INF))
-    stale = [key for key in general
-             if key.startswith("paradrop.") or key.startswith("droppod")]
-    if stale:
-        problems.append("[General] still has " + ", ".join(stale)
-                        + "; those keys are not what the drop reads")
-    sw = values(GUNSHIP_SW)
-    if sw.get("type", "").strip() != "ParaDrop":
-        problems.append("[%s] Type=%r (want ParaDrop: DropPod launched nothing)"
-                        % (GUNSHIP_SW, sw.get("type")))
-    trooper = values(TROOPER_INF)
-    if not trooper:
-        problems.append("no [%s] section" % TROOPER_INF)
-    else:
-        if trooper.get("primary", "").strip() != TROOPER_WEAPON:
-            problems.append("%s Primary=%r" % (TROOPER_INF, trooper.get("primary")))
-        if trooper.get("jumpjet", "").lower() != "yes":
-            problems.append("%s must stay JumpJet=yes so the drop can fly away"
-                            % TROOPER_INF)
-    rifle = values(TROOPER_WEAPON)
-    if rifle.get("warhead", "").strip() != TROOPER_WARHEAD:
-        problems.append("%s Warhead=%r (want %s, our own copy of NUKE)"
-                        % (TROOPER_WEAPON, rifle.get("warhead"), TROOPER_WARHEAD))
-    try:
-        dmg = int(float(rifle.get("damage", "0")))
-    except ValueError:
-        dmg = 0
-    if dmg > 600:
-        problems.append("%s Damage=%r (want <=600: 3-star Dreadnought missile)"
-                        % (TROOPER_WEAPON, rifle.get("damage")))
-    try:
-        rof = int(float(rifle.get("rof", "0")))
-    except ValueError:
-        rof = 0
-    if rof < 1 or rof > 15:
-        problems.append("%s ROF=%r (want 1..15: it is meant to match the 3-star "
-                        "Aegis, Medusa 15 x VeteranROF 0.6 = 9)"
-                        % (TROOPER_WEAPON, rifle.get("rof")))
-    try:
-        burst = int(float(rifle.get("burst", "0")))
-    except ValueError:
-        burst = 0
-    if burst != 1:
-        problems.append("%s Burst=%r (want 1: one missile per attack)"
-                        % (TROOPER_WEAPON, rifle.get("burst")))
-    if rifle.get("inaccurate"):
-        problems.append("%s has Inaccurate on the WEAPON; it is a projectile key "
-                        "and does nothing there" % TROOPER_WEAPON)
-    combat_values = values("CombatDamage")
-    try:
-        scatter = float(combat_values.get("homingscatter", "0"))
-    except ValueError:
-        scatter = 0.0
-    if scatter < 100:
-        problems.append("[CombatDamage] HomingScatter=%r (want >=100: it is the "
-                        "random landing radius in cells)"
-                        % combat_values.get("homingscatter"))
-    try:
-        ballistic = float(combat_values.get("ballisticscatter", "0"))
-    except ValueError:
-        ballistic = 0.0
-    if ballistic < 100:
-        problems.append("[CombatDamage] BallisticScatter=%r (want >=100: it is the "
-                        "flak-style spread radius in cells)"
-                        % combat_values.get("ballisticscatter"))
-    # The retail flak projectiles share that global spread, so they must have
-    # theirs switched off or the AI's anti-air scatters across the whole map.
-    for flak in FLAK_PROJECTILES:
-        damped = values(flak)
-        for key, want in FLAK_DAMPING:
-            if damped.get(key.lower(), "").lower() != want:
-                problems.append("[%s] %s=%r (want %s: it shares BallisticScatter "
-                                "with our projectile)" % (flak, key, damped.get(key.lower()),
-                                                          want))
-    shot = values(TROOPER_PROJECTILE)
-    if shot.get("ag", "").lower() != "yes":
-        problems.append("%s AG=%r; without AG it cannot hit the ground (the "
-                        "Apocalypse's own [AAHeatSeeker] is AG=no)"
-                        % (TROOPER_PROJECTILE, shot.get("ag")))
-    if shot.get("inaccurate", "").lower() != "yes":
-        problems.append("%s must carry Inaccurate=yes; that is the projectile key "
-                        "HomingScatter applies to" % TROOPER_PROJECTILE)
-    for homing in ("arm", "rot"):
-        if shot.get(homing):
-            problems.append("%s has %s=; a homing projectile always hits, which "
-                            "is exactly what stopped the spread"
-                            % (TROOPER_PROJECTILE, homing.upper()))
-    if shot.get("flakscatter", "").lower() != "yes":
-        problems.append("%s must keep FlakScatter=yes, or every warhead lands on "
-                        "the same spot" % TROOPER_PROJECTILE)
-    try:
-        trooper_hp = int(float(trooper.get("strength", "0"))) if trooper else 0
-    except ValueError:
-        trooper_hp = 0
-    if trooper and trooper_hp < 10000:
-        problems.append("%s Strength=%r; anti-air kills it too easily"
-                        % (TROOPER_INF, trooper.get("strength")))
-    plane = values(PLANE_TYPE)
-    try:
-        plane_hp = int(float(plane.get("strength", "0")))
-    except ValueError:
-        plane_hp = 0
-    if plane and plane_hp < 10000:
-        problems.append("[%s] Strength=%r; the cargo plane gets shot down before "
-                        "it delivers" % (PLANE_TYPE, plane.get("strength")))
-    if plane and plane.get("insignificant", "").lower() != "yes":
-        problems.append("[%s] must stay Insignificant=yes so anti-air ignores it"
-                        % PLANE_TYPE)
-    if TROOPER_INF not in " ".join(sections.get("InfantryTypes", [])):
-        problems.append("%s is not in [InfantryTypes]" % TROOPER_INF)
-    if sw.get("sw.allowai", "").lower() != "no":
-        problems.append("[%s] SW.AllowAI=%r (the computer must not drop it)"
-                        % (GUNSHIP_SW, sw.get("sw.allowai")))
-    if sw.get("sw.alwaysgranted", "").lower() != "yes":
-        problems.append("[%s] must stay SW.AlwaysGranted=yes (no building needed)"
-                        % GUNSHIP_SW)
-    if GUNSHIP_SW not in " ".join(sections.get("SuperWeaponTypes", [])):
-        problems.append("[%s] is not in [SuperWeaponTypes]" % GUNSHIP_SW)
 
     in_teams = [line.strip() for line in aimd_lines
                 if re.match(r"^\d+=\d+,%s\b" % GUNSHIP_UNIT, line.strip())]
@@ -2014,10 +1494,624 @@ def assert_superweapon_autofire(rules_lines):
         if header:
             section = header.group(1).strip()
             continue
-        if section in untouched and re.match(r"^SW\.", line.strip()):
+        stripped = line.strip()
+        if section in untouched and re.match(r"^SW\.", stripped, re.I):
             raise SystemExit(
                 "[%s] must not carry %s -- it already behaves correctly and "
-                "changing it would mask this fix" % (section, line.strip()))
+                "changing it would mask this fix" % (section, stripped))
+    return len(SUPERWEAPON_EDITS)
+
+
+def build_rules(source_dir, out_dir):
+    text = open(os.path.join(source_dir, "rulesmd.ini"), "rb").read().decode("latin-1")
+    lines = text.splitlines(keepends=True)
+
+    apply_rules_edits(lines)
+    apply_section_key_edits(lines)
+
+    # Deployed construction yards reveal the map: no power, no radar needed.
+    for yard in CONSTRUCTION_YARDS:
+        insert_after_section_header(lines, yard, "SpySat=yes\r\n")
+
+    # VERA extension: computers target the nearest enemy, so FFA games fight.
+    if not any(l.startswith("AINearestEnemy=") for l in lines):
+        for i, line in enumerate(lines):
+            if line.startswith("AISafeDistance="):
+                lines.insert(i + 1, "AINearestEnemy=yes\r\n")
+                break
+        else:
+            raise SystemExit("AISafeDistance= not found")
+
+    # Ore-free maps still fund the AI: refineries pay a trickle (oil derrick key).
+    for refn in REFINERIES:
+        insert_after_section_header(lines, refn, "ProduceCashDelay=60\r\n")
+        insert_after_section_header(lines, refn, "ProduceCashAmount=100\r\n")
+
+    # Ares SW.* : make a charged superweapon actually get launched by the AI.
+    apply_superweapon_edits(lines)
+    player_nuke_index = apply_player_nuke(lines)
+    apply_nuke_gunship(lines)
+
+    # Ares AIBuildCounts: planned copies of the production buildings that must
+    # exist in numbers, keyed by difficulty (hard, normal, easy).
+    out = []
+    inserted = set()
+    for line in lines:
+        out.append(line)
+        m = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
+        if m and m.group(1).strip() in BUILD_COUNTS and m.group(1).strip() not in inserted:
+            name = m.group(1).strip()
+            count = BUILD_COUNTS[name]
+            vector = count if isinstance(count, tuple) else (count, count, count)
+            out.append("AIBuildCounts=%d,%d,%d\r\n" % vector)
+            inserted.add(name)
+    missing = set(BUILD_COUNTS) - inserted
+    if missing:
+        raise SystemExit(
+            "AIBuildCounts targets not found as sections: %r (a typo here is "
+            "silently ignored by the engine)" % sorted(missing))
+    lines = out
+
+    open(os.path.join(out_dir, "rulesmd.ini"), "wb").write("".join(lines).encode("latin-1"))
+    return len(inserted)
+
+
+class Aimd:
+    """Small section-aware editor for aimd.ini."""
+
+    def __init__(self, text):
+        self.lines = text.splitlines(keepends=True)
+        self.starts = {}
+        self.reindex()
+
+    def reindex(self):
+        self.starts = {}
+        for i, line in enumerate(self.lines):
+            m = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
+            if m:
+                self.starts[m.group(1).strip()] = i
+
+    def bounds(self, name):
+        start = self.starts[name]
+        end = len(self.lines)
+        for index in self.starts.values():
+            if start < index < end:
+                end = index
+        return start + 1, end
+
+    def values(self, name):
+        out = {}
+        start, end = self.bounds(name)
+        for i in range(start, end):
+            line = self.lines[i]
+            if "=" in line and not line.lstrip().startswith(";"):
+                key, value = line.split("=", 1)
+                out[key.strip().lower()] = (value.strip(), i)
+        return out
+
+    def members(self, name):
+        out = []
+        start, end = self.bounds(name)
+        for i in range(start, end):
+            m = re.match(r"^(\d+)\s*=\s*(\d+)\s*,\s*([^,\r\n]+)(.*?)(\r?\n)?$", self.lines[i])
+            if m:
+                out.append((i, int(m.group(1)), int(m.group(2)), m.group(3).strip(),
+                            m.group(4), m.group(5) or ""))
+        return out
+
+    def team_ids(self):
+        start, end = self.bounds("TeamTypes")
+        return [l.split("=", 1)[1].strip() for l in self.lines[start:end] if "=" in l]
+
+    def replace_value(self, index, key, value):
+        line = self.lines[index]
+        eol = "\r\n" if line.endswith("\r\n") else "\n"
+        self.lines[index] = "%s=%s%s" % (key, value, eol)
+
+    def insert_value(self, section, key, value):
+        index = self.bounds(section)[0]
+        self.lines.insert(index, "%s=%s\r\n" % (key, value))
+        self.reindex()
+
+    def text(self):
+        return "".join(self.lines)
+
+
+#: Team-script actions that cast a superweapon on the team itself.
+#: 53/54 are gather-at-enemy-base / regroup-at-base, 55 is the Iron Curtain,
+#: 56/57 are the chronoshift variants (see team_script_vm/actions.rs).
+SUPERWEAPON_SCRIPT_ACTIONS = ("55", "56", "57")
+
+#: Units that fly.  A team whose task force holds one of these is an "air team":
+#: its `Max=` caps how many such teams a house may have at once, and retail caps
+#: every one of them at 1, which is why an AI never fields an air force worth
+#: watching.  `SCHP` (Siege Chopper) is a vehicle and is deliberately absent.
+#:
+#: ``JUMPJET`` (the Allied Rocketeer) belongs here even though it is infantry:
+#: it flies, so it is exactly the unit the air boost exists for.  It is also in
+#: :data:`AA_UNITS` because it shoots aircraft, and the air/AA branch below
+#: checks air first -- before this was spelled out, the Rocketeers fell through
+#: to the AA branch and kept `Max=1`, five men and a decaying weight, which is
+#: why Allied rocketeers stayed rare while Kirovs became common.
+AIR_UNITS = {"ORCA", "BEAG", "ZEP", "BPLN", "HORNET", "ASW", "APACHE", "SPYP",
+             "JUMPJET"}
+
+#: Ground units that can shoot at aircraft.  Teams carrying one are "AA teams".
+AA_UNITS = {"FV", "FLAKT", "YTNK", "APOC", "TELE", "HIND", "AEGIS", "JUMPJET", "GGI"}
+
+#: Aircraft that must land on an airfield pad: ``AirportBound=yes`` and
+#: ``Dock=GAAIRC`` in rulesmd.ini, with ``Ammo=1`` so every shot means a landing.
+#: A house can only keep as many of these alive as it has pads --
+#: ``[GAAIRC] NumberOfDocks=4`` -- and retail's own comment says it crashes when
+#: it has nowhere to land.  These teams get a small size and a low cap instead of
+#: the big numbers the free-flying units get.
+AIRPORT_AIRCRAFT = {"ORCA", "BEAG"}
+#: Aircraft per airport-bound team, and how many such teams may exist: 3 x 3 = 9
+#: aircraft against 4 pads per airfield, so two extra airfields are already enough.
+AIRPORT_TEAM_SIZE = 3
+AIRPORT_TEAM_MAX = 3
+#: The flying infantry fills slowly (one barracks, expensive men), so a team that
+#: is too big is dissolved before it can form.  Six fits in one dissolve window.
+AIR_INFANTRY_SIZE = 6
+
+#: How many of a team type a house may have at once after the boost.
+AIR_TEAM_MAX = 6
+#: Weight multiplier for the triggers that form air / AA teams.  Weights are per
+#: difficulty and stay proportional to each other.
+AIR_WEIGHT_FACTOR = 3
+AA_WEIGHT_FACTOR = 2
+#: Ceiling for a rewritten weight, and the aircraft count per air task force:
+#: at least AIR_UNIT_MIN (a one-Kirov team is not an air force), then scaled by
+#: AIR_SIZE_FACTOR, never more than AIR_UNIT_CAP.
+WEIGHT_CAP = 1500
+AIR_UNIT_MIN = 3
+AIR_SIZE_FACTOR = 2
+AIR_UNIT_CAP = 16
+
+
+def teams_using_superweapon_scripts(doc):
+    """Team ids whose script contains an Iron Curtain / chronoshift action.
+
+    ``[ScriptTypes]`` only lists script ids; the actions live in each script's
+    own section (``[0C31EA4C-G]`` holds ``2=55,0``), so every section is scanned.
+    """
+    bodies = {}
+    section = None
+    for line in doc.lines:
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            section = stripped[1:-1].strip()
+            bodies.setdefault(section, [])
+            continue
+        if section is not None and stripped and not stripped.startswith(";"):
+            bodies[section].append(stripped)
+
+    scripts = set()
+    for name, body in bodies.items():
+        for entry in body:
+            if "=" not in entry:
+                continue
+            value = entry.split("=", 1)[1]
+            if value.split(",")[0].strip() in SUPERWEAPON_SCRIPT_ACTIONS:
+                scripts.add(name)
+                break
+    if not scripts:
+        return set()
+
+    teams = set()
+    for tid in doc.team_ids():
+        fields = doc.values(tid)
+        if "script" in fields and fields["script"][0].strip() in scripts:
+            teams.add(tid)
+    return teams
+
+
+def build_aimd(source_dir, out_dir, assembly_teams=False):
+    """Rewrite the AI teams for mechanism 1: charge, and nobody stays home.
+
+    Deliberately minimal.  Retail's team types, task forces, trigger weights
+    and per-difficulty trigger flags are all left alone -- the three retail
+    difficulties are supposed to keep deciding how the AI fights.  Only two
+    things change per TeamType:
+
+    * ``Script`` becomes :data:`ATTACK_SCRIPT` (skip "regroup at base"), except
+      the three MCV teams, which keep the retail move-and-deploy script;
+    * ``Aggressive=yes`` and ``IsBaseDefense=no``.
+
+    ``IsBaseDefense=no`` is what makes "nobody stays home" true: with no
+    base-defence team types in the set, a house cannot own a defensive team.
+    That is only safe because ``UseMinDefenseRule=no`` and the two
+    ``*AIDefensiveTeams`` are zero -- see ``assert_defense_gate_consistent``.
+
+    ``assembly_teams`` is a DIAGNOSTIC switch, not a gameplay option: it skips
+    the script rewrite so the teams keep retail's "regroup at base, then attack"
+    behaviour.  It exists to answer one question -- do the Iron Curtain and the
+    Chrono Sphere only fail because this mod never leaves the AI with a cluster
+    of units (the Iron Curtain covers a 3x3 cell patch, so it needs one)?  Build
+    it into a separate mod folder and compare in game; the shipped mod keeps
+    charging.
+    """
+    text = open(os.path.join(source_dir, "aimd.ini"), "rb").read().decode("latin-1")
+    doc = Aimd(text)
+
+    team_ids = doc.team_ids()
+
+    # Scripts that cast a superweapon on the team itself.  Retail uses them to
+    # make the AI actually fire the Iron Curtain and the Chrono Sphere:
+    #
+    #   0C31EA4C-G = 0=53,0  gather at the enemy base
+    #                1=5,10  wait
+    #                2=55,0  Iron Curtain on this team      <- action 55
+    #                3=49,0  attack
+    #   0CAC55CC-G = 0=54,0  regroup at base
+    #                1=57,9  chronoshift this team          <- action 57
+    #                2=5,10  wait, 3=49,0 attack
+    #
+    # and the matching AITriggerTypes use condition 5 (Iron Curtain nearly ready)
+    # and 6 (Chrono Sphere nearly ready) at weight 5000.  Teams using these
+    # scripts must keep them: replacing the script with the charge script throws
+    # the superweapon action away, which is exactly what the 2.4 "one script for
+    # every team" rewrite did -- the AI kept building the silos (the log has 912
+    # `placed NAIRON`) and never cast anything, because the only code path that
+    # casts them is this script action.
+    super_script_teams = teams_using_superweapon_scripts(doc)
+
+    # Register and append the no-assembly attack script.
+    start, end = doc.bounds("ScriptTypes")
+    next_index = 0
+    for i in range(start, end):
+        m = re.match(r"^(\d+)=", doc.lines[i])
+        if m:
+            next_index = max(next_index, int(m.group(1)) + 1)
+    doc.lines.insert(end, "%d=%s\r\n" % (next_index, ATTACK_SCRIPT))
+    doc.lines.extend(line + "\r\n" for line in ATTACK_SCRIPT_BODY)
+    doc.reindex()
+
+    # Every team charges except the three MCV teams, which deploy expansions,
+    # and the teams whose retail script casts a superweapon.
+    switched = 0
+    preserved = 0
+    for tid in team_ids:
+        fields = doc.values(tid)
+        name = fields.get("name", ("", 0))[0]
+        if re.search(r"(^|\W)MCV(\W|$)", name, re.I):
+            if "script" in fields:
+                doc.replace_value(fields["script"][1], "Script", MCV_DEPLOY_SCRIPT)
+            if "aggressive" in fields:
+                doc.replace_value(fields["aggressive"][1], "Aggressive", "no")
+            # Two MCVs may be in flight at once, so the expansion triggers can
+            # put up a second base while the first is still driving to its
+            # spot.  `at_max_teams` blocks at `teams >= Max` per house, so the
+            # retail 1 meant one MCV at a time, ever.
+            if "max" in fields:
+                doc.replace_value(fields["max"][1], "Max", "2")
+            continue
+        if tid in super_script_teams:
+            preserved += 1
+        elif "script" in fields and not assembly_teams:
+            doc.replace_value(fields["script"][1], "Script", ATTACK_SCRIPT)
+            switched += 1
+        for key, wanted in (("Aggressive", "yes"), ("IsBaseDefense", "no")):
+            if key.lower() in fields:
+                doc.replace_value(fields[key.lower()][1], key, wanted)
+            else:
+                doc.insert_value(tid, key, wanted)
+
+    # Base recovery.  The stock "this house owns zero Construction Yards"
+    # triggers (condition 1 with GACNST/NACNST/YACNST) rebuild an MCV, but
+    # retail enables them on hard only (`0,0,1`) with weight 70.
+    #
+    # Weight 5000 is `PRIORITY_WEIGHT` in `ai_team_creation.rs`: the first
+    # eligible 5000 trigger CLEARS every other trigger out of that draw, so
+    # while a house owns no construction yard it does one thing only -- rebuild
+    # the MCV.  That is exactly the "yard destroyed -> new MCV now" behaviour,
+    # and it is what the stock data intended with this trigger pair (three
+    # GC-rebuild triggers + three Max=1 move-and-deploy MCV teams).
+    #
+    # This is only safe because the repair depots are AI-buildable (see
+    # SECTION_KEY_EDITS): the MCV prerequisite needs one, so the team can
+    # actually be filled.  With the depots still `AIBuildThis=no` -- retail's
+    # state -- the team could NEVER fill and this weight would silence the
+    # house permanently until DissolveUnfilledTeamDelay expired.  That trap
+    # shipped once; `assert_mcv_recovery_fillable` now refuses to build the
+    # combination.
+    recovered = 0
+    start, end = doc.bounds("AITriggerTypes")
+    for i in range(start, end):
+        line = doc.lines[i]
+        if "=" not in line or line.lstrip().startswith(";"):
+            continue
+        key, value = line.split("=", 1)
+        tokens = value.rstrip("\r\n").split(",")
+        if len(tokens) != 18 or "MCV" not in tokens[0].upper():
+            continue
+        eol = line[len(line.rstrip("\r\n")):]
+        tokens[7], tokens[8], tokens[9] = "5000.000000", "5000.000000", "5000.000000"
+        tokens[15], tokens[16], tokens[17] = "1", "1", "1"
+        doc.lines[i] = key + "=" + ",".join(tokens) + eol
+        recovered += 1
+
+    # EXPANSION triggers: keep (construction yards) at 3, so the base keeps
+    # spreading instead of sitting on the one yard the match starts with.
+    #
+    # An AI trigger can only compare the count of ONE object type
+    # (`owned_count_holds`), so "yards + MCVs < 3" cannot be written directly.
+    # The approximation: count the YARDS and require `< 3`, and cap the MCVs in
+    # flight with the team's `Max=2` (above).  The sum therefore converges:
+    # 1 yard -> build an MCV -> deploy -> 2 yards -> ... -> 3 yards, stop.
+    # A destroyed yard drops the count and the chain restarts, which is what
+    # keeps expansion alive for the whole match.
+    #
+    # Weight 5000 for the same reason as the recovery triggers: this has to
+    # happen NOW, not "some draw soon".  The visible cost is that a house below
+    # three yards stops forming attack teams while it expands (units already on
+    # the map keep fighting); the window is bounded by how fast two MCVs can be
+    # built and deployed, and the count self-clears at three.
+    #
+    # Comparison mask: 32 bytes, `compare` reads word(0) as the amount and
+    # word(4) as the operator (0 `<`, 1 `<=`, 2 `==`, 3 `>=`, 4 `>`, 5 `!=`).
+    # Retail's "owns zero" is amount 0 / op 2 -> `0000000002000000…`; this is
+    # amount 3 / op 0 -> `0300000000000000…`.
+    expansion_mask = "0300000000000000" + "0" * 48
+    expansion_ids = {"GACNST": "ZAIEXP01-G", "NACNST": "ZAIEXP02-G",
+                     "YACNST": "ZAIEXP03-G"}
+    expansion_names = {"GACNST": "Allied MCV - Expand",
+                       "NACNST": "Soviet MCV - Expand",
+                       "YACNST": "Yuri MCV - Expand"}
+    added = 0
+    start, end = doc.bounds("AITriggerTypes")
+    new_lines = []
+    for i in range(start, end):
+        line = doc.lines[i]
+        if "=" not in line or line.lstrip().startswith(";"):
+            continue
+        tokens = line.split("=", 1)[1].rstrip("\r\n").split(",")
+        if len(tokens) != 18 or "MCV" not in tokens[0].upper():
+            continue
+        yard = tokens[5].strip()
+        if yard not in expansion_ids:
+            continue
+        tokens[0] = expansion_names[yard]
+        tokens[6] = expansion_mask
+        tokens[7], tokens[8], tokens[9] = "5000.000000", "5000.000000", "5000.000000"
+        tokens[15], tokens[16], tokens[17] = "1", "1", "1"
+        new_lines.append(expansion_ids[yard] + "=" + ",".join(tokens) + "\r\n")
+        added += 1
+    if added != 3:
+        raise SystemExit(
+            "expected one MCV trigger per construction yard (GACNST/NACNST/"
+            "YACNST), matched %d" % added)
+    # Append inside the section, before whatever follows it.
+    start, end = doc.bounds("AITriggerTypes")
+    for offset, line in enumerate(new_lines):
+        doc.lines.insert(end + offset, line)
+    doc.reindex()
+    recovered += added
+
+    boost = boost_air_and_aa(doc)
+    open(os.path.join(out_dir, "aimd.ini"), "wb").write(doc.text().encode("latin-1"))
+    return switched, recovered, preserved, boost
+
+
+def assert_mcv_recovery_fillable(rules_lines, aimd_lines):
+    """A 5000-weight MCV trigger is only safe if the MCV can actually be built.
+
+    ``PRIORITY_WEIGHT`` (5000) makes a trigger clear every other trigger out of
+    the draw.  That is correct for "my construction yard is gone, rebuild the
+    MCV now" -- but if the MCV team can never be filled, the house stops
+    creating any team at all and goes silent (2.2's failure mode, in its other
+    form).  The MCV prerequisite names a repair depot, so the depots must be
+    AI-buildable for this to be sound:
+
+        AMCV Prerequisite=GAWEAP,GADEPT    SMCV ...=NAWEAP,NADEPT
+        PCV  Prerequisite=YAWEAP,YAGRND
+
+    Retail ships all three depots with ``AIBuildThis=no``.
+    """
+    mcv_triggers = 0
+    for line in aimd_lines:
+        line = line.strip()
+        if "=" not in line or line.startswith(";"):
+            continue
+        tokens = line.split("=", 1)[1].split(",")
+        if len(tokens) != 18 or "MCV" not in tokens[0].upper():
+            continue
+        if any(float(tokens[n] or 0) >= 5000 for n in (7, 8, 9)):
+            mcv_triggers += 1
+    if not mcv_triggers:
+        return
+
+    unbuildable = [
+        depot for depot in ("GADEPT", "NADEPT", "YADEPT")
+        if (read_ini_value(rules_lines, depot, "AIBuildThis") or "").lower() != "yes"
+    ]
+    if unbuildable:
+        raise SystemExit(
+            "%d MCV trigger(s) carry the 5000 priority weight, which clears "
+            "every other AI trigger for a yardless house, but %s still has "
+            "AIBuildThis != yes -- the MCV team can never be filled, so the "
+            "house would stop creating any team at all. Enable the depots "
+            "(SECTION_KEY_EDITS) or drop the MCV weight."
+            % (mcv_triggers, ", ".join(unbuildable)))
+
+
+def assert_mcv_triggers_well_formed(aimd_lines):
+    """The MCV trigger family must survive the INI reader intact.
+
+    ``AITriggerTypeClass::Read_INI`` needs exactly 18 comma-separated fields and
+    ``parse_ai_trigger_comparison`` needs a 64-character hex mask; anything else
+    is dropped **silently** at load time, which would look exactly like "the AI
+    never expands".  So verify the shape here, where a mistake is loud.
+    """
+    seen = set()
+    mcv = []
+    for line in aimd_lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith(";") or "=" not in stripped:
+            continue
+        key, value = stripped.split("=", 1)
+        tokens = value.split(",")
+        if len(tokens) != 18 or "MCV" not in tokens[0].upper():
+            continue
+        if key in seen:
+            raise SystemExit("duplicate AITriggerTypes id %s" % key)
+        seen.add(key)
+        mask = tokens[6]
+        if len(mask) != 64 or any(c not in "0123456789abcdefABCDEF" for c in mask):
+            raise SystemExit(
+                "trigger %s has a malformed comparison mask %r (needs 64 hex "
+                "chars; the reader drops the whole trigger otherwise)"
+                % (key, mask))
+        mcv.append((key, tokens[0].strip(), tokens[5].strip(), mask[:16]))
+    if len(mcv) != 6:
+        raise SystemExit(
+            "expected 6 MCV triggers (3 recovery + 3 expansion), found %d: %s"
+            % (len(mcv), ", ".join(entry[0] for entry in mcv)))
+    return mcv
+
+
+def assert_build_counts(rules_lines):
+    """``AIBuildCounts`` must name existing sections with one entry per difficulty.
+
+    Two silent failures this catches:
+
+    * **a typo in the section name** -- the engine only reads the key inside a
+      building section, so ``[GAPIL]`` looks fine and does nothing;
+    * **a short list** -- ``ai_extra_copies`` indexes by
+      ``HouseDifficulty::table_index()`` (Hard, Normal, Easy), and a missing
+      index yields no copies, i.e. one node.  A two-entry list would therefore
+      quietly give the easy computer the retail single building.
+    """
+    written = []
+    section = None
+    for line in rules_lines:
+        header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
+        if header:
+            section = header.group(1).strip()
+            continue
+        m = re.match(r"^AIBuildCounts=(.*?)(\s*;.*)?$", line)
+        if not m:
+            continue
+        values = [part.strip() for part in m.group(1).split(",")]
+        if len(values) != 3 or any(not v.lstrip("-").isdigit() for v in values):
+            raise SystemExit(
+                "[%s] AIBuildCounts=%r must be three integers ordered "
+                "hard,normal,easy; a short list silently degrades to one "
+                "node per difficulty" % (section, m.group(1).strip()))
+        written.append((section, [int(v) for v in values]))
+
+    expected = set(BUILD_COUNTS)
+    found = {name for name, _values in written}
+    if found != expected:
+        raise SystemExit(
+            "AIBuildCounts sections mismatch: expected %r, wrote %r"
+            % (sorted(expected), sorted(found)))
+    for name, values in written:
+        wanted = BUILD_COUNTS[name]
+        wanted = wanted if isinstance(wanted, tuple) else (wanted,) * 3
+        if tuple(values) != tuple(wanted):
+            raise SystemExit("[%s] AIBuildCounts=%r, expected %r (hard,normal,easy)"
+                             % (name, values, list(wanted)))
+    return written
+
+
+def assert_no_walls(rules_lines):
+    """No wall may be plannable: ``AIPickWallDefensePercent`` must be all zero.
+
+    ``choose_building`` draws ``RandomRanged(0, 99)`` for every defence node and
+    only calls ``build_walls`` when ``draw < AIPickWallDefensePercent``.  Every
+    wall segment costs a plan node from the defence budget and the ring around a
+    ``ProtectWithWall=`` building blocks its own pathing, so non-zero values
+    trade real defences -- and base growth -- for decoration.
+    """
+    raw = read_ini_value(rules_lines, "General", "AIPickWallDefensePercent")
+    if raw is None:
+        raise SystemExit("AIPickWallDefensePercent not found in [General]")
+    values = [part.strip() for part in raw.split(",")]
+    if any(not v.isdigit() or int(v) != 0 for v in values):
+        raise SystemExit(
+            "AIPickWallDefensePercent=%r: walls must stay disabled (all zeros). "
+            "Every wall segment is a plan node taken from the defence budget and "
+            "the ring blocks pathing; set non-zero only if walls are wanted "
+            "back." % raw)
+    return True
+
+
+def assert_superweapon_autofire(rules_lines):
+    """Every offensive superweapon must carry the auto-fire keys, correctly.
+
+    Two silent failures this catches:
+
+    * an unknown ``SW.AITargeting`` word -- the engine drops it without a word,
+      which looks exactly like "the AI still does not fire";
+    * a key that never made it into a section, e.g. because the section name
+      changed or the insert landed in the wrong block.
+    """
+    for name, targeting in SUPERWEAPON_EDITS.items():
+        wanted = dict(SUPERWEAPON_SHARED_KEYS)
+        wanted.update(targeting)
+        found = {}
+        section = None
+        for line in rules_lines:
+            header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
+            if header:
+                section = header.group(1).strip()
+                continue
+            if section != name:
+                continue
+            m = re.match(r"^([^=;\s]+)=(.*?)(\s*;.*)?$", line.rstrip("\r\n"))
+            if not m:
+                continue
+            key = m.group(1).strip()
+            if key.lower() in {k.lower() for k in wanted}:
+                found[key.lower()] = m.group(2).strip()
+        for key, value in wanted.items():
+            actual = found.get(key.lower())
+            if actual is None:
+                raise SystemExit("[%s] is missing %s=%s" % (name, key, value))
+            if actual.lower() != value.lower():
+                raise SystemExit("[%s] %s=%r, expected %r"
+                                 % (name, key, actual, value))
+        for targeting_key in ("sw.aitargeting", "sw.aitargeting.constraints",
+                              "sw.aitargeting.preference"):
+            raw = found.get(targeting_key, "")
+            if not raw:
+                continue
+            words = [part.strip().lower() for part in raw.split(",") if part.strip()]
+            unknown = [word for word in words if word not in ALLOWED_AITARGETING]
+            if not words or unknown:
+                raise SystemExit(
+                    "[%s] %s=%r contains values this engine does not know; they "
+                    "would be dropped silently. Known: %s"
+                    % (name, targeting_key, raw,
+                       ", ".join(sorted(ALLOWED_AITARGETING))))
+
+    # Superweapons that already work (or are support type) must stay untouched.
+    untouched = ("ForceShieldSpecial", "ParaDropSpecial",
+                 "AmericanParaDropSpecial", "SpyPlaneSpecial",
+                 "PsychicRevealSpecial", "ChronoWarpSpecial")
+    # The two paradrop types are the one exception: their drop list is the shared
+    # per-side [General] `*ParaDropInf` table, which now points at the nuke
+    # trooper, so the computer would drop nuke troopers too.  SW.AllowAI=no is the
+    # only way to keep the player's click working while the AI gets nothing.
+    allowed = {
+        "paradropspecial": {"sw.allowai=no"},
+        "americanparadropspecial": {"sw.allowai=no"},
+    }
+    section = None
+    for line in rules_lines:
+        header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
+        if header:
+            section = header.group(1).strip()
+            continue
+        stripped = line.strip()
+        if section in untouched and re.match(r"^SW\.", stripped, re.I):
+            normalised = re.sub(r"\s+", "", stripped).lower()
+            if normalised in allowed.get(section.lower(), set()):
+                continue
+            raise SystemExit(
+                "[%s] must not carry %s -- it already behaves correctly and "
+                "changing it would mask this fix" % (section, stripped))
     return len(SUPERWEAPON_EDITS)
 
 
