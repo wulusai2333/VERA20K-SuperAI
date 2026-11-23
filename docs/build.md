@@ -42,6 +42,27 @@ python tools/build_maps.py ice --src "ice lake (1v7).yrm" --out maps
 - `maps/SuperAI-IceLake-1v7.yrm`
 - `maps/SuperAI-IceLake-1v7-NoOre.yrm`（删掉矿石/道路 overlay）
 
+### 2.1.1 Ice Lake 120（以 1v7 无矿版为地形素材）
+
+```bash
+python tools/build_maps.py ice120 \
+    --src maps/SuperAI-IceLake-1v7-NoOre.yrm \
+    --out maps/SuperAI-IceLake-120-NoOre.yrm
+```
+
+原图可玩区只有 176×114，**塞不下 119 个基地**，所以扩成 504×512（与 Flat 120 同尺寸，
+515584 格）。做法是把原冰湖 43080 格整体平移 `dx=12, dy=328` 搬到左上角，
+其余格子填冰湖自己的地面瓦片（`tile 696` / 高度 `1`）——那正是原来 8 个出生点站的地面，
+所以新地面既不会有台阶，也一定是可站可建的。
+
+- 玩家位沿用原 `wp0`（平移后 `(192,355)`），仍站在冰湖高台上；
+- 119 个电脑出生点落在 `v ≥ 770`（冰湖以下）的冰原上，按 `h` 48 / `v` 56 的格点铺开，
+  彼此间距 ≥ 40 格；
+- `[Header]` 的 `WaypointN` 一并重写（引擎的换算：`((x-y+512)/2, (x+y+1)/2)`）。
+
+构建时会验证：120 个出生点、全部在可玩区内、电脑不落在湖面块上、玩家必须落在湖面块上、
+地形格数与画布一致。`--probe` 报告 `max_start_waypoints: 120` 才算通过。
+
 ### 2.2 Flat 系列（先生成底图）
 
 用 VERA20k 的随机地图生成器：
@@ -127,6 +148,7 @@ python tools/build_maps.py info --src maps/SuperAI-Flat120.yrm
 | `mod/SuperAI/aimd.ini` | 逐字节一致 |
 | `SuperAI-IceLake-1v7.yrm` | 逐字节一致 |
 | `SuperAI-IceLake-1v7-NoOre.yrm` | 逐字节一致 |
+| `SuperAI-IceLake-120-NoOre.yrm` | 逐字节一致（用 2.1.1 的 `ice120` 重建） |
 | `SuperAI-Flat30.yrm` | 逐字节一致 |
 | `SuperAI-Flat120.yrm` | 逐字节一致 |
 | `SuperAI-Flat200.yrm` | 逐字节一致（构建时加 `--terrain-newline crlf`） |

@@ -7,7 +7,7 @@
 由两部分组成：
 
 - **SuperAI 模组**：只改规则与 AI 脚本，不替换任何美术资源。
-- **SuperAI 地图包**：5 张地图，从 1v7 观战图到 30 人 / 120 人超大混战图。
+- **SuperAI 地图包**：6 张地图，从 1v7 观战图到 30 人 / 120 人超大混战图。
 
 > English summary: a fan-made mod + spectator map pack for VERA20k. It gives the
 > skirmish AI x1001 starting credits, an aggressive global build speed, a graded
@@ -62,12 +62,18 @@
 | --- | --- | --- | --- | --- |
 | **Super AI Ice Lake 1v7** | 176×114 | 8 | 可玩区外右侧 | 揭图 + 铁幕 + 猎杀 |
 | **Super AI Ice Lake 1v7 No Ore** | 176×114 | 8 | 可玩区外右侧 | 揭图 + 铁幕 + 猎杀，无矿 |
+| **Super AI Ice Lake 120 No Ore** | 500×500 | 120 | **左上角（192,355）独占** | 揭图 + 铁幕 + 猎杀，无矿 |
 | **Super AI Flat 200** | 200×200 | 8 | 普通角落 | 揭图 + 铁幕（1 秒起）+ 猎杀 |
 | **Super AI Flat 30** | 250×250 | 30 | 可玩区左下角 (19,256) | 揭图 + 铁幕（1 秒起）+ 猎杀 |
 | **Super AI Flat 120** | 500×500（引擎上限） | 120 | 可玩区左下角 (19,506) | 揭图 + 铁幕（1 秒起）+ 猎杀 |
 
 所有 Flat 地图的地形都是**同一块平地（tile 418）、同一高度（z=4）**：
 没有水、海岸线、高地、悬崖、树、石头、矿石、中立建筑，建筑可以任意摆放。
+
+**Ice Lake 120** 是冰湖地形扩出来的 120 人版：原来的冰湖整块搬到**左上角**给玩家
+（连高台一起，原样 43080 格），其余地面用冰面上同一块瓦片（tile 696 / 高度 1）铺成冰原，
+119 个电脑的出生点全部落在右下区域（`v ≥ 770`，即冰湖以下），间距 ≥40 格。
+原图只有 176×114，塞不下 119 个基地，所以必须扩图 —— 这条是用 504×512 的画布实现的。
 
 ## 快速开始
 
@@ -98,10 +104,10 @@ python tools/install.py --game-dir "F:/Games/VERA20K" --enable
 ```
 VERA20K-SuperAI/
 ├── mod/SuperAI/           # 模组：mod.ini + rulesmd/artmd/aimd.ini
-├── maps/                  # 5 张 .yrm
+├── maps/                  # 6 张 .yrm
 ├── tools/
 │   ├── build_mod.py       # 从原版 rules 目录重建模组
-│   ├── build_maps.py      # 重建/改造地图（ice / flat / uniform / info）
+│   ├── build_maps.py      # 重建/改造地图（ice / ice120 / flat / uniform / info）
 │   ├── veramap.py         # 地图 INI + IsoMapPack5 读写库
 │   ├── install.py         # 安装到 VERA20k
 │   ├── check.py           # 无窗口加载校验
@@ -119,8 +125,8 @@ AI 设计取舍见 [docs/ai-design.md](docs/ai-design.md)，每个键该调到�
 | 项目 | 结果 |
 | --- | --- |
 | 模组重建 | `rulesmd.ini` / `artmd.ini` / `aimd.ini` 与发布版**逐字节一致** |
-| 地图重建 | Ice Lake 两张、Flat 30、Flat 120 逐字节一致；Flat 200 仅差一处空行换行符 |
-| 无窗口加载 | 5 张图 `--probe` 均 exit 0，出生点 8 / 8 / 8 / 30 / 120 |
+| 地图重建 | Ice Lake 三张、Flat 30、Flat 120 逐字节一致；Flat 200 仅差一处空行换行符 |
+| 无窗口加载 | 6 张图 `--probe` 均 exit 0，出生点 8 / 8 / 8 / 30 / 120 / 120 |
 | 8 人局 | 隐藏窗口 100 秒：**1029 栋建筑**，防御 320 栋，全程无掉速 |
 | 30 人局 | 29 AI + 玩家，**30 个 MCV 全部生成**，30 秒 1182 栋 |
 | 120 人局 | 119 AI + 玩家，**120 个 MCV 全部生成**，30 秒 3418 栋 |

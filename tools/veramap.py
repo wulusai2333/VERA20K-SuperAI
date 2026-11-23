@@ -328,6 +328,72 @@ def uniform_terrain(text: str, tile: int = 418, sub: int = 0, z: int = 4,
     return text[:span[0]] + new_section + text[span[1]:], len(records)
 
 
+# --------------------------------------------------------- diamond geometry
+#
+# The iso grid is a diamond in (x, y): screen-right is ``h = x - y`` and
+# screen-down is ``v = x + y``.  A 504x512 map therefore holds exactly the cells
+# with ``h`` in [-503, 503], ``v`` in [505, 1528] and ``h``/``v`` of the same
+# parity -- 515584 records, which is what VERA's own generator writes and what
+# ``--probe`` accepts.  Working in (h, v) instead of (x, y) makes "put this
+# block in the upper-left, those starts in the lower-right" a plain 2-D layout
+# problem.
+def hv_to_cell(h: int, v: int):
+    """``(h, v)`` -> ``(x, y)``; both sums must share parity to be a cell."""
+    if (h + v) % 2 != 0:
+        raise ValueError("h=%d and v=%d have different parity" % (h, v))
+    return (v + h) // 2, (v - h) // 2
+
+
+def cell_to_hv(x: int, y: int):
+    return x - y, x + y
+
+
+def diamond_cells(width: int, height: int, level: int = 4):
+    """Every cell of a ``width``x``height`` map, as ``(x, y)`` in record order."""
+    h_max = width - 1
+    v_min = width + 1
+    v_max = width + 2 * height
+    cells = []
+    for v in range(v_min, v_max + 1):
+        for h in range(-h_max, h_max + 1):
+            if (h + v) % 2:
+                continue
+            x = (v + h) // 2
+            y = (v - h) // 2
+            if x < 0 or y < 0:
+                continue
+            cells.append((x, y))
+    return cells
+
+
+def resolve_waypoints(layout, spacing: int = 0):
+    """Turn an ``(h, v)`` wish list into cells, keeping them apart.
+
+    ``spacing`` rejects a candidate that sits inside the ``spacing`` x ``spacing``
+    square around an already accepted point -- i.e. close on **both** axes.
+    Requiring separation on both axes would be wrong: two starts in the same
+    ``v`` row may legitimately sit far apart along ``h``.
+    """
+    chosen = []
+    for h, v in layout:
+        if any(abs(h - oh) < spacing and abs(v - ov) < spacing for oh, ov in chosen):
+            continue
+        chosen.append((h, v))
+    return chosen
+
+
+def replace_waypoints(text: str, cells, newline: str = "\r\n") -> str:
+    """Replace ``[Waypoints]`` with ``0..n-1`` mapped to ``cells``."""
+    span = section_span(text, "Waypoints")
+    if span is None:
+        raise KeyError("missing [Waypoints]")
+    lines = ["[Waypoints]"]
+    for index, (x, y) in enumerate(cells):
+        lines.append("%d=%d" % (index, pack_cell(x, y)))
+    body = newline.join(lines) + newline + newline
+    return text[:span[0]] + body + text[span[1]:]
+
+
 # --------------------------------------------------------------- triggers
 def trigger_block(
     player_count: int,
