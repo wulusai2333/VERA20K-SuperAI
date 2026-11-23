@@ -490,51 +490,6 @@ PLAYER_NUKE_FIELDS = (
     ("SW.RequiresTarget", "yes"),
     ("SW.FireIntoShroud", "yes"),
 )
-#: The player's second nuke: `Type=MultiMissile` scatters its warheads over a
-#: ring of `Range` cells, `LineMultiplier` per line, so one launch blankets the
-#: map instead of hitting one cell.  Both keys are real superweapon fields -- the
-#: binary carries the validation strings "positive LineMultiplier" and "finite
-#: superweapon ring radius" -- and retail `[NukeSpecial]` is itself
-#: `Type=MultiMissile` with `Range=7` / `LineMultiplier=2`.
-WORLD_NUKE_SECTION = "ZAIWorldNuke"
-WORLD_NUKE_FIELDS = (
-    ("UIName", "Name:Nuke"),
-    ("Name", "N U K E !!! (world)"),
-    ("Type", "MultiMissile"),
-    ("WeaponType", "NukeCarrier"),
-    ("Action", "Nuke"),
-    ("SidebarImage", "NukeIcon"),
-    ("Range", "200"),
-    ("LineMultiplier", "40"),
-    ("IsPowered", "true"),
-    ("ShowTimer", "no"),
-    ("RechargeTime", "0.01"),
-    ("SW.Shots", "1000"),
-    ("SW.AllowPlayer", "yes"),
-    ("SW.AllowAI", "no"),
-    ("SW.AlwaysGranted", "yes"),
-    ("SW.RequiresTarget", "yes"),
-    ("SW.FireIntoShroud", "yes"),
-)
-#: Two more candidate shapes for the same idea, shipped so one match can answer
-#: which one the engine actually scatters with:
-#:
-#: * ``Battery`` is one of the superweapon Type values the binary lists next to
-#:   ``MultiMissile``/``DropPod``/``HunterSeeker``, and ``SW.MaxCount`` sits in
-#:   the same key list -- a battery that fires SW.MaxCount shots is the most
-#:   likely "many warheads at once" implementation;
-#: * ``SW.MaxCount`` on plain MultiMissile, in case the count is what was missing.
-#:
-#: Whichever one scatters becomes the real world nuke; the others get deleted.
-WORLD_NUKE_CANDIDATES = (
-    ("ZAIWorldNukeB", "Battery", "40"),
-    ("ZAIWorldNukeC", "MultiMissile", "40"),
-)
-
-WORLD_NUKE_COMMENT = (
-    ";SuperAI: player-only whole-map nuke: Type=MultiMissile scatters Range/"
-    "LineMultiplier warheads over the map. The AI keeps [NukeSpecial].")
-
 PLAYER_NUKE_COMMENT = (
     ";SuperAI: player-only unlimited nuke (zero cooldown, no silo needed). "
     "The AI keeps [NukeSpecial].")
@@ -627,57 +582,12 @@ def assert_player_nuke_section(rules_lines):
                 out[m.group(1).strip().lower()] = m.group(2).strip()
         return out
 
-    for name in (PLAYER_NUKE_SECTION, WORLD_NUKE_SECTION):
-        if not values(name):
-            raise SystemExit("no [%s] section" % name)
-        if name not in " ".join(sections.get("SuperWeaponTypes", [])):
-            raise SystemExit("[%s] is not registered in [SuperWeaponTypes]" % name)
-    world = values(WORLD_NUKE_SECTION)
-    if world.get("type", "").strip() != "MultiMissile":
-        raise SystemExit("[%s] Type=%r; the whole-map nuke needs MultiMissile"
-                         % (WORLD_NUKE_SECTION, world.get("type", "<missing>")))
-    try:
-        ring = float(world.get("range", "0"))
-        lines_per = int(float(world.get("linemultiplier", "0")))
-    except ValueError:
-        ring, lines_per = 0.0, 0
-    if ring < 100:
-        raise SystemExit("[%s] Range=%s; the ring must span the map (>=100)"
-                         % (WORLD_NUKE_SECTION, world.get("range", "<missing>")))
-    if lines_per < 10:
-        raise SystemExit("[%s] LineMultiplier=%s; the engine requires it to be "
-                         "positive and it needs to be large to blanket the map"
-                         % (WORLD_NUKE_SECTION, world.get("linemultiplier", "<missing>")))
-    for name in (PLAYER_NUKE_SECTION, WORLD_NUKE_SECTION):
-        fields = values(name)
-        wanted = {"sw.alwaysgranted": "yes", "sw.allowai": "no", "sw.allowplayer": "yes"}
-        bad = ["%s=%s (want %s)" % (k, fields.get(k, "<missing>"), v)
-               for k, v in wanted.items() if fields.get(k, "").lower() != v]
-        try:
-            recharge = float(fields.get("rechargetime", "nan"))
-        except ValueError:
-            recharge = float("nan")
-        if not (0.0 < recharge <= 0.05):
-            bad.append("RechargeTime=%s (want >0 and <=0.05)" % fields.get("rechargetime"))
-        try:
-            shots = int(float(fields.get("sw.shots", "0")))
-        except ValueError:
-            shots = 0
-        if shots < 100:
-            bad.append("SW.Shots=%s (want >=100)" % fields.get("sw.shots"))
-        if bad:
-            raise SystemExit("[%s] is not a player nuke: %s" % (name, "; ".join(bad)))
-
     player = values(PLAYER_NUKE_SECTION)
-    wanted = {
-        "sw.alwaysgranted": "yes",
-        "sw.allowai": "no",
-        "sw.allowplayer": "yes",
-    }
+    if not player:
+        raise SystemExit("no [%s] section" % PLAYER_NUKE_SECTION)
+    wanted = {"sw.alwaysgranted": "yes", "sw.allowai": "no", "sw.allowplayer": "yes"}
     bad = ["%s=%s (want %s)" % (k, player.get(k, "<missing>"), v)
            for k, v in wanted.items() if player.get(k, "").lower() != v]
-    # A zero here is not "no cooldown": the reader keeps the field's current
-    # value when it sees 0, so 0 means the ten minute default.
     try:
         recharge = float(player.get("rechargetime", "nan"))
     except ValueError:
@@ -694,25 +604,283 @@ def assert_player_nuke_section(rules_lines):
     if bad:
         raise SystemExit("[%s] is not the player's unlimited nuke: %s"
                          % (PLAYER_NUKE_SECTION, "; ".join(bad)))
-
-    registry = " ".join(sections.get("SuperWeaponTypes", []))
-    if PLAYER_NUKE_SECTION not in registry:
+    if PLAYER_NUKE_SECTION not in " ".join(sections.get("SuperWeaponTypes", [])):
         raise SystemExit("[%s] is not registered in [SuperWeaponTypes]"
                          % PLAYER_NUKE_SECTION)
 
-    # The computer's nuke must stay retail: a type-level RechargeTime of 0 or a
-    # disabled AI would silently take the computer's nuke away.
     ai = values("NukeSpecial")
     if ai.get("rechargetime", "").strip() != "10":
         raise SystemExit("[NukeSpecial] RechargeTime=%r; the computer's nuke must "
-                         "stay at the retail 10"
-                         % ai.get("rechargetime", "<missing>"))
+                         "stay at the retail 10" % ai.get("rechargetime", "<missing>"))
     if ai.get("sw.allowai", "").lower() != "yes":
         raise SystemExit("[NukeSpecial] SW.AllowAI=%r; the computer must keep its "
                          "nuke" % ai.get("sw.allowai", "<missing>"))
     if "sw.alwaysgranted" in ai:
         raise SystemExit("[NukeSpecial] has SW.AlwaysGranted; that belongs on the "
                          "player-only type")
+    return True
+
+
+def assert_nuke_gunship(rules_lines, aimd_lines):
+    """The nuclear gunship: one aircraft, one bomb, one spy-plane superweapon.
+
+    The plane must be spawned by the superweapon and must never be reachable by
+    the computer: a new aircraft type that a TaskForce names would be built by
+    the AI and would nuke on its own.
+    """
+    sections, current = {}, None
+    for line in rules_lines:
+        header = re.match(r"^\[([^\]]+)\]\s*$", line)
+        if header:
+            current = header.group(1).strip()
+            sections.setdefault(current, [])
+            continue
+        if current is not None:
+            sections[current].append(line)
+
+    def values(name):
+        out = {}
+        for line in sections.get(name, []):
+            m = re.match(r"^([A-Za-z.]+)=(.*?)(\s*;.*)?$", line.rstrip("\r\n"))
+            if m:
+                out[m.group(1).strip().lower()] = m.group(2).strip()
+        return out
+
+    problems = []
+    plane = values("ZAINukePlane")
+    if not plane:
+        problems.append("no [ZAINukePlane] section")
+    else:
+        primary = plane.get("primary", "").strip()
+        if primary != "ZAINukeBomb":
+            problems.append("ZAINukePlane Primary=%r" % primary)
+        if plane.get("spawned", "").lower() != "yes":
+            problems.append("ZAINukePlane must stay Spawned=yes (the AI must not "
+                            "be able to build it)")
+    bomb = values("ZAINukeBomb")
+    if bomb.get("warhead", "").strip() != "NUKE":
+        problems.append("ZAINukeBomb Warhead=%r (want NUKE)" % bomb.get("warhead"))
+    if "ZAINukePlane" not in " ".join(sections.get("AircraftTypes", [])):
+        problems.append("ZAINukePlane is not in [AircraftTypes]")
+    general = values("General")
+    for key, want in (("spyplane.type", "ZAINukePlane"),
+                      ("spyplane.count", "1"),
+                      ("spyplane.mission", "Attack")):
+        if general.get(key, "").strip().lower() != want.lower():
+            problems.append("[General] %s=%r (want %s)"
+                            % (key, general.get(key, "<missing>"), want))
+    world = values("ZAIWorldNuke")
+    if world.get("type", "").strip() != "SpyPlane":
+        problems.append("ZAIWorldNuke Type=%r (want SpyPlane)" % world.get("type"))
+    if world.get("sw.allowai", "").lower() != "no":
+        problems.append("ZAIWorldNuke SW.AllowAI=%r (the computer must not fly it)"
+                        % world.get("sw.allowai"))
+    if "ZAIWorldNuke" not in " ".join(sections.get("SuperWeaponTypes", [])):
+        problems.append("ZAIWorldNuke is not in [SuperWeaponTypes]")
+
+    # No TaskForce may name the plane, or the computer builds it.
+    in_teams = [line.strip() for line in aimd_lines
+                if re.match(r"^\d+=\d+,ZAINukePlane\b", line.strip())]
+    if in_teams:
+        problems.append("a TaskForce names ZAINukePlane: " + in_teams[0])
+
+    if problems:
+        raise SystemExit("nuke gunship check failed: " + "; ".join(problems[:4]))
+    return True
+
+
+#: The nuclear gunship: a spawned aircraft with a nuke bomb, flown by the
+#: spy-plane superweapon, which already crosses the map on its own.
+GUNSHIP_PLANE = "ZAINukePlane"
+GUNSHIP_BOMB = "ZAINukeBomb"
+GUNSHIP_SW = "ZAIWorldNuke"
+GUNSHIP_PLANE_FIELDS = (
+    ("UIName", "Name:BPLN"),
+    ("Name", "Nuclear Gunship"),
+    ("Strength", "800"),
+    ("Category", "AirLift"),
+    ("Armor", "heavy"),
+    ("TechLevel", "-1"),
+    ("Primary", GUNSHIP_BOMB),
+    ("Spawned", "yes"),
+    ("Selectable", "no"),
+    ("LeadershipRating", "10"),
+    ("RadarInvisible", "no"),
+    ("Sight", "10"),
+    ("Landable", "no"),
+    ("MoveToShroud", "yes"),
+    ("PitchAngle", "0"),
+    ("Speed", "14"),
+    ("Owner", "British,French,Germans,Americans,Alliance,Russians,Confederation,"
+              "Africans,Arabs,Yuri"),
+    ("Points", "30"),
+    ("ROT", "2"),
+    ("Crewed", "yes"),
+    ("Ammo", "10"),
+    ("Explosion", "TWLT070,S_BANG48,S_BRNL58,S_CLSN58,S_TUMU60"),
+    ("MaxDebris", "2"),
+    ("Locomotor", "{4A582746-9839-11d1-B709-00A024DDAFD1}"),
+    ("MovementZone", "Fly"),
+    ("ThreatPosed", "0"),
+    ("DamageParticleSystems", "SparkSys,SmallGreySSys"),
+    ("ImmuneToPsionics", "yes"),
+    ("CanPassiveAquire", "yes"),
+    ("CanRetaliate", "no"),
+    ("Fighter", "yes"),
+    ("Trainable", "no"),
+    ("DeathWeapon", "BlimpBomb"),
+    ("DeathWeaponDamageModifier", ".1"),
+    ("FlyBy", "true"),
+)
+GUNSHIP_BOMB_FIELDS = (
+    ("Damage", "600"),
+    ("ROF", "45"),
+    ("Range", "25"),
+    ("Speed", "100"),
+    ("Projectile", "InvisibleHigh"),
+    ("Warhead", "NUKE"),
+    ("Report", "NukeSiren"),
+)
+GUNSHIP_SW_FIELDS = (
+    ("UIName", "Name:Nuke"),
+    ("Name", "N U K E !!! (gunship)"),
+    ("Type", "SpyPlane"),
+    ("SidebarImage", "NukeIcon"),
+    ("ShowTimer", "no"),
+    ("RechargeTime", "0.01"),
+    ("SW.AllowPlayer", "yes"),
+    ("SW.AllowAI", "no"),
+    ("SW.AlwaysGranted", "yes"),
+)
+GUNSHIP_GENERAL_KEYS = (
+    ("SpyPlane.Type", GUNSHIP_PLANE),
+    ("SpyPlane.Count", "1"),
+    ("SpyPlane.Mission", "Attack"),
+)
+
+
+def _replace_section(lines, name, body):
+    out, skip = [], False
+    for line in lines:
+        header = re.match(r"^\[([^\]]+)\]\s*$", line)
+        if header:
+            skip = header.group(1).strip() == name
+        if not skip:
+            out.append(line)
+    lines[:] = out
+    at = None
+    for i, line in enumerate(lines):
+        if re.match(r"^\[SuperWeaponTypes\]\s*$", line):
+            at = i
+            break
+    if at is None:
+        at = len(lines)
+    lines[at:at] = body
+
+
+def _register(lines, name):
+    registry = None
+    for i, line in enumerate(lines):
+        if re.match(r"^\[SuperWeaponTypes\]\s*$", line):
+            registry = i
+            break
+    if registry is None:
+        raise SystemExit("[SuperWeaponTypes] not found")
+    end = len(lines)
+    for i in range(registry + 1, len(lines)):
+        if re.match(r"^\[[^\]]+\]\s*$", lines[i]):
+            end = i
+            break
+    kept, highest = [], 0
+    for i in range(registry + 1, end):
+        line = lines[i]
+        m = re.match(r"^(\d+)\s*=\s*([^;\r\n]+)", line)
+        if m:
+            if m.group(2).strip() == name:
+                continue
+            highest = max(highest, int(m.group(1)))
+        kept.append(line)
+    while kept and not kept[-1].strip():
+        kept.pop()
+    kept.append("%d=%s\r\n" % (highest + 1, name))
+    kept.append("\r\n")
+    lines[registry + 1:end] = kept
+    return highest + 1
+
+
+def apply_nuke_gunship(lines):
+    """Write the gunship aircraft, its bomb, the spy-plane superweapon and the
+    three [General] keys that make the spy plane fly our aircraft on an attack
+    mission."""
+    plane = ["[%s]\r\n" % GUNSHIP_PLANE,
+             ";SuperAI: player-only nuclear gunship, flown by the spy-plane superweapon.\r\n"]
+    plane += ["%s=%s\r\n" % pair for pair in GUNSHIP_PLANE_FIELDS]
+    _replace_section(lines, GUNSHIP_PLANE, plane)
+
+    bomb = ["[%s]\r\n" % GUNSHIP_BOMB,
+            ";SuperAI: nuke warhead on a plane. [NUKE] itself is untouched.\r\n"]
+    bomb += ["%s=%s\r\n" % pair for pair in GUNSHIP_BOMB_FIELDS]
+    _replace_section(lines, GUNSHIP_BOMB, bomb)
+
+    sw = ["[%s]\r\n" % GUNSHIP_SW,
+          ";SuperAI: one click flies the gunship across the map.\r\n"]
+    sw += ["%s=%s\r\n" % pair for pair in GUNSHIP_SW_FIELDS]
+    _replace_section(lines, GUNSHIP_SW, sw)
+    _register(lines, GUNSHIP_SW)
+
+    # [AircraftTypes] registry entry, appended last.
+    reg = None
+    for i, line in enumerate(lines):
+        if re.match(r"^\[AircraftTypes\]\s*$", line):
+            reg = i
+            break
+    if reg is None:
+        raise SystemExit("[AircraftTypes] not found")
+    end = len(lines)
+    for i in range(reg + 1, len(lines)):
+        if re.match(r"^\[[^\]]+\]\s*$", lines[i]):
+            end = i
+            break
+    kept, highest = [], 0
+    for i in range(reg + 1, end):
+        line = lines[i]
+        m = re.match(r"^(\d+)\s*=\s*([^;\r\n]+)", line)
+        if m:
+            if m.group(2).strip() == GUNSHIP_PLANE:
+                continue
+            highest = max(highest, int(m.group(1)))
+        kept.append(line)
+    while kept and not kept[-1].strip():
+        kept.pop()
+    kept.append("%d=%s\r\n" % (highest + 1, GUNSHIP_PLANE))
+    kept.append("\r\n")
+    lines[reg + 1:end] = kept
+
+    # [General] keys: set or insert.
+    general = None
+    for i, line in enumerate(lines):
+        if re.match(r"^\[General\]\s*$", line):
+            general = i
+            break
+    if general is None:
+        raise SystemExit("[General] not found")
+    end = len(lines)
+    for i in range(general + 1, len(lines)):
+        if re.match(r"^\[[^\]]+\]\s*$", lines[i]):
+            end = i
+            break
+    for key, value in GUNSHIP_GENERAL_KEYS:
+        found = False
+        for i in range(general + 1, end):
+            if re.match(r"^%s\s*=" % re.escape(key), lines[i], re.I):
+                eol = "\r\n" if lines[i].endswith("\r\n") else "\n"
+                lines[i] = "%s=%s%s" % (key, value, eol)
+                found = True
+                break
+        if not found:
+            lines.insert(general + 1, "%s=%s\r\n" % (key, value))
+            general += 1
+            end += 1
     return True
 
 
@@ -784,19 +952,7 @@ def build_rules(source_dir, out_dir):
     # Ares SW.* : make a charged superweapon actually get launched by the AI.
     apply_superweapon_edits(lines)
     player_nuke_index = apply_player_nuke(lines)
-    world_nuke_index = apply_player_nuke(
-        lines, WORLD_NUKE_SECTION, WORLD_NUKE_FIELDS)
-    for name, kind, count in WORLD_NUKE_CANDIDATES:
-        fields = []
-        for key, value in WORLD_NUKE_FIELDS:
-            if key == "Type":
-                value = kind
-            elif key == "LineMultiplier":
-                value = "40"
-            fields.append((key, value))
-            if key == "LineMultiplier":
-                fields.append(("SW.MaxCount", count))
-        apply_player_nuke(lines, name, tuple(fields))
+    apply_nuke_gunship(lines)
 
     # Ares AIBuildCounts: planned copies of the production buildings that must
     # exist in numbers, keyed by difficulty (hard, normal, easy).
@@ -1757,6 +1913,7 @@ def main():
     mcv_triggers = assert_mcv_triggers_well_formed(aimd_lines)
     assert_superweapon_teams_intact(aimd_lines)
     assert_player_nuke_section(rules_lines)
+    assert_nuke_gunship(rules_lines, aimd_lines)
     assert_air_and_aa_boosted(aimd_lines)
     counts = assert_build_counts(rules_lines)
     assert_no_walls(rules_lines)

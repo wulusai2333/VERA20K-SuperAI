@@ -1224,7 +1224,48 @@ INFO vera20k_core::rules::ruleset::loading] SuperWeaponTypes: 12 loaded
      但触发器只能按**国家**定位房子（`resolve_trigger_house` 用 `CountryIdx`），
      所以需要固定玩家用哪个国家。
 
-### 17.7 全图核弹：`Type=MultiMissile` 的 `Range` / `LineMultiplier`（3.9.2）
+### 17.8 全图核弹改走「核弹炮艇」：`Type=SpyPlane` + 自定义机型（3.9.4）
+
+3.9.2/3.9.3 试过的三种"一次撒满全图"全部失败（`MultiMissile` + `Range`/`LineMultiplier`、
+`Type=Battery` + `SW.MaxCount`、`MultiMissile` + `SW.MaxCount`），实测都是一发普通核弹。
+原因：核弹弹头由**全局** `[General] Nuke.Payload` 决定，单个超武换 `WeaponType` 改不了它。
+
+**可行做法**：让一架飞机横穿地图沿途投弹 —— 引擎里现成的"派飞机掠过地图"就是 `Type=SpyPlane`，
+Ares 又给了三个 `[General]` 键（它们与 `Nuke.Payload` 并列在键表里，都是 `[General]` 级）：
+
+```ini
+[General]
+SpyPlane.Type=ZAINukePlane     ; 换成自己的机型
+SpyPlane.Count=1
+SpyPlane.Mission=Attack        ; 掠过时开火
+```
+
+```ini
+[AircraftTypes]
+13=ZAINukePlane
+
+[ZAINukePlane]                 ; 克隆自 [BPLN]，Fighter=yes
+Primary=ZAINukeBomb
+Spawned=yes                    ; 只由超武生成，玩家/AI 都造不出来
+Ammo=10                        ; 一架次 10 发
+Speed=14
+
+[ZAINukeBomb]
+Damage=600  ROF=45  Range=25  Speed=100
+Projectile=InvisibleHigh  Warhead=NUKE   ; 弹头直接用零售 [NUKE]，不改它
+
+[ZAIWorldNuke]
+Type=SpyPlane  RechargeTime=0.01  SW.AllowPlayer=yes  SW.AllowAI=no  SW.AlwaysGranted=yes
+```
+
+**为什么不影响电脑**：`SpyPlane.*` 是全局键，但电脑没有 spy-plane 超武的使用路径；
+飞机是 `Spawned=yes` 且**不进任何 TaskForce**（`assert_nuke_gunship` 会检查这一点），
+所以电脑永远拿不到它。`[NUKE]` 弹头原封不动。
+
+**验证的两个硬信号**：日志 `RuleSet loaded: … (… air …)` 的 `air` 计数应从 **12 → 13**；
+游戏里点一次按钮应看到一架飞机掠过并沿途投下 10 发核弹。
+
+### 17.7 全图核弹：`Type=MultiMissile` 的 `Range` / `LineMultiplier`（3.9.2，已废弃）
 
 第二个玩家超武 `ZAIWorldNuke`，一次发射把核弹撒满全图：
 

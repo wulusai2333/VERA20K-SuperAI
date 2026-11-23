@@ -2,6 +2,28 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## 3.9.4 — 全图核弹改走「核弹炮艇」：`Type=SpyPlane` + 自定义机型
+
+3.9.2/3.9.3 的三种"一次撒满全图"全部失败（`MultiMissile`+`Range`/`LineMultiplier`、
+`Type=Battery`+`SW.MaxCount`、`MultiMissile`+`SW.MaxCount`），实测都是一发普通核弹 ——
+核弹弹头由**全局** `[General] Nuke.Payload` 决定，单个超武换 `WeaponType` 改不了它。
+三个失败类型已删除。
+
+改成"派一架飞机横穿地图沿途投弹"：
+
+- 新机型 `ZAINukePlane`（`[AircraftTypes]` 第 13 项，克隆 `[BPLN]`，`Fighter=yes`、
+  `Spawned=yes`、`Ammo=10`、`Speed=14`）；
+- 新武器 `ZAINukeBomb`：`Damage=600`、`ROF=45`、`Range=25`、`Warhead=NUKE`（弹头不改）；
+- `[General] SpyPlane.Type=ZAINukePlane`、`SpyPlane.Count=1`、`SpyPlane.Mission=Attack`；
+- 玩家超武 `ZAIWorldNuke` 改成 `Type=SpyPlane`，免发射井、0.01 冷却、`SW.AllowAI=no`。
+
+**电脑不受影响**：`SpyPlane.*` 是全局键但电脑没有 spy-plane 使用路径；飞机 `Spawned=yes`
+且不进任何 TaskForce（`assert_nuke_gunship` 检查）。
+
+**验证信号**：日志 `RuleSet loaded: … (… air …)` 的 `air` 应从 12 → **13**；
+游戏里点一次按钮应看到飞机掠过并投下 10 发核弹。若掠过不开火，先试
+`SpyPlane.Mission=Move/Guard/Hunt`，再退回"玩家可造的炮艇"（`Spawned=no` + `TechLevel=1`）。
+
 ## 3.9.2 — 新增「全图核弹」玩家超武
 
 第 14 个超武类型 `ZAIWorldNuke`，一次发射把核弹撒满全图：
