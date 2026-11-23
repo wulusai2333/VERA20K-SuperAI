@@ -770,18 +770,32 @@ DROP_SW_FIELDS = (
     ("SW.InitialReady", "yes"),
     ("SW.RequiresTarget", "yes"),
     ("SW.FireIntoShroud", "yes"),
-    ("UnitDelivery.Types", "ZAINukeGunship"),
-    ("UnitDelivery.Num", "1"),
+    # The engine reads the payload from `Deliver.Types`, NOT `UnitDelivery.Types`
+    # (the binary's key table holds Deliver.Types / Deliver.BaseNormal /
+    # Deliver.Owner, and world_spawn.rs names `Deliver.Buildups`).  With the wrong
+    # prefix the superweapon loads and the click does nothing at all.
+    ("Deliver.Types", "ZAINukeGunship"),
 )
 
 
+#: The engine's own code calls this feature "UnitDelivery payload (Ares
+#: PlaceUnits)", so both Type values are shipped as two buttons: whichever one the
+#: engine recognises is the real name, and the other does nothing.
+DROP_SW_TYPES = ("UnitDelivery", "PlaceUnits")
+
+
 def apply_unit_delivery(lines):
-    """Register the delivery superweapon and point it at the gunship."""
-    body = ["[%s]\r\n" % DROP_SW,
-            ";SuperAI: click to have the gunship delivered. Player only.\r\n"]
-    body += ["%s=%s\r\n" % pair for pair in DROP_SW_FIELDS]
-    _replace_section(lines, DROP_SW, body)
-    _append_registry(lines, "SuperWeaponTypes", DROP_SW)
+    """Register the delivery superweapon(s) and point them at the gunship."""
+    for index, kind in enumerate(DROP_SW_TYPES):
+        name = DROP_SW if index == 0 else DROP_SW + "2"
+        body = ["[%s]\r\n" % name,
+                ";SuperAI: click to have the gunship delivered. Player only.\r\n"]
+        for key, value in DROP_SW_FIELDS:
+            if key == "Type":
+                value = kind
+            body.append("%s=%s\r\n" % (key, value))
+        _replace_section(lines, name, body)
+        _append_registry(lines, "SuperWeaponTypes", name)
     return True
 
 
@@ -810,20 +824,17 @@ def assert_unit_delivery(rules_lines, aimd_lines):
     if not sw:
         problems.append("no [%s] section" % DROP_SW)
     else:
-        if sw.get("type", "").strip() != "UnitDelivery":
-            problems.append("[%s] Type=%r (want UnitDelivery)"
-                            % (DROP_SW, sw.get("type")))
-        types = [p.strip() for p in sw.get("unitdelivery.types", "").split(",") if p.strip()]
+        if sw.get("type", "").strip() != DROP_SW_TYPES[0]:
+            problems.append("[%s] Type=%r (want %s)"
+                            % (DROP_SW, sw.get("type"), DROP_SW_TYPES[0]))
+        types = [p.strip() for p in sw.get("deliver.types", "").split(",") if p.strip()]
         if GUNSHIP_UNIT not in types:
-            problems.append("[%s] UnitDelivery.Types=%r does not name %s"
-                            % (DROP_SW, sw.get("unitdelivery.types"), GUNSHIP_UNIT))
-        try:
-            num = int(float(sw.get("unitdelivery.num", "0")))
-        except ValueError:
-            num = 0
-        if num < 1:
-            problems.append("[%s] UnitDelivery.Num=%r (want >=1)"
-                            % (DROP_SW, sw.get("unitdelivery.num")))
+            problems.append("[%s] Deliver.Types=%r does not name %s (the payload "
+                            "key is Deliver.Types, not UnitDelivery.Types)"
+                            % (DROP_SW, sw.get("deliver.types"), GUNSHIP_UNIT))
+        if sw.get("unitdelivery.types"):
+            problems.append("[%s] still uses UnitDelivery.Types; the engine reads "
+                            "Deliver.Types" % DROP_SW)
         if sw.get("sw.allowai", "").lower() != "no":
             problems.append("[%s] SW.AllowAI=%r (the computer must not deliver it)"
                             % (DROP_SW, sw.get("sw.allowai")))
