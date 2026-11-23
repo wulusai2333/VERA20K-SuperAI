@@ -1271,6 +1271,20 @@ YuriParaDropInf=ZAINukeTrooper  YuriParaDropNum=1
 | 武器/节奏像火箭飞行兵 | `[ZAINukeRifle]` 克隆天启副武器 `[MammothTusk]` | `ROF=80`、`Burst=2`、`Range=200`、`Speed=20` |
 | 弹道要飘、落点要随机 | `[Weapon] Inaccurate=yes` + `[Projectile] FlakScatter=yes` + `ROT=10` | 不吸附目标点 + 落点随机 + 慢转向 |
 
+**弹头对照：核弹 vs 3 星无畏导弹（3.10.5）**
+
+| | `[NUKE]`（核弹） | `[DMislWH]`（无畏导弹） |
+| --- | --- | --- |
+| `CellSpread` | **10** | **1.5** |
+| `PercentAtMax` | `.02` | `.25` |
+| 拆墙 | `WallAbsoluteDestroyer=yes` | 无 |
+| 特效 | `AnimList=NUKEANIM`（蘑菇云） | `XGRYSML1,XGRYSML2,EXPLOSML,XGRYMED1,...` |
+| 3 星伤害 | — | `[General] DMislEliteDamage=600` |
+
+核弹兵现在用 `[ZAINukeWH]` = `[DMislWH]` 的克隆（`CellSpread=1.5` + XGRY 特效 +
+`Verses` 同无畏）+ 弹头级 `BallisticScatter=200` 保住散布；伤害 600 = 3 星无畏。
+`[NUKE]` 仍然一分未动（电脑的核弹保持原样）。
+
 **射速换算（3.10.4）**：要"3 星某单位的攻击间隔"，直接乘 `[General] VeteranROF`：
 
 ```

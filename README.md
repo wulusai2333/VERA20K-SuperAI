@@ -7,7 +7,7 @@
 把《红色警戒 2：尤里的复仇》遭遇战里的电脑，变成一个**会铺满地图、几乎全员冲锋、永不囤兵**的对手；
 再附上一套专门为「看 AI 打 AI」设计的地图包（平地图 + 冰湖图）。
 
-当前版本 **3.10.4**：电脑会被打到就立刻重建、把基地铺到 3 个、超武（核弹/闪电/心灵/基因/铁幕/超时空）
+当前版本 **3.10.5**：电脑会被打到就立刻重建、把基地铺到 3 个、超武（核弹/闪电/心灵/基因/铁幕/超时空）
 充满即用；本模组**不造围墙**，冷酷难度给到 3 兵营 / 5 战车工厂。
 
 本项目面向 [VERA20k](https://github.com/YuriPlanet/vera20k)（YR 的开源重制引擎），
@@ -46,7 +46,7 @@
 | **防空比例** | 盟/苏防空炮只在「air 类别」被选中（`AntiInfantryValue=0`/`AntiArmorValue=0`） | **和尤里盖特机炮同形状（25/10/25）**：三类都是候选，防御总数不变、防空占比 12–17% → 20%+ |
 | **被打掉就重建** | `AIRestrictReplaceTime=400`（约 27 秒内只补墙/防御/电厂） | **`0`**：任何建筑丢失后立刻重建，扩建由此被动发生 |
 | **基地数量** | 1 座建造厂 | **稳定 3 座**：建造厂 < 3 时立刻补基地车去展开（`… MCV - Expand` 触发器，权重 5000；MCV 队伍 `Max=2`），被打掉会补回 |
-| **核弹兵空投** | 无 | 玩家超武 `ZAIWorldNuke`（`Type=ParaDrop`）：点地图任意位置，运输机投下 `ZAINukeTrooper` —— 会飞的核弹兵（`JumpJet=yes`），`Primary=ZAINukeRifle`（天启导弹克隆：`ROF=9`（3 星神盾间隔 = `Medusa ROF=15` × `VeteranROF=0.6`）、`Burst=1` 单发、`Range=200`）、`GuardRange=200` 自动索敌、`Strength=100000`，弹丸改成**高炮式弹道弹**（`Arcing=true`、非追踪、`FlakScatter=yes`+`Inaccurate=yes`，`AG=yes`）、`[CombatDamage] BallisticScatter=200`（格）→ 落点在目标周围最多 200 格随机；零售高炮弹丸的散布已关掉，AI 防空不受影响；空投运输机 `[PDPLANE]` 已加固为 100000/heavy/Insignificant。引擎的空投**只读按阵营的步兵列表**（`*ParaDropInf`），故把四个列表都指向它 |
+| **核弹兵空投** | 无 | 玩家超武 `ZAIWorldNuke`（`Type=ParaDrop`）：点地图任意位置，运输机投下 `ZAINukeTrooper` —— 会飞的核弹兵（`JumpJet=yes`），`Primary=ZAINukeRifle`（天启导弹克隆：`ROF=9`（3 星神盾间隔 = `Medusa ROF=15` × `VeteranROF=0.6`）、`Burst=1` 单发、`Range=200`）、`GuardRange=200` 自动索敌、`Strength=100000`，弹丸改成**高炮式弹道弹**（`Arcing=true`、非追踪、`FlakScatter=yes`+`Inaccurate=yes`，`AG=yes`）、`[CombatDamage] BallisticScatter=200`（格）→ 落点最多 200 格随机；弹头用 `[ZAINukeWH]`（3 星无畏导弹 `[DMislWH]`：`CellSpread=1.5`、XGRY 特效、600 伤害） |
 | **玩家核弹** | 要造发射井、每 10 分钟一发 | **0 号位玩家无限核弹**：新增独立超武类型 `ZAIUnlimitedNuke`（`SW.AlwaysGranted=yes` 免发射井、`RechargeTime=0` 零冷却、`SW.AllowAI=no`）；**电脑的 `NukeSpecial` 原封不动**，照旧 10 分钟一发 |
 | **超级武器** | 充满后 AI 不放 | **充满即自动发射**：给 AI 可造的 6 个带目标超武写 `SW.AutoFire=yes` / `SW.UseAITargeting=yes`（Ares 超武扩展） |
 | 围墙占防御 | 50 / 25 / 10 | **`AIPickWallDefensePercent=0,0,0`**：AI **完全不造围墙**（墙会占防御名额又堵路），防御抽签全部落到真枪 |

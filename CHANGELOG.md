@@ -2,6 +2,27 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## 3.10.5 — 弹头换成 3 星无畏导弹（范围/特效/伤害）
+
+原核弹头 `CellSpread=10` + `NUKEANIM` 太大、没意思。换成零售无畏导弹的弹头：
+
+| | `[NUKE]` | `[DMislWH]`（无畏） |
+| --- | --- | --- |
+| `CellSpread` | 10 | **1.5** |
+| `PercentAtMax` | .02 | .25 |
+| 拆墙 | `WallAbsoluteDestroyer=yes` | 无 |
+| 特效 | `NUKEANIM` | `XGRYSML1,XGRYSML2,EXPLOSML,...` |
+| 3 星伤害 | — | `[General] DMislEliteDamage=600` |
+
+- `[ZAINukeWH]` 改为 `[DMislWH]` 的克隆（范围/`Verses`/特效/`Deform` 全同无畏），
+  保留弹头级 `BallisticScatter=200`；
+- 武器 `Damage=600` 正好等于 3 星无畏（`DMislEliteDamage=600`）；
+- `[NUKE]` 依旧未改动。
+
+守卫新增：`[ZAINukeWH] CellSpread` 在 (0,2] 内、不得有 `WallAbsoluteDestroyer`、
+`AnimList` 不得含 `NUKEANIM`、`BallisticScatter>=100`、武器 `Damage<=600`；
+实测 `CellSpread=10`、`AnimList=NUKEANIM`、`BallisticScatter=0` 全被拦。
+
 ## 3.10.4 — 核弹兵改单发，射速对齐 3 星神盾
 
 射速换算（记进 playbook）：

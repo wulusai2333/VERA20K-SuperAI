@@ -835,20 +835,8 @@ TROOPER_PROJECTILE_FIELDS = (
 #: Our own nuke warhead: [NUKE] stays untouched for the computer.  BallisticScatter
 #: also exists as a warhead field in the binary, so this is the isolated place to
 #: ask for a wide spread without disturbing anything else.
-TROOPER_WARHEAD_FIELDS = (
-    ("CellSpread", "10"),
-    ("PercentAtMax", ".02"),
-    ("WallAbsoluteDestroyer", "yes"),
-    ("Wood", "yes"),
-    ("Verses", "100%,100%,100%,200%,100%,100%,60%,100%,8%,100%,100%"),
-    ("InfDeath", "7"),
-    ("Sparky", "no"),
-    ("Tiberium", "yes"),
-    ("AnimList", "NUKEANIM"),
-    ("BallisticScatter", "200"),
-)
-#: Retail flak projectiles share the global scatter, so they get their scatter
-#: switched off; otherwise raising BallisticScatter would blind the AI's AA.
+#: Retail flak projectiles share the global scatter, so their scatter is switched
+#: off; otherwise raising BallisticScatter would blind the AI's anti-air.
 #: [CombatDamage] scatter distances, in CELLS per the retail comments.
 HOMING_SCATTER = "200"
 BALLISTIC_SCATTER = "200"
@@ -860,6 +848,29 @@ PLANE_FIELDS = (
 )
 FLAK_PROJECTILES = ("FlakProj", "FlakTProj")
 FLAK_DAMPING = (("FlakScatter", "no"), ("Inaccurate", "no"))
+TROOPER_WARHEAD_FIELDS = (
+    # Blast and effects copied from [DMislWH], the Dreadnought missile warhead:
+    # CellSpread 1.5 instead of the nuke's 10, the XGRY explosion anims instead of
+    # NUKEANIM, and no WallAbsoluteDestroyer.  Damage stays 600, which is what
+    # [General] DMislEliteDamage gives a 3-star Dreadnought missile.
+    ("CellSpread", "1.5"),
+    ("PercentAtMax", ".25"),
+    ("Wall", "yes"),
+    ("Wood", "yes"),
+    ("Verses", "100%,90%,80%,100%,80%,80%,85%,65%,28%,80%,0%"),
+    ("Conventional", "yes"),
+    ("Rocker", "no"),
+    ("InfDeath", "2"),
+    ("AnimList", "XGRYSML1,XGRYSML2,EXPLOSML,XGRYMED1,XGRYMED2,EXPLOMED,"
+                 "EXPLOLRG,TWLT070"),
+    ("Deform", "10%"),
+    ("DeformThreshhold", "300"),
+    ("Tiberium", "yes"),
+    ("Sparky", "no"),
+    ("Bright", "yes"),
+    ("ProneDamage", "70%"),
+    ("BallisticScatter", "200"),
+)
 
 
 def _replace_section(lines, name, body):
@@ -1162,6 +1173,29 @@ def assert_nuke_gunship(rules_lines, aimd_lines):
     trooper_wh = values(TROOPER_WARHEAD)
     if not trooper_wh:
         problems.append("no [%s] section" % TROOPER_WARHEAD)
+    else:
+        try:
+            spread = float(trooper_wh.get("cellspread", "0"))
+        except ValueError:
+            spread = 0.0
+        if spread <= 0 or spread > 2:
+            problems.append("[%s] CellSpread=%r (want >0 and <=2: it is the 3-star "
+                            "Dreadnought missile, not a nuke)"
+                            % (TROOPER_WARHEAD, trooper_wh.get("cellspread")))
+        if trooper_wh.get("wallabsolutedestroyer", "").lower() == "yes":
+            problems.append("[%s] has WallAbsoluteDestroyer; that is the nuke's "
+                            "trait" % TROOPER_WARHEAD)
+        if "nukeanim" in trooper_wh.get("animlist", "").lower():
+            problems.append("[%s] AnimList still has NUKEANIM; the Dreadnought uses "
+                            "the XGRY explosion set" % TROOPER_WARHEAD)
+        try:
+            wh_scatter = float(trooper_wh.get("ballisticscatter", "0"))
+        except ValueError:
+            wh_scatter = 0.0
+        if wh_scatter < 100:
+            problems.append("[%s] BallisticScatter=%r (want >=100: the spread is "
+                            "part of this warhead too)"
+                            % (TROOPER_WARHEAD, trooper_wh.get("ballisticscatter")))
     if weapon.get("projectile", "").strip() != GUNSHIP_PROJECTILE:
         problems.append("%s Projectile=%r" % (GUNSHIP_WEAPON, weapon.get("projectile")))
     try:
@@ -1238,6 +1272,13 @@ def assert_nuke_gunship(rules_lines, aimd_lines):
     if rifle.get("warhead", "").strip() != TROOPER_WARHEAD:
         problems.append("%s Warhead=%r (want %s, our own copy of NUKE)"
                         % (TROOPER_WEAPON, rifle.get("warhead"), TROOPER_WARHEAD))
+    try:
+        dmg = int(float(rifle.get("damage", "0")))
+    except ValueError:
+        dmg = 0
+    if dmg > 600:
+        problems.append("%s Damage=%r (want <=600: 3-star Dreadnought missile)"
+                        % (TROOPER_WEAPON, rifle.get("damage")))
     try:
         rof = int(float(rifle.get("rof", "0")))
     except ValueError:
