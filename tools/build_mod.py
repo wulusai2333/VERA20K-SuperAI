@@ -638,6 +638,30 @@ def assert_player_nuke_section(rules_lines):
 GUNSHIP_UNIT = "ZAINukeGunship"
 GUNSHIP_WEAPON = "ZAINukeMissile"
 GUNSHIP_PROJECTILE = "ZAINukeMissileProj"
+#: Delivery: Ares `[General] ParaDrop.*` -- the retail `*ParaDropInf` lists can only
+#: drop infantry, but `ParaDrop.Types` takes object types, which is how a vehicle
+#: gets delivered to the player regardless of their faction.  The computer never
+#: uses paradrops (no `SW.AutoFire`, and it cannot click), so these global keys
+#: only ever affect the player.
+GUNSHIP_SW = "ZAIWorldNuke"
+GUNSHIP_GENERAL_KEYS = (
+    ("ParaDrop.Aircraft", "PDPLANE"),
+    ("ParaDrop.Types", GUNSHIP_UNIT),
+    ("ParaDrop.Num", "1"),
+)
+GUNSHIP_SW_FIELDS = (
+    ("UIName", "Name:Para"),
+    ("Name", "N U K E !!! (airdrop)"),
+    ("Type", "ParaDrop"),
+    ("Action", "ParaDrop"),
+    ("SidebarImage", "PARAICON"),
+    ("ShowTimer", "no"),
+    ("RechargeTime", "0.01"),
+    ("SW.AllowPlayer", "yes"),
+    ("SW.AllowAI", "no"),
+    ("SW.AlwaysGranted", "yes"),
+    ("SW.RequiresTarget", "yes"),
+)
 GUNSHIP_UNIT_FIELDS = (
     ("UIName", "Name:ZEP"),
     ("Name", "Nuclear Gunship"),
@@ -799,6 +823,38 @@ def apply_nuke_gunship(lines):
     _replace_section(lines, GUNSHIP_PROJECTILE, proj)
 
     _append_registry(lines, "VehicleTypes", GUNSHIP_UNIT)
+
+    # The airdrop superweapon.
+    sw = ["[%s]\r\n" % GUNSHIP_SW,
+          ";SuperAI: click to have the gunship flown in and dropped.\r\n"]
+    sw += ["%s=%s\r\n" % pair for pair in GUNSHIP_SW_FIELDS]
+    _replace_section(lines, GUNSHIP_SW, sw)
+    _append_registry(lines, "SuperWeaponTypes", GUNSHIP_SW)
+
+    # [General] keys: set or insert.
+    general = None
+    for i, line in enumerate(lines):
+        if re.match(r"^\[General\]\s*$", line):
+            general = i
+            break
+    if general is None:
+        raise SystemExit("[General] not found")
+    for key, value in GUNSHIP_GENERAL_KEYS:
+        end = len(lines)
+        for i in range(general + 1, len(lines)):
+            if re.match(r"^\[[^\]]+\]\s*$", lines[i]):
+                end = i
+                break
+        replaced = False
+        for i in range(general + 1, end):
+            if re.match(r"^%s\s*=" % re.escape(key), lines[i], re.I):
+                eol = "\r\n" if lines[i].endswith("\r\n") else "\n"
+                lines[i] = "%s=%s%s" % (key, value, eol)
+                replaced = True
+                break
+        if not replaced:
+            lines.insert(general + 1, "%s=%s\r\n" % (key, value))
+            general += 1
     return True
 
 
@@ -866,6 +922,33 @@ def assert_nuke_gunship(rules_lines, aimd_lines):
     leftovers = [name for name in ("ZAINukePlane", "ZAINukeBomb") if values(name)]
     if leftovers:
         problems.append("old sections survived: " + ", ".join(leftovers))
+
+    # Airdrop delivery: ParaDrop.Types is what makes a vehicle droppable; the
+    # retail *ParaDropInf lists only ever carry infantry.
+    general = values("General")
+    if general.get("paradrop.types", "").strip() != GUNSHIP_UNIT:
+        problems.append("[General] ParaDrop.Types=%r (want %s)"
+                        % (general.get("paradrop.types", "<missing>"), GUNSHIP_UNIT))
+    if not general.get("paradrop.aircraft", "").strip():
+        problems.append("[General] ParaDrop.Aircraft is missing")
+    try:
+        drop_num = int(float(general.get("paradrop.num", "0")))
+    except ValueError:
+        drop_num = 0
+    if drop_num < 1:
+        problems.append("[General] ParaDrop.Num=%r (want at least 1)"
+                        % general.get("paradrop.num"))
+    sw = values(GUNSHIP_SW)
+    if sw.get("type", "").strip() != "ParaDrop":
+        problems.append("[%s] Type=%r (want ParaDrop)" % (GUNSHIP_SW, sw.get("type")))
+    if sw.get("sw.allowai", "").lower() != "no":
+        problems.append("[%s] SW.AllowAI=%r (the computer must not drop it)"
+                        % (GUNSHIP_SW, sw.get("sw.allowai")))
+    if sw.get("sw.alwaysgranted", "").lower() != "yes":
+        problems.append("[%s] must stay SW.AlwaysGranted=yes (no building needed)"
+                        % GUNSHIP_SW)
+    if GUNSHIP_SW not in " ".join(sections.get("SuperWeaponTypes", [])):
+        problems.append("[%s] is not in [SuperWeaponTypes]" % GUNSHIP_SW)
 
     in_teams = [line.strip() for line in aimd_lines
                 if re.match(r"^\d+=\d+,%s\b" % GUNSHIP_UNIT, line.strip())]

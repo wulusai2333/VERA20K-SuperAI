@@ -2,6 +2,35 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## 3.9.7 — 空投投送核弹飞艇（`ParaDrop.Types` 能投载具）
+
+之前判断"没法把单位送给玩家"是**调查不够**：零售的 `AmerParaDropInf / AllyParaDropInf /
+SovParaDropInf / YuriParaDropInf` 只是**按阵营的步兵列表**，而 Ares 提供了
+`[General] ParaDrop.Aircraft / ParaDrop.Types / ParaDrop.Num` ——
+`ParaDrop.Types` 接受任意 ObjectType，不看玩家阵营。
+
+```ini
+[General]
+ParaDrop.Aircraft=PDPLANE
+ParaDrop.Types=ZAINukeGunship
+ParaDrop.Num=1
+
+[SuperWeaponTypes]
+14=ZAIWorldNuke
+[ZAIWorldNuke]
+Type=ParaDrop  Action=ParaDrop  RechargeTime=0.01
+SW.AlwaysGranted=yes  SW.AllowAI=no  SW.RequiresTarget=yes
+```
+
+点一次 → 运输机飞过 → 指定位置投下 `ZAINukeGunship`，之后玩家指挥。
+飞艇保留战车工厂建造作为保险。
+
+**为什么安全**：电脑没有空投的使用路径（零售 `[ParaDropSpecial]`/`[AmericanParaDropSpecial]`
+都没有 `SW.AutoFire`，电脑也不能点按钮），所以这三个全局键实际只对玩家生效。
+
+守卫新增：`ParaDrop.Types` 必须等于飞艇（写 `E1` 会被拦）、`ParaDrop.Num>=1`、
+`ParaDrop.Aircraft` 非空、`[ZAIWorldNuke] Type=ParaDrop` 且 `SW.AllowAI=no`。
+
 ## 3.9.6 — 核弹飞艇：基洛夫机体 + 神盾式追踪导弹 + 核弹头
 
 飞机版还是"普通飞机"（依赖空指部、要停机位、会被防空打掉）。改成**基洛夫机体**：

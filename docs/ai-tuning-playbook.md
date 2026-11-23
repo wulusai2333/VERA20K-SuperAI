@@ -1224,6 +1224,44 @@ INFO vera20k_core::rules::ruleset::loading] SuperWeaponTypes: 12 loaded
      但触发器只能按**国家**定位房子（`resolve_trigger_house` 用 `CountryIdx`），
      所以需要固定玩家用哪个国家。
 
+### 17.11 空投投送：`ParaDrop.Types` 能投载具（3.9.7）
+
+我一开始判断"地图/超武没法把单位送给玩家"，是因为只看了零售的
+`[General] AmerParaDropInf / AllyParaDropInf / SovParaDropInf / YuriParaDropInf`
+—— 那四个是**按阵营的步兵列表**，只能投步兵。真正的开关是 Ares 的三个键：
+
+```
+[General]
+ParaDrop.Aircraft=PDPLANE        ; 用哪架运输机
+ParaDrop.Types=ZAINukeGunship    ; 空投什么：任意 ObjectType，不看玩家阵营
+ParaDrop.Num=1
+```
+
+**依据**：二进制里这三个键与 `Nuke.Payload` 并列在同一张 `[General]` 键表；
+引擎有 `src\sim\superweapon\paradrop.rs` 模块与 `AresParaDropPlane` /
+`AresParaDropOwnerSide` / `AresParaDropRules` 三个结构体。
+
+**为什么不会波及电脑**：电脑没有空投的使用路径 —— 零售 `[ParaDropSpecial]` /
+`[AmericanParaDropSpecial]` 都没有 `SW.AutoFire`，电脑也不会点按钮。
+所以这三个全局键实际只对玩家生效。
+
+玩家超武：
+
+```ini
+[SuperWeaponTypes]
+14=ZAIWorldNuke
+
+[ZAIWorldNuke]
+Type=ParaDrop      Action=ParaDrop
+RechargeTime=0.01  SW.AlwaysGranted=yes  SW.AllowAI=no  SW.RequiresTarget=yes
+```
+
+点一次 → 运输机飞过 → 在指定位置投下 `ZAINukeGunship`，之后玩家自己指挥它。
+飞艇保留战车工厂的建造路径作为保险。
+
+守卫新增：`ParaDrop.Types` 必须等于飞艇（写成 `E1` 会被拦）、`ParaDrop.Num>=1`、
+`ParaDrop.Aircraft` 非空、`[ZAIWorldNuke] Type=ParaDrop` 且 `SW.AllowAI=no`。
+
 ### 17.10 核弹飞艇：基洛夫机体 + 神盾式追踪导弹（3.9.6）
 
 飞机版（3.9.5）虽然能造能飞，但还是"普通飞机"：依赖空指部、要停机位、被防空打。
