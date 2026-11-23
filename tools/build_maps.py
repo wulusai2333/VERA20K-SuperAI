@@ -69,6 +69,11 @@ ICE_GROUND_HEIGHT = 1
 #: sampler below needs neither.  ``CORNER_DROP`` samples a few extra points and
 #: throws away the ones nearest the player, so the corner stays his alone.
 ICE120_CORNER_DROP = 4
+#: Cells no computer may start within, measured Chebyshev from the player.
+#: The player stands under a 3x3 Iron Curtain; a base sharing that patch is
+#: unplayable, and the farthest-point sampler would otherwise fill the gap
+#: around the player last, right on top of him.
+PLAYER_CLEARANCE = 12
 ICE120_MIN_SPACING = 10
 
 
@@ -262,6 +267,12 @@ def assert_ice120(src, text, waypoints, ground, region):
 
     header = vm.section_body(text, "Header")
     listed = len(re.findall(r"(?m)^Waypoint\d+=", header))
+    ph, pv = vm.cell_to_hv(*waypoints[0])
+    closest = min(max(abs(vm.cell_to_hv(*c)[0] - ph), abs(vm.cell_to_hv(*c)[1] - pv))
+                  for c in waypoints[1:])
+    if closest < PLAYER_CLEARANCE:
+        raise SystemExit("a computer starts %d cells from the player (floor %d)"
+                         % (closest, PLAYER_CLEARANCE))
     declared = vm.get_value(header, "NumberStartingPoints")
     if listed != len(waypoints) or declared != str(len(waypoints)):
         raise SystemExit("header lists %s starts, declares %s, expected %d"
@@ -284,8 +295,15 @@ def nearest_neighbour_gaps(points):
     return sorted(gaps)
 
 
-def spread_points(cells, player, wanted):
-    """Farthest-point sampling: even coverage of every cell, player excluded.
+def spread_points(cells, player, wanted, clearance=PLAYER_CLEARANCE):
+    """Farthest-point sampling: even coverage, with a hole around the player.
+
+    The player counts as an already-placed point in the distance field, not just
+    as a cell to skip.  Skipping the cell alone is not enough: the sampler fills
+    the largest remaining gap, and without the player in the field the gap around
+    the player is the largest one at the end, so the last pick lands right next
+    to him (measured once: 3 cells away, i.e. a computer base sharing the
+    player's start).
 
     Deterministic: the seed is the cell furthest from the player (ties broken by
     cell order) and every later pick scans ``cells`` in its given order, so a
@@ -293,16 +311,24 @@ def spread_points(cells, player, wanted):
     """
     if wanted <= 0:
         return []
-    available = [c for c in cells if c != player]
-    if len(available) < wanted:
-        raise SystemExit("only %d cells for %d computers" % (len(available), wanted))
-    hv = {c: vm.cell_to_hv(*c) for c in available}
+    hv = {c: vm.cell_to_hv(*c) for c in cells}
     ph, pv = vm.cell_to_hv(*player)
-    seed = max(available, key=lambda c: (max(abs(hv[c][0] - ph), abs(hv[c][1] - pv)), c))
+
+    def gap(cell):
+        return max(abs(hv[cell][0] - ph), abs(hv[cell][1] - pv))
+
+    available = [c for c in cells if gap(c) >= clearance]
+    if len(available) < wanted:
+        raise SystemExit("only %d cells at least %d away from the player, "
+                         "need %d" % (len(available), clearance, wanted))
+    # The player is the first fixed point of the field.
+    nearest = {c: gap(c) for c in available}
+    seed = max(available, key=lambda c: (nearest[c], c))
     picks = [seed]
     chosen = {seed}
-    nearest = {c: max(abs(hv[c][0] - hv[seed][0]), abs(hv[c][1] - hv[seed][1]))
-               for c in available}
+    sh, sv = hv[seed]
+    for c in available:
+        nearest[c] = min(nearest[c], max(abs(hv[c][0] - sh), abs(hv[c][1] - sv)))
     while len(picks) < wanted:
         candidate, best = None, -1
         for c in available:
@@ -323,7 +349,8 @@ def spread_points(cells, player, wanted):
     return picks
 
 
-def assert_flat120(src, text, points, tile, sub, height, min_gap=8):
+def assert_flat120(src, text, points, tile, sub, height, min_gap=8,
+                   clearance=PLAYER_CLEARANCE):
     """Refuse to write anything but "one flat tile, nothing on it, even starts".
 
     The interesting failure modes are silent: a leftover overlay keeps its ore on
@@ -364,6 +391,13 @@ def assert_flat120(src, text, points, tile, sub, height, min_gap=8):
     if gaps and gaps[0] < min_gap:
         problems.append("computer starts only %d cells apart (floor %d)"
                         % (gaps[0], min_gap))
+
+    ph, pv = vm.cell_to_hv(*points[0])
+    closest = min((max(abs(vm.cell_to_hv(*c)[0] - ph), abs(vm.cell_to_hv(*c)[1] - pv))
+                   for c in points[1:]), default=None)
+    if closest is not None and closest < clearance:
+        problems.append("a computer starts %d cells from the player (floor %d)"
+                        % (closest, clearance))
 
     triggers = vm.section_body(text, "Triggers") if vm.has_section(text, "Triggers") else ""
     for needed in ("IronCurtainStart", "IronCurtain"):
@@ -456,9 +490,13 @@ def cmd_flat(args):
     if args.player_center or args.spread:
         gaps = assert_flat120(vm.read_text(args.src), text, read_waypoints(text),
                               args.tile, args.sub, args.height)
+        ph, pv = vm.cell_to_hv(*read_waypoints(text)[0])
+        closest = min(max(abs(vm.cell_to_hv(*c)[0] - ph),
+                          abs(vm.cell_to_hv(*c)[1] - pv)) for c in read_waypoints(text)[1:])
         print("checked: every cell is %d/%d at height %d, no objects left, "
-              "starts %d cells apart at worst"
-              % (args.tile, args.sub, args.height, gaps[0] if gaps else 0))
+              "starts %d cells apart at worst, closest computer %d cells from "
+              "the player"
+              % (args.tile, args.sub, args.height, gaps[0] if gaps else 0, closest))
 
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     vm.write_text(args.out, text)
