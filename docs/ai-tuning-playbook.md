@@ -1251,6 +1251,23 @@ UnitDelivery.Types=ZAINukeGunship
 UnitDelivery.Num=1
 ```
 
+**载荷键是 `Deliver.Types`，不是 `UnitDelivery.Types`**（实测：写错前缀时超武能加载、
+按钮能点，但点了**毫无反应**——因为载荷列表是空的）。同一张键表里还有
+`Deliver.BaseNormal`、`Deliver.Owner`，`world_spawn.rs` 的注释里还有 `Deliver.Buildups`。
+
+**`Type=PlaceUnits` 无效**（引擎注释里说的 "Ares PlaceUnits" 只是内部叫法，不是 Type 值）。
+
+**新增单位必须同时补 `artmd.ini` 段**，否则单位存在但**完全隐形**（图形是按 ID 去 art 里查的）：
+
+```ini
+[ZAINukeGunship] ; SuperAI nuclear gunship
+Image=ZEP          ; 直接复用基洛夫的 voxel
+Cameo=ZEPICON      ; 战车工厂图标
+AltCameo=ZEPUICO
+Voxel=yes
+PrimaryFireFLH=-50,0,-140
+```
+
 顺带查到两个以后有用的键：**`SW.InitialReady`**（开局即就绪）、
 **`SW.RequiredHouses` / `SW.ForbiddenHouses`**（超武级房子限制）。
 

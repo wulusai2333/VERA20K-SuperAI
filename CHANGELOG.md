@@ -2,6 +2,29 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## 3.10.11 — 投放定案 + 给飞艇补模型（之前是隐形的）
+
+- **确认**：`Type=UnitDelivery` + **`Deliver.Types`** 生效（点地面即投下飞艇）；
+  `Type=PlaceUnits` 无效，已删除（注册表回到 14 项）；
+- **隐形的原因**：只加了 rules 的 `[ZAINukeGunship]`，但图形是按 ID 去 `artmd.ini` 查的，
+  没有 art 段 → 单位存在但看不见。补上：
+
+  ```ini
+  [ZAINukeGunship] ; SuperAI nuclear gunship
+  Image=ZEP  Cameo=ZEPICON  AltCameo=ZEPUICO  Voxel=yes  PrimaryFireFLH=-50,0,-140
+  ```
+
+  复用基洛夫的模型与图标，不需要新素材；`PrimaryFireFLH` 让导弹从艇体正确位置射出；
+- `build_mod.py` 现在会在复制 `artmd.ini` 后追加该段，并断言它存在（`Image=ZEP`）。
+
+守卫新增：art 段必须存在且 `Image=ZEP`；注册表里不得残留 `ZAINukeGunshipDrop2`。
+
+## 3.10.10 — 载荷键改为 `Deliver.Types`
+
+`UnitDelivery.Types` / `UnitDelivery.Num` 是错的（引擎读的是 `Deliver.Types`），
+写错时点击**毫无反应**。同步把两种候选 Type（`UnitDelivery` / `PlaceUnits`）各做一个按钮
+用于一次试出真名 —— 结论是同文件 3.10.11：只有 `UnitDelivery` 有效。
+
 ## 3.10.9 — 用 `UnitDelivery` 超武投放核弹飞艇（玩家专属）
 
 查二进制发现 VERA **真的实现了** `UnitDelivery`（`src/sim/superweapon/unit_delivery.rs`、

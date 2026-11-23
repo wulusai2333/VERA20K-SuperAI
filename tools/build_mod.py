@@ -781,7 +781,63 @@ DROP_SW_FIELDS = (
 #: The engine's own code calls this feature "UnitDelivery payload (Ares
 #: PlaceUnits)", so both Type values are shipped as two buttons: whichever one the
 #: engine recognises is the real name, and the other does nothing.
-DROP_SW_TYPES = ("UnitDelivery", "PlaceUnits")
+DROP_SW_TYPES = ("UnitDelivery",)
+
+
+#: New units need an artmd.ini section as well; without one the engine has no model
+#: to draw and the unit is simply invisible until it fires.  Image=ZEP reuses the
+#: Kirov's voxel and cameo, so no new art is needed.
+GUNSHIP_ART_FIELDS = (
+    ("Image", "ZEP"),
+    ("Cameo", "ZEPICON"),
+    ("AltCameo", "ZEPUICO"),
+    ("Voxel", "yes"),
+    ("PrimaryFireFLH", "-50,0,-140"),
+)
+
+
+def apply_unit_art(path):
+    """Append the gunship's art section to the copied artmd.ini."""
+    with open(path, "rb") as handle:
+        text = handle.read().decode("latin-1")
+    lines = text.splitlines(keepends=True)
+    out, skip = [], False
+    for line in lines:
+        header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
+        if header:
+            skip = header.group(1).strip() == GUNSHIP_UNIT
+        if not skip:
+            out.append(line)
+    if out and not out[-1].endswith("\n"):
+        out[-1] += "\r\n"
+    out.append("\r\n[%s] ; SuperAI: nuclear gunship, reuses the Kirov art\r\n"
+               % GUNSHIP_UNIT)
+    out += ["%s=%s\r\n" % pair for pair in GUNSHIP_ART_FIELDS]
+    with open(path, "wb") as handle:
+        handle.write("".join(out).encode("latin-1"))
+    return True
+
+
+def assert_unit_art(path):
+    with open(path, "rb") as handle:
+        text = handle.read().decode("latin-1")
+    found, inside = {}, False
+    for line in text.splitlines():
+        header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
+        if header:
+            inside = header.group(1).strip() == GUNSHIP_UNIT
+            continue
+        if inside:
+            m = re.match(r"^([A-Za-z.]+)=(.*?)(\s*;.*)?$", line.strip())
+            if m:
+                found[m.group(1).lower()] = m.group(2).strip()
+    if not found:
+        raise SystemExit("art: no [%s] section; the unit would be invisible"
+                         % GUNSHIP_UNIT)
+    if found.get("image", "").upper() != "ZEP":
+        raise SystemExit("art: [%s] Image=%r (want ZEP)"
+                         % (GUNSHIP_UNIT, found.get("image")))
+    return True
 
 
 def apply_unit_delivery(lines):
@@ -847,6 +903,9 @@ def assert_unit_delivery(rules_lines, aimd_lines):
         if not (0.0 < recharge <= 0.05):
             problems.append("[%s] RechargeTime=%r (want >0 and <=0.05; 0 means "
                             "'keep the default')" % (DROP_SW, sw.get("rechargetime")))
+    if DROP_SW + "2" in " ".join(sections.get("SuperWeaponTypes", [])):
+        problems.append("[%s2] survived; the PlaceUnits candidate does not work and "
+                        "must be gone" % DROP_SW)
     if DROP_SW not in " ".join(sections.get("SuperWeaponTypes", [])):
         problems.append("[%s] is not in [SuperWeaponTypes]" % DROP_SW)
 
@@ -2474,7 +2533,10 @@ def main():
         source = os.path.join(args.rules_dir, "artmd.ini")
         if not os.path.isfile(source):
             raise SystemExit("missing artmd.ini in %s" % args.rules_dir)
-        shutil.copyfile(source, os.path.join(args.out, "artmd.ini"))
+        art_out = os.path.join(args.out, "artmd.ini")
+    shutil.copyfile(source, art_out)
+    apply_unit_art(art_out)
+    assert_unit_art(art_out)
 
     print("rules: AIBuildCounts on %d building types (empty table = retail rhythm)"
           % buildings)
