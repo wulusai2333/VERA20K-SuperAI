@@ -615,17 +615,18 @@ AIR_UNITS = {"ORCA", "BEAG", "ZEP", "BPLN", "HORNET", "ASW", "APACHE", "SPYP"}
 AA_UNITS = {"FV", "FLAKT", "YTNK", "APOC", "TELE", "HIND", "AEGIS", "JUMPJET", "GGI"}
 
 #: How many of a team type a house may have at once after the boost.
-AIR_TEAM_MAX = 3
+AIR_TEAM_MAX = 6
 #: Weight multiplier for the triggers that form air / AA teams.  Weights are per
 #: difficulty and stay proportional to each other.
 AIR_WEIGHT_FACTOR = 3
 AA_WEIGHT_FACTOR = 2
 #: Ceiling for a rewritten weight, and the aircraft count per air task force:
-#: at least AIR_UNIT_MIN (a one-Kirov team is not an air force), never more than
-#: AIR_UNIT_CAP.
+#: at least AIR_UNIT_MIN (a one-Kirov team is not an air force), then scaled by
+#: AIR_SIZE_FACTOR, never more than AIR_UNIT_CAP.
 WEIGHT_CAP = 1500
 AIR_UNIT_MIN = 3
-AIR_UNIT_CAP = 8
+AIR_SIZE_FACTOR = 2
+AIR_UNIT_CAP = 16
 
 
 def teams_using_superweapon_scripts(doc):
@@ -1211,7 +1212,8 @@ def boost_air_and_aa(doc):
         for index, slot, count, unit, rest, eol in doc.members(tf):
             if unit not in AIR_UNITS or count >= AIR_UNIT_CAP:
                 continue
-            wanted = min(max(count + 1, AIR_UNIT_MIN), AIR_UNIT_CAP)
+            wanted = min(max(count + 1, AIR_UNIT_MIN) * AIR_SIZE_FACTOR,
+                         AIR_UNIT_CAP)
             doc.lines[index] = "%d=%d,%s%s%s" % (slot, wanted, unit, rest, eol)
             grown += 1
 
@@ -1260,7 +1262,7 @@ def assert_air_and_aa_boosted(aimd_lines):
         m = re.match(r"^(\d+)=(\d+),([A-Za-z][\w]*)", line)
         if m and m.group(3) in AIR_UNITS:
             air_tfs += 1
-            if int(m.group(2)) < AIR_UNIT_MIN:
+            if int(m.group(2)) < AIR_UNIT_MIN * AIR_SIZE_FACTOR:
                 problems.append("air task force entry %s has only %s aircraft"
                                 % (m.group(3), m.group(2)))
     if air_tfs < 5:
