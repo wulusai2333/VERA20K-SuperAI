@@ -1262,6 +1262,19 @@ YuriParaDropInf=ZAINukeTrooper  YuriParaDropNum=1
 超武回到 `Type=ParaDrop`（这是唯一实测会"真的投下来"的类型）。
 `ParaDrop.*` / `DropPod.*` 这些失败尝试的键每次构建都会被清掉，守卫也会拦。
 
+**加固与手感（3.10.1）**：
+
+| 问题 | 键 | 值 |
+| --- | --- | --- |
+| 运输机被防空打掉 | `[PDPLANE] Strength / Armor / Insignificant` | `100000 / heavy / yes`（零售是 400/light，纯空投载具，电脑没空投路径） |
+| 核弹兵血薄 | `[ZAINukeTrooper] Strength` | `100000` |
+| 武器/节奏像火箭飞行兵 | `[ZAINukeRifle]` 克隆天启副武器 `[MammothTusk]` | `ROF=80`、`Burst=2`、`Range=200`、`Speed=20` |
+| 弹道要飘、落点要随机 | `[Weapon] Inaccurate=yes` + `[Projectile] FlakScatter=yes` + `ROT=10` | 不吸附目标点 + 落点随机 + 慢转向 |
+
+**天启弹丸的坑**：`[AAHeatSeeker]`（天启副武器的弹丸）是 `AA=yes / AG=no`，
+只能打空中；打地面必须用 `AAHeatSeeker2`（`AA=yes / AG=yes`）。
+所以我们的 `[ZAINukeRifleProj]` 克隆 `AAHeatSeeker2`，只保留 `Image=DRAGON` 的外观。
+
 > 想空投**载具/建筑**：这条路在 VERA 里不通（只有步兵列表）。要送载具只能
 > 1) 战车工厂建造，或 2) 地图 `[Units]` 预置（owner 字段是**国家名**，多人图里玩家
 > 自选国家会让归属不确定，风险高）。

@@ -2,6 +2,23 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## 3.10.1 — 空投机加固、核弹兵改天启导弹、弹道随机
+
+- **运输机加固**：`[PDPLANE]` 零售 `Strength=400/Armor=light` → `100000/heavy` +
+  `Insignificant=yes`（防空不再瞄它），空投不会半路被打下来；
+- **核弹兵加固**：`[ZAINukeTrooper] Strength` 5000 → `100000`；
+- **武器换天启导弹**：`[ZAINukeRifle]` 克隆天启副武器 `[MammothTusk]` ——
+  `ROF=80`（火箭飞行兵 20mm 的 ROF 30 太快）、`Burst=2`、`Range=200`、`Speed=20`；
+- **布朗弹道/随机落点**：`[Weapon] Inaccurate=yes`（不吸附目标点）+
+  `[Projectile] FlakScatter=yes`（落点随机）+ `ROT=10`（慢转向、一路歪）；
+- **坑**：天启自己的弹丸 `[AAHeatSeeker]` 是 `AA=yes/AG=no`，打不了地面，
+  所以 `[ZAINukeRifleProj]` 克隆 `[AAHeatSeeker2]`（`AA+AG`），只保留 `DRAGON` 外观。
+
+守卫新增：`[PDPLANE] Strength>=10000` + `Insignificant=yes`、核弹兵 `Strength>=10000`、
+`ROF>=60`、`Inaccurate=yes`、弹丸 `FlakScatter=yes` + `AG=yes`；
+实测 7 种退化（ROF=30、Inaccurate=no、FlakScatter=no、AG=no、飞机 400、飞机 Insignificant=no、
+兵 125）全部被拦。
+
 ## 3.10.0 — 空投定论：只有按阵营的步兵列表生效，改投「核弹兵」
 
 三次实测：

@@ -647,6 +647,81 @@ GUNSHIP_PROJECTILE = "ZAINukeMissileProj"
 #:
 #: What does work is the retail path itself: point the four per-side infantry
 #: lists at our own flying nuke trooper, and the drop delivers the real thing.
+GUNSHIP_UNIT_FIELDS = (
+    ("UIName", "Name:ZEP"),
+    ("Name", "Nuclear Gunship"),
+    ("Prerequisite", "GAWEAP"),
+    ("TechLevel", "1"),
+    ("Cost", "2000"),
+    ("Strength", "100000"),
+    ("Category", "AirPower"),
+    ("Armor", "medium"),
+    ("Sight", "20"),
+    ("RadarInvisible", "no"),
+    ("MoveToShroud", "yes"),
+    ("BalloonHover", "yes"),
+    ("Speed", "8"),
+    ("JumpjetSpeed", "8"),
+    ("JumpjetClimb", "6"),
+    ("JumpjetCrash", "12"),
+    ("JumpJetAccel", "10"),
+    ("JumpJetTurnRate", "2"),
+    ("JumpjetHeight", "750"),
+    ("JumpjetNoWobbles", "yes"),
+    ("Crashable", "yes"),
+    ("PitchSpeed", ".9"),
+    ("PitchAngle", "0"),
+    ("Owner", "British,French,Germans,Americans,Alliance,Russians,Confederation,"
+              "Africans,Arabs,Yuri"),
+    ("Points", "100"),
+    ("ROT", "10"),
+    ("SpeedType", "Hover"),
+    ("Crewed", "no"),
+    ("ConsideredAircraft", "yes"),
+    ("Insignificant", "yes"),
+    ("Explosion", "TWLT070,S_BANG48,S_BRNL58,S_CLSN58,S_TUMU60"),
+    ("MaxDebris", "14"),
+    ("IsSelectableCombatant", "yes"),
+    ("Locomotor", "{92612C46-F71F-11d1-AC9F-006008055BB5}"),
+    ("MovementZone", "Fly"),
+    ("ThreatPosed", "0"),
+    ("DamageParticleSystems", "SparkSys,SmallGreySSys"),
+    ("SelfHealing", "yes"),
+    ("Parasiteable", "no"),
+    ("Size", "50"),
+    ("Bunkerable", "no"),
+    ("GuardRange", "200"),
+    ("CanPassiveAquire", "yes"),
+    ("OpportunityFire", "yes"),
+    ("CanRetaliate", "yes"),
+    ("Primary", GUNSHIP_WEAPON),
+    ("Ammo", "200"),
+)
+GUNSHIP_WEAPON_FIELDS = (
+    ("Damage", "600"),
+    ("ROF", "40"),
+    ("Range", "200"),
+    ("Burst", "8"),
+    ("Speed", "120"),
+    ("Projectile", GUNSHIP_PROJECTILE),
+    ("Warhead", "NUKE"),
+    ("OmniFire", "yes"),
+    ("TurboBoost", "yes"),
+    ("Report", "AegisAttack"),
+)
+GUNSHIP_PROJECTILE_FIELDS = (
+    ("Arm", "2"),
+    ("AA", "yes"),
+    ("AG", "yes"),
+    ("Image", "DRAGON"),
+    ("ROT", "60"),
+    ("Ranged", "yes"),
+    ("Shadow", "no"),
+    ("Proximity", "no"),
+    ("SubjectToCliffs", "no"),
+    ("SubjectToElevation", "no"),
+    ("SubjectToWalls", "no"),
+)
 TROOPER_INF = "ZAINukeTrooper"
 TROOPER_WEAPON = "ZAINukeRifle"
 GUNSHIP_SW = "ZAIWorldNuke"
@@ -684,7 +759,7 @@ TROOPER_INF_FIELDS = (
     ("Category", "Soldier"),
     ("JumpJet", "yes"),
     ("Primary", TROOPER_WEAPON),
-    ("Strength", "5000"),
+    ("Strength", "100000"),
     ("Fearless", "yes"),
     ("Armor", "none"),
     ("TechLevel", "-1"),
@@ -721,96 +796,46 @@ TROOPER_INF_FIELDS = (
     ("CanPassiveAquire", "yes"),
     ("OpportunityFire", "yes"),
 )
+TROOPER_PROJECTILE = "ZAINukeRifleProj"
 TROOPER_WEAPON_FIELDS = (
+    # Clone of the Apocalypse's [MammothTusk] missile: ROF 80 is the slow cadence
+    # the Rocketeer's 20mm (ROF 30) lacked, and Burst 2 is what that missile has.
+    # Inaccurate=yes stops the shot snapping onto the target point; together with
+    # the projectile's FlakScatter this is what makes the landing spot random.
     ("Damage", "600"),
-    ("ROF", "30"),
+    ("ROF", "80"),
     ("Range", "200"),
-    ("Burst", "8"),
-    ("Speed", "120"),
-    ("Projectile", "InvisibleHigh"),
+    ("Burst", "2"),
+    ("Speed", "20"),
+    ("Projectile", TROOPER_PROJECTILE),
     ("Warhead", "NUKE"),
+    ("Inaccurate", "yes"),
     ("OmniFire", "yes"),
-    ("Report", "AegisAttack"),
+    ("Report", "ApocalypseAttackAir"),
 )
-GUNSHIP_UNIT_FIELDS = (
-    ("UIName", "Name:ZEP"),
-    ("Name", "Nuclear Gunship"),
-    ("Prerequisite", "GAWEAP"),
-    ("TechLevel", "1"),
-    ("Cost", "2000"),
-    ("Strength", "100000"),
-    ("Category", "AirPower"),
-    ("Armor", "medium"),
-    ("Sight", "20"),
-    # GuardRange is the radius the unit auto-acquires targets in while it is not
-    # being told what to do; the weapon's Range only bounds the shot itself.
-    ("GuardRange", "200"),
-    ("CanPassiveAquire", "yes"),
-    ("OpportunityFire", "yes"),
-    ("CanRetaliate", "yes"),
-    ("RadarInvisible", "no"),
-    ("MoveToShroud", "yes"),
-    ("BalloonHover", "yes"),
-    ("Speed", "8"),
-    ("JumpjetSpeed", "8"),
-    ("JumpjetClimb", "6"),
-    ("JumpjetCrash", "12"),
-    ("JumpJetAccel", "10"),
-    ("JumpJetTurnRate", "2"),
-    ("JumpjetHeight", "750"),
-    ("JumpjetNoWobbles", "yes"),
-    ("Crashable", "yes"),
-    ("PitchSpeed", ".9"),
-    ("PitchAngle", "0"),
-    ("Owner", "British,French,Germans,Americans,Alliance,Russians,Confederation,"
-              "Africans,Arabs,Yuri"),
-    ("Points", "100"),
-    ("ROT", "10"),
-    ("SpeedType", "Hover"),
-    ("Crewed", "no"),
-    ("ConsideredAircraft", "yes"),
-    ("Insignificant", "yes"),
-    ("Explosion", "TWLT070,S_BANG48,S_BRNL58,S_CLSN58,S_TUMU60"),
-    ("MaxDebris", "14"),
-    ("IsSelectableCombatant", "yes"),
-    ("Locomotor", "{92612C46-F71F-11d1-AC9F-006008055BB5}"),
-    ("MovementZone", "Fly"),
-    ("ThreatPosed", "0"),
-    ("DamageParticleSystems", "SparkSys,SmallGreySSys"),
-    ("SelfHealing", "yes"),
-    ("Parasiteable", "no"),
-    ("Size", "50"),
-    ("Bunkerable", "no"),
-    ("Primary", GUNSHIP_WEAPON),
-    ("Ammo", "200"),
-)
-GUNSHIP_WEAPON_FIELDS = (
-    ("Damage", "600"),
-    ("ROF", "40"),
-    ("Range", "200"),
-    # Burst fires the bombs one after another instead of all at once, which is
-    # the "drop them in sequence along the direction of the attack" the gunship
-    # is meant to look like.  OmniFire lets it fire at any angle without turning.
-    ("Burst", "8"),
-    ("Speed", "120"),
-    ("Projectile", GUNSHIP_PROJECTILE),
-    ("Warhead", "NUKE"),
-    ("OmniFire", "yes"),
-    ("TurboBoost", "yes"),
-    ("Report", "AegisAttack"),
-)
-GUNSHIP_PROJECTILE_FIELDS = (
+TROOPER_PROJECTILE_FIELDS = (
+    # [AAHeatSeeker] (the Apocalypse's own projectile) is AA=yes AG=no, so it can
+    # never hit the ground; [AAHeatSeeker2] is the one that does both.
     ("Arm", "2"),
     ("AA", "yes"),
     ("AG", "yes"),
     ("Image", "DRAGON"),
-    ("ROT", "60"),
+    ("ROT", "10"),
+    ("FlakScatter", "yes"),
     ("Ranged", "yes"),
     ("Shadow", "no"),
     ("Proximity", "no"),
     ("SubjectToCliffs", "no"),
     ("SubjectToElevation", "no"),
     ("SubjectToWalls", "no"),
+)
+PLANE_TYPE = "PDPLANE"
+PLANE_FIELDS = (
+    # The cargo plane the airdrop uses.  Retail is Strength 400 / Armor light, so
+    # the player's own anti-air (or anyone's) shoots the delivery down.
+    ("Strength", "100000"),
+    ("Armor", "heavy"),
+    ("Insignificant", "yes"),
 )
 
 
@@ -912,9 +937,49 @@ def apply_nuke_gunship(lines):
     _append_registry(lines, "InfantryTypes", TROOPER_INF)
 
     rifle = ["[%s]\r\n" % TROOPER_WEAPON,
-             ";SuperAI: nuke warhead; [NUKE] itself is untouched.\r\n"]
+             ";SuperAI: Apocalypse-missile clone with a nuke warhead.\r\n"]
     rifle += ["%s=%s\r\n" % pair for pair in TROOPER_WEAPON_FIELDS]
     _replace_section(lines, TROOPER_WEAPON, rifle)
+
+    proj = ["[%s]\r\n" % TROOPER_PROJECTILE,
+            ";SuperAI: wanders (ROT 10) and lands at a random spot (FlakScatter).\r\n"]
+    proj += ["%s=%s\r\n" % pair for pair in TROOPER_PROJECTILE_FIELDS]
+    _replace_section(lines, TROOPER_PROJECTILE, proj)
+
+    # Harden the cargo plane the drop uses; without this the delivery is shot down.
+    plane_lines, inside = [], False
+    for line in lines:
+        header = re.match(r"^\[([^\]]+)\]\s*$", line)
+        if header:
+            inside = header.group(1).strip().upper() == PLANE_TYPE
+        if inside:
+            plane_lines.append(line)
+    if plane_lines:
+        patched, seen = [], set()
+        for line in plane_lines:
+            m = re.match(r"^([A-Za-z.]+)\s*=", line)
+            key = m.group(1).strip() if m else None
+            if key is not None and key.lower() in [k.lower() for k, _ in PLANE_FIELDS]:
+                want = dict((k.lower(), v) for k, v in PLANE_FIELDS)[key.lower()]
+                eol = "\r\n" if line.endswith("\r\n") else "\n"
+                patched.append("%s=%s%s" % (key, want, eol))
+                seen.add(key.lower())
+            else:
+                patched.append(line)
+        for k, v in PLANE_FIELDS:
+            if k.lower() not in seen:
+                patched.append("%s=%s\r\n" % (k, v))
+        out, inside = [], False
+        for line in lines:
+            header = re.match(r"^\[([^\]]+)\]\s*$", line)
+            if header:
+                inside = header.group(1).strip().upper() == PLANE_TYPE
+                if inside:
+                    out.extend(patched)
+                    continue
+            if not inside:
+                out.append(line)
+        lines[:] = out
 
     # The airdrop superweapon.
     sw = ["[%s]\r\n" % GUNSHIP_SW,
@@ -1091,6 +1156,42 @@ def assert_nuke_gunship(rules_lines, aimd_lines):
     if rifle.get("warhead", "").strip() != "NUKE":
         problems.append("%s Warhead=%r (want NUKE)"
                         % (TROOPER_WEAPON, rifle.get("warhead")))
+    try:
+        rof = int(float(rifle.get("rof", "0")))
+    except ValueError:
+        rof = 0
+    if rof < 60:
+        problems.append("%s ROF=%r (want >=60: the Rocketeer's 30 fired far too "
+                        "often)" % (TROOPER_WEAPON, rifle.get("rof")))
+    if rifle.get("inaccurate", "").lower() != "yes":
+        problems.append("%s must stay Inaccurate=yes (that is what stops the shot "
+                        "snapping onto the target point)" % TROOPER_WEAPON)
+    shot = values(TROOPER_PROJECTILE)
+    if shot.get("ag", "").lower() != "yes":
+        problems.append("%s AG=%r; without AG it cannot hit the ground (the "
+                        "Apocalypse's own [AAHeatSeeker] is AG=no)"
+                        % (TROOPER_PROJECTILE, shot.get("ag")))
+    if shot.get("flakscatter", "").lower() != "yes":
+        problems.append("%s must keep FlakScatter=yes, or every warhead lands on "
+                        "the same spot" % TROOPER_PROJECTILE)
+    try:
+        trooper_hp = int(float(trooper.get("strength", "0"))) if trooper else 0
+    except ValueError:
+        trooper_hp = 0
+    if trooper and trooper_hp < 10000:
+        problems.append("%s Strength=%r; anti-air kills it too easily"
+                        % (TROOPER_INF, trooper.get("strength")))
+    plane = values(PLANE_TYPE)
+    try:
+        plane_hp = int(float(plane.get("strength", "0")))
+    except ValueError:
+        plane_hp = 0
+    if plane and plane_hp < 10000:
+        problems.append("[%s] Strength=%r; the cargo plane gets shot down before "
+                        "it delivers" % (PLANE_TYPE, plane.get("strength")))
+    if plane and plane.get("insignificant", "").lower() != "yes":
+        problems.append("[%s] must stay Insignificant=yes so anti-air ignores it"
+                        % PLANE_TYPE)
     if TROOPER_INF not in " ".join(sections.get("InfantryTypes", [])):
         problems.append("%s is not in [InfantryTypes]" % TROOPER_INF)
     if sw.get("sw.allowai", "").lower() != "no":
