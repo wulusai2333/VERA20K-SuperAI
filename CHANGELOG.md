@@ -2,6 +2,24 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## 3.9.8 — 飞艇自动开火、200 格射程、依次连投
+
+之前只改武器 `Range` 是不够的 —— 二进制里这几个键各管一段：
+
+| 键 | 位置 | 管什么 |
+| --- | --- | --- |
+| `GuardRange=` | 单位 | **待机时自动索敌的半径**（真正的自动开火距离） |
+| `CanPassiveAquire=` / `OpportunityFire=` / `CanRetaliate=` | 单位 | 主动索敌 / 边飞边打 / 还手 |
+| `Range=` / `Burst=` / `OmniFire=` | 武器 | 射程 / 一次连发 N 发（逐发投出）/ 任意角度开火 |
+
+- `[ZAINukeGunship]`：`GuardRange=200`、`OpportunityFire=yes`、`CanPassiveAquire=yes`、
+  `CanRetaliate=yes`、`Ammo=200`；
+- `[ZAINukeMissile]`：`Range=200`、`Burst=8`、`OmniFire=yes`、`ROF=40`、`Warhead=NUKE`。
+
+守卫新增：`Range>=100`、`Burst>=2`、`OmniFire=yes`、`GuardRange>=100`、
+`CanPassiveAquire=yes`、`OpportunityFire=yes`；实测 `Range=20`、`Burst=1`、`GuardRange=12`、
+`CanPassiveAquire=no`、`OpportunityFire=no` 全部被拦。
+
 ## 3.9.7 — 空投投送核弹飞艇（`ParaDrop.Types` 能投载具）
 
 之前判断"没法把单位送给玩家"是**调查不够**：零售的 `AmerParaDropInf / AllyParaDropInf /

@@ -1262,6 +1262,38 @@ RechargeTime=0.01  SW.AlwaysGranted=yes  SW.AllowAI=no  SW.RequiresTarget=yes
 守卫新增：`ParaDrop.Types` 必须等于飞艇（写成 `E1` 会被拦）、`ParaDrop.Num>=1`、
 `ParaDrop.Aircraft` 非空、`[ZAIWorldNuke] Type=ParaDrop` 且 `SW.AllowAI=no`。
 
+### 17.10.1 自动开火半径是 `GuardRange`，不是武器的 `Range`（3.9.8）
+
+飞艇要"自动开火、200 格"时，只改武器 `Range` 不够 —— 二进制里这几个键各管一段：
+
+| 键 | 位置 | 管什么 |
+| --- | --- | --- |
+| **`GuardRange=`** | 单位 | **待机时自动索敌的半径**（真正的"自动开火距离"） |
+| `CanPassiveAquire=` | 单位 | 允许主动索敌 |
+| `OpportunityFire=` | 单位 | 移动中顺手打（不然只会在停下时才开火） |
+| `CanRetaliate=` | 单位 | 挨打还手 |
+| `Range=` | 武器 | 这一发本身能打多远 |
+| `Burst=` | 武器 | **一次攻击连发 N 发**，引擎逐发投出 = 依次间隔投弹 |
+| `OmniFire=` | 武器 | 任意方向/角度开火，不用先转向 |
+
+所以 `[ZAINukeGunship]` 现在是：
+
+```ini
+GuardRange=200  Sight=20  CanPassiveAquire=yes  OpportunityFire=yes  CanRetaliate=yes  Ammo=200
+```
+
+`[ZAINukeMissile]`：
+
+```ini
+Range=200  Burst=8  OmniFire=yes  ROF=40  Warhead=NUKE  Projectile=ZAINukeMissileProj
+```
+
+如果加了 `GuardRange` 仍不主动开火，下一步把 `Sight` 也提到 200（视野可能也参与索敌）。
+
+> 想让 8 发核弹**散成一片**而不是落同一点，可以给弹丸加 `Splits=yes`
+> （二进制里有该字段，与 `RetargetSelf/AroundTarget` 同组）；但拆分配置写错会导致不爆，
+> 所以先只用 `Burst` 保证打得出去。
+
 ### 17.10 核弹飞艇：基洛夫机体 + 神盾式追踪导弹（3.9.6）
 
 飞机版（3.9.5）虽然能造能飞，但还是"普通飞机"：依赖空指部、要停机位、被防空打。

@@ -671,7 +671,13 @@ GUNSHIP_UNIT_FIELDS = (
     ("Strength", "100000"),
     ("Category", "AirPower"),
     ("Armor", "medium"),
-    ("Sight", "12"),
+    ("Sight", "20"),
+    # GuardRange is the radius the unit auto-acquires targets in while it is not
+    # being told what to do; the weapon's Range only bounds the shot itself.
+    ("GuardRange", "200"),
+    ("CanPassiveAquire", "yes"),
+    ("OpportunityFire", "yes"),
+    ("CanRetaliate", "yes"),
     ("RadarInvisible", "no"),
     ("MoveToShroud", "yes"),
     ("BalloonHover", "yes"),
@@ -706,12 +712,16 @@ GUNSHIP_UNIT_FIELDS = (
     ("Size", "50"),
     ("Bunkerable", "no"),
     ("Primary", GUNSHIP_WEAPON),
-    ("Ammo", "50"),
+    ("Ammo", "200"),
 )
 GUNSHIP_WEAPON_FIELDS = (
     ("Damage", "600"),
     ("ROF", "40"),
-    ("Range", "20"),
+    ("Range", "200"),
+    # Burst fires the bombs one after another instead of all at once, which is
+    # the "drop them in sequence along the direction of the attack" the gunship
+    # is meant to look like.  OmniFire lets it fire at any angle without turning.
+    ("Burst", "8"),
     ("Speed", "120"),
     ("Projectile", GUNSHIP_PROJECTILE),
     ("Warhead", "NUKE"),
@@ -911,6 +921,37 @@ def assert_nuke_gunship(rules_lines, aimd_lines):
                         % (GUNSHIP_WEAPON, weapon.get("warhead")))
     if weapon.get("projectile", "").strip() != GUNSHIP_PROJECTILE:
         problems.append("%s Projectile=%r" % (GUNSHIP_WEAPON, weapon.get("projectile")))
+    try:
+        reach = int(float(weapon.get("range", "0")))
+    except ValueError:
+        reach = 0
+    if reach < 100:
+        problems.append("%s Range=%r (want >=100: the gunship shoots across the "
+                        "map)" % (GUNSHIP_WEAPON, weapon.get("range")))
+    try:
+        burst = int(float(weapon.get("burst", "0")))
+    except ValueError:
+        burst = 0
+    if burst < 2:
+        problems.append("%s Burst=%r (want >=2: the bombs go out in sequence)"
+                        % (GUNSHIP_WEAPON, weapon.get("burst")))
+    if weapon.get("omnifire", "").lower() != "yes":
+        problems.append("%s OmniFire=%r; it must fire at any angle"
+                        % (GUNSHIP_WEAPON, weapon.get("omnifire")))
+    if unit:
+        try:
+            guard = int(float(unit.get("guardrange", "0")))
+        except ValueError:
+            guard = 0
+        if guard < 100:
+            problems.append("GuardRange=%r (want >=100: this is the radius it "
+                            "auto-acquires in)" % unit.get("guardrange"))
+        if unit.get("canpassiveaquire", "").lower() != "yes":
+            problems.append("CanPassiveAquire=%r; it must fire on its own"
+                            % unit.get("canpassiveaquire"))
+        if unit.get("opportunityfire", "").lower() != "yes":
+            problems.append("OpportunityFire=%r; it must fire while moving"
+                            % unit.get("opportunityfire"))
     proj = values(GUNSHIP_PROJECTILE)
     if proj.get("ag", "").lower() != "yes":
         problems.append("%s AG=%r; without AG it cannot hit the ground (that is why "
