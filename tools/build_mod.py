@@ -638,28 +638,37 @@ def assert_player_nuke_section(rules_lines):
 GUNSHIP_UNIT = "ZAINukeGunship"
 GUNSHIP_WEAPON = "ZAINukeMissile"
 GUNSHIP_PROJECTILE = "ZAINukeMissileProj"
-#: Delivery: Ares `[General] ParaDrop.*` -- the retail `*ParaDropInf` lists can only
-#: drop infantry, but `ParaDrop.Types` takes object types, which is how a vehicle
-#: gets delivered to the player regardless of their faction.  The computer never
-#: uses paradrops (no `SW.AutoFire`, and it cannot click), so these global keys
-#: only ever affect the player.
+#: Delivery.  Verified the hard way, in this order:
+#:
+#: * `[General] ParaDrop.Types` is NOT read by VERA: its paradrop keeps per-side
+#:   INFANTRY lists (`GeneralTypeLists { paradrop_infantry }`), so a vehicle there
+#:   fell back to `AllyParaDropInf=E1` and dropped riflemen;
+#: * `Type=DropPod` with `DropPod.Types` produced no effect at all.
+#:
+#: What does work is the retail path itself: point the four per-side infantry
+#: lists at our own flying nuke trooper, and the drop delivers the real thing.
+TROOPER_INF = "ZAINukeTrooper"
+TROOPER_WEAPON = "ZAINukeRifle"
 GUNSHIP_SW = "ZAIWorldNuke"
 GUNSHIP_GENERAL_KEYS = (
-    # VERA's paradrop stores per-side INFANTRY lists only (GeneralTypeLists
-    # paradrop_infantry), so `ParaDrop.Types` is ignored and the drop falls back
-    # to AllyParaDropInf -- that is why a vehicle paradrop delivered riflemen.
-    # DropPod has a real module (sim/superweapon/drop_pod.rs) plus a
-    # [General] DropPod.Types key, and it drops a pod from the sky instead of
-    # flying a thin cargo plane into the player's anti-air.
-    ("DropPod.Types", GUNSHIP_UNIT),
-    ("MinimumDropPod", "1"),
-    ("MaximumDropPod", "1"),
+    ("AmerParaDropInf", TROOPER_INF),
+    ("AmerParaDropNum", "1"),
+    ("AllyParaDropInf", TROOPER_INF),
+    ("AllyParaDropNum", "1"),
+    ("SovParaDropInf", TROOPER_INF),
+    ("SovParaDropNum", "1"),
+    ("YuriParaDropInf", TROOPER_INF),
+    ("YuriParaDropNum", "1"),
 )
+#: Keys from the failed attempts, stripped every build so they cannot quietly
+#: change what a drop delivers again.
+STALE_GENERAL_KEYS = ("ParaDrop.", "DropPod", "MinimumDropPod", "MaximumDropPod",
+                      "minimumdroppod", "maximumdroppod")
 GUNSHIP_SW_FIELDS = (
     ("UIName", "Name:Para"),
-    ("Name", "N U K E !!! (drop pod)"),
-    ("Type", "DropPod"),
-    ("Action", "DropPod"),
+    ("Name", "N U K E !!! (airdrop)"),
+    ("Type", "ParaDrop"),
+    ("Action", "ParaDrop"),
     ("SidebarImage", "PARAICON"),
     ("ShowTimer", "no"),
     ("RechargeTime", "0.01"),
@@ -667,6 +676,61 @@ GUNSHIP_SW_FIELDS = (
     ("SW.AllowAI", "no"),
     ("SW.AlwaysGranted", "yes"),
     ("SW.RequiresTarget", "yes"),
+)
+TROOPER_INF_FIELDS = (
+    ("UIName", "Name:JUMPJET"),
+    ("Name", "Nuke Trooper"),
+    ("Image", "ROCK"),
+    ("Category", "Soldier"),
+    ("JumpJet", "yes"),
+    ("Primary", TROOPER_WEAPON),
+    ("Strength", "5000"),
+    ("Fearless", "yes"),
+    ("Armor", "none"),
+    ("TechLevel", "-1"),
+    ("Sight", "10"),
+    ("Pip", "white"),
+    ("Speed", "9"),
+    ("Owner", "British,French,Germans,Americans,Alliance,Russians,Confederation,"
+              "Africans,Arabs,Yuri"),
+    ("AllowedToStartInMultiplayer", "no"),
+    ("Cost", "600"),
+    ("Soylent", "300"),
+    ("Points", "15"),
+    ("IsSelectableCombatant", "yes"),
+    ("Locomotor", "{92612C46-F71F-11d1-AC9F-006008055BB5}"),
+    ("PhysicalSize", "1"),
+    ("MovementZone", "Fly"),
+    ("ConsideredAircraft", "yes"),
+    ("ThreatPosed", "0"),
+    ("JumpjetSpeed", "30"),
+    ("JumpjetClimb", "20"),
+    ("JumpjetCrash", "25"),
+    ("JumpJetAccel", "10"),
+    ("JumpJetTurnRate", "10"),
+    ("JumpjetHeight", "500"),
+    ("JumpjetWobbles", ".01"),
+    ("JumpjetDeviation", "1"),
+    ("JumpjetNoWobbles", "yes"),
+    ("Size", "1"),
+    ("SpeedType", "Hover"),
+    ("HoverAttack", "yes"),
+    ("Crashable", "yes"),
+    ("BalloonHover", "yes"),
+    ("GuardRange", "200"),
+    ("CanPassiveAquire", "yes"),
+    ("OpportunityFire", "yes"),
+)
+TROOPER_WEAPON_FIELDS = (
+    ("Damage", "600"),
+    ("ROF", "30"),
+    ("Range", "200"),
+    ("Burst", "8"),
+    ("Speed", "120"),
+    ("Projectile", "InvisibleHigh"),
+    ("Warhead", "NUKE"),
+    ("OmniFire", "yes"),
+    ("Report", "AegisAttack"),
 )
 GUNSHIP_UNIT_FIELDS = (
     ("UIName", "Name:ZEP"),
@@ -840,6 +904,18 @@ def apply_nuke_gunship(lines):
 
     _append_registry(lines, "VehicleTypes", GUNSHIP_UNIT)
 
+    trooper = ["[%s]\r\n" % TROOPER_INF,
+               ";SuperAI: what the airdrop actually delivers -- the engine only\r\n",
+               ";SuperAI: paradrops infantry, so this flies (JumpJet) and packs a nuke.\r\n"]
+    trooper += ["%s=%s\r\n" % pair for pair in TROOPER_INF_FIELDS]
+    _replace_section(lines, TROOPER_INF, trooper)
+    _append_registry(lines, "InfantryTypes", TROOPER_INF)
+
+    rifle = ["[%s]\r\n" % TROOPER_WEAPON,
+             ";SuperAI: nuke warhead; [NUKE] itself is untouched.\r\n"]
+    rifle += ["%s=%s\r\n" % pair for pair in TROOPER_WEAPON_FIELDS]
+    _replace_section(lines, TROOPER_WEAPON, rifle)
+
     # The airdrop superweapon.
     sw = ["[%s]\r\n" % GUNSHIP_SW,
           ";SuperAI: click to have the gunship flown in and dropped.\r\n"]
@@ -863,7 +939,8 @@ def apply_nuke_gunship(lines):
             break
     i = general + 1
     while i < end:
-        if re.match(r"^ParaDrop\.", lines[i], re.I):
+        head = lines[i].split("=", 1)[0].strip()
+        if any(head.lower().startswith(stale.lower()) for stale in STALE_GENERAL_KEYS):
             del lines[i]
             end -= 1
             continue
@@ -986,17 +1063,36 @@ def assert_nuke_gunship(rules_lines, aimd_lines):
     # Airdrop delivery: ParaDrop.Types is what makes a vehicle droppable; the
     # retail *ParaDropInf lists only ever carry infantry.
     general = values("General")
-    droppod = general.get("droppod.types", "")
-    if GUNSHIP_UNIT not in [part.strip() for part in droppod.split(",")]:
-        problems.append("[General] DropPod.Types=%r (want %s)"
-                        % (droppod or "<missing>", GUNSHIP_UNIT))
-    stale = [key for key in general if key.startswith("paradrop.")]
+    for key in ("amerparadropinf", "allyparadropinf", "sovparadropinf",
+                "yuriparadropinf"):
+        if general.get(key, "").strip() != TROOPER_INF:
+            problems.append("[General] %s=%r (want %s; this is the only drop list "
+                            "the engine reads)"
+                            % (key, general.get(key, "<missing>"), TROOPER_INF))
+    stale = [key for key in general
+             if key.startswith("paradrop.") or key.startswith("droppod")]
     if stale:
         problems.append("[General] still has " + ", ".join(stale)
-                        + "; the engine then drops the per-side infantry list")
+                        + "; those keys are not what the drop reads")
     sw = values(GUNSHIP_SW)
-    if sw.get("type", "").strip() != "DropPod":
-        problems.append("[%s] Type=%r (want DropPod)" % (GUNSHIP_SW, sw.get("type")))
+    if sw.get("type", "").strip() != "ParaDrop":
+        problems.append("[%s] Type=%r (want ParaDrop: DropPod launched nothing)"
+                        % (GUNSHIP_SW, sw.get("type")))
+    trooper = values(TROOPER_INF)
+    if not trooper:
+        problems.append("no [%s] section" % TROOPER_INF)
+    else:
+        if trooper.get("primary", "").strip() != TROOPER_WEAPON:
+            problems.append("%s Primary=%r" % (TROOPER_INF, trooper.get("primary")))
+        if trooper.get("jumpjet", "").lower() != "yes":
+            problems.append("%s must stay JumpJet=yes so the drop can fly away"
+                            % TROOPER_INF)
+    rifle = values(TROOPER_WEAPON)
+    if rifle.get("warhead", "").strip() != "NUKE":
+        problems.append("%s Warhead=%r (want NUKE)"
+                        % (TROOPER_WEAPON, rifle.get("warhead")))
+    if TROOPER_INF not in " ".join(sections.get("InfantryTypes", [])):
+        problems.append("%s is not in [InfantryTypes]" % TROOPER_INF)
     if sw.get("sw.allowai", "").lower() != "no":
         problems.append("[%s] SW.AllowAI=%r (the computer must not drop it)"
                         % (GUNSHIP_SW, sw.get("sw.allowai")))

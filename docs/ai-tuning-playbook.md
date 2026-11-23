@@ -1224,7 +1224,49 @@ INFO vera20k_core::rules::ruleset::loading] SuperWeaponTypes: 12 loaded
      但触发器只能按**国家**定位房子（`resolve_trigger_house` 用 `CountryIdx`），
      所以需要固定玩家用哪个国家。
 
-### 17.12 空投实测：`ParaDrop.Types` **不生效**，改走 `DropPod`（3.9.9）
+### 17.13 空投定论：只有按阵营的**步兵**列表生效（3.10.0）
+
+三次实测，结论固定下来：
+
+| 做法 | 结果 |
+| --- | --- |
+| `[General] ParaDrop.Types=ZAINukeGunship`（载具） | 投出来是**普通伞兵**（回退 `AllyParaDropInf=E1`） |
+| `Type=DropPod` + `DropPod.Types=ZAINukeGunship` | **完全没有反应**（点了不投） |
+| 改 `AmerParaDropInf / AllyParaDropInf / SovParaDropInf / YuriParaDropInf` | ✅ 生效 |
+
+原因：VERA 的 paradrop 结构是 `GeneralTypeLists { paradrop_infantry: [Vec<String>; 4] }`
+—— 只有四个**按阵营的步兵列表**，`ParaDrop.Types` / `DropPod.Types` 都不是这条路径。
+
+**可以空投的只有步兵**，所以交付物改成步兵：`ZAINukeTrooper`
+
+```ini
+[InfantryTypes]
+66=ZAINukeTrooper
+
+[ZAINukeTrooper]              ; 克隆 [JUMPJET] 火箭飞行兵
+JumpJet=yes                   ; 会飞
+Primary=ZAINukeRifle
+GuardRange=200                ; 200 格自动索敌
+BalloonHover=yes  Strength=5000
+
+[ZAINukeRifle]
+Damage=600  ROF=30  Range=200  Burst=8  OmniFire=yes  Warhead=NUKE
+
+[General]
+AmerParaDropInf=ZAINukeTrooper  AmerParaDropNum=1
+AllyParaDropInf=ZAINukeTrooper  AllyParaDropNum=1
+SovParaDropInf=ZAINukeTrooper   SovParaDropNum=1
+YuriParaDropInf=ZAINukeTrooper  YuriParaDropNum=1
+```
+
+超武回到 `Type=ParaDrop`（这是唯一实测会"真的投下来"的类型）。
+`ParaDrop.*` / `DropPod.*` 这些失败尝试的键每次构建都会被清掉，守卫也会拦。
+
+> 想空投**载具/建筑**：这条路在 VERA 里不通（只有步兵列表）。要送载具只能
+> 1) 战车工厂建造，或 2) 地图 `[Units]` 预置（owner 字段是**国家名**，多人图里玩家
+> 自选国家会让归属不确定，风险高）。
+
+### 17.12 空投实测：`ParaDrop.Types` **不生效**，改走 `DropPod`（3.9.9，DropPod 无反应）
 
 3.9.7 用 `[General] ParaDrop.Aircraft/Types/Num` 想把飞艇空投下来，实测**投出来的是普通伞兵**，
 而且运输机是零售的 `PDPLANE`（血薄，被防空打掉）。

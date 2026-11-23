@@ -2,6 +2,30 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## 3.10.0 — 空投定论：只有按阵营的步兵列表生效，改投「核弹兵」
+
+三次实测：
+
+| 做法 | 结果 |
+| --- | --- |
+| `ParaDrop.Types=<载具>` | 投出**普通伞兵**（回退 `AllyParaDropInf=E1`） |
+| `Type=DropPod` + `DropPod.Types` | **毫无反应** |
+| 改 `*ParaDropInf` 四个列表 | ✅ 生效 |
+
+VERA 的 paradrop 只有 `GeneralTypeLists { paradrop_infantry: [Vec<String>; 4] }`，
+即四个按阵营的**步兵**列表。所以交付物改成步兵：
+
+- `[InfantryTypes] 66=ZAINukeTrooper`，克隆 `[JUMPJET]` 火箭飞行兵：
+  `JumpJet=yes`、`BalloonHover=yes`、`Strength=5000`、`GuardRange=200`、`CanPassiveAquire=yes`；
+- `[ZAINukeRifle]`：`Damage=600 / ROF=30 / Range=200 / Burst=8 / OmniFire=yes / Warhead=NUKE`；
+- `[General]` 四个 `*ParaDropInf=ZAINukeTrooper`、`*ParaDropNum=1`；
+- 超武回到 `Type=ParaDrop`（唯一实测会真的投下来的类型）。
+
+`ParaDrop.*` / `DropPod.*` 失败尝试的键每次构建自动清除，守卫会拦残留。
+守卫新增：四个 `*ParaDropInf` 必须指向核弹兵、核弹兵必须 `JumpJet=yes`、
+`ZAINukeRifle Warhead=NUKE`、`[InfantryTypes]` 已注册；实测 `AllyParaDropInf=E1`、
+`JumpJet=no`、`Warhead=SAMWH` 全被拦。
+
 ## 3.9.9 — 空投实测：`ParaDrop.Types` 不生效，改走 `DropPod`
 
 3.9.7 的 `[General] ParaDrop.Aircraft/Types/Num` 实测**投出来的是普通伞兵**（盟军 `E1`），
