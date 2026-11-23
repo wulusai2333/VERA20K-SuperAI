@@ -219,24 +219,7 @@ SECTION_KEY_COMMENTS = {
 #: game by the user (nuke and lightning storm both fire), so they are not touched.
 SUPERWEAPON_EDITS = {
     # Area-damage weapons: hit a clear cell inside the enemy base.  VERIFIED.
-    # The player (slot 0) gets an unlimited, instant-recharge nuke: the launch
-    # button is always available and firing does not start a countdown.
-    #
-    # `SW.AlwaysGranted=yes` grants the superweapon without the missile silo, so
-    # it works even before the player builds one; `RechargeTime=0` makes it ready
-    # again the moment it fires.
-    #
-    # `SW.AllowAI=no` is NOT optional here.  RechargeTime is a property of the
-    # superweapon TYPE, not of a house, so the computer would inherit the instant
-    # recharge too and 119 houses would nuke on every AI tick.  The computer
-    # keeps the lightning storm, the Iron Curtain, the Chrono Sphere, the Psychic
-    # Dominator and the Genetic Converter; only the nuke becomes player-only.
-    "NukeSpecial": {
-        "SW.AITargeting": "offensive_cell_clear",
-        "SW.AlwaysGranted": "yes",
-        "SW.AllowAI": "no",
-        "RechargeTime": "0",
-    },
+    "NukeSpecial": {"SW.AITargeting": "offensive_cell_clear"},
     "LightningStormSpecial": {"SW.AITargeting": "offensive_cell_clear"},
     "PsychicDominatorSpecial": {"SW.AITargeting": "offensive_cell_clear"},
     "GeneticConverterSpecial": {"SW.AITargeting": "offensive_cell_clear"},
@@ -471,6 +454,157 @@ def apply_section_key_edits(lines):
                         for s, k in sorted(remaining.items())))
 
 
+#: A second nuke, owned by the player only.
+#:
+#: ``RechargeTime`` and ``SW.AllowAI`` live on the superweapon TYPE, so giving
+#: the player an instant, unlimited nuke by editing ``[NukeSpecial]`` would have
+#: handed 119 computer houses the same thing -- they would launch on every AI
+#: tick.  A separate type keeps the retail nuke (and the computer's behaviour)
+#: exactly as it was: ``[NAMISL] SuperWeapon=NukeSpecial`` still grants the AI its
+#: normal ten-minute nuke, while this one is granted to everyone, marked
+#: AI-unusable, and recharges instantly for the human.
+PLAYER_NUKE_SECTION = "ZAIUnlimitedNuke"
+PLAYER_NUKE_FIELDS = (
+    ("UIName", "Name:Nuke"),
+    ("Name", "N U K E !!!"),
+    ("Type", "MultiMissile"),
+    ("WeaponType", "NukeCarrier"),
+    ("Action", "Nuke"),
+    ("SidebarImage", "NukeIcon"),
+    ("Range", "7"),
+    ("LineMultiplier", "2"),
+    ("ShowTimer", "no"),
+    ("RechargeTime", "0"),
+    ("SW.AllowPlayer", "yes"),
+    ("SW.AllowAI", "no"),
+    ("SW.AlwaysGranted", "yes"),
+    ("SW.RequiresTarget", "yes"),
+    ("SW.FireIntoShroud", "yes"),
+)
+PLAYER_NUKE_COMMENT = (
+    ";SuperAI: player-only unlimited nuke (zero cooldown, no silo needed). "
+    "The AI keeps [NukeSpecial].")
+
+
+def apply_player_nuke(lines):
+    """Append :data:`PLAYER_NUKE_SECTION` and register it last.
+
+    Idempotent: an existing section and an existing registry entry are replaced,
+    not duplicated.  The registry entry is appended at the end on purpose --
+    trigger actions index into ``[SuperWeaponTypes]``, so inserting in the middle
+    would renumber every later superweapon.
+    """
+    name = PLAYER_NUKE_SECTION
+    body = ["[%s]\r\n" % name, "%s\r\n" % PLAYER_NUKE_COMMENT]
+    body += ["%s=%s\r\n" % pair for pair in PLAYER_NUKE_FIELDS]
+
+    # Drop an old copy of the section.
+    out, skip = [], False
+    for line in lines:
+        header = re.match(r"^\[([^\]]+)\]\s*$", line)
+        if header:
+            skip = header.group(1).strip() == name
+        if not skip:
+            out.append(line)
+    lines[:] = out
+
+    # Drop an old registry entry, then append a fresh one at the end.
+    registry = None
+    for i, line in enumerate(lines):
+        if re.match(r"^\[SuperWeaponTypes\]\s*$", line):
+            registry = i
+            break
+    if registry is None:
+        raise SystemExit("[SuperWeaponTypes] not found")
+    end = len(lines)
+    for i in range(registry + 1, len(lines)):
+        if re.match(r"^\[[^\]]+\]\s*$", lines[i]):
+            end = i
+            break
+    entries = {}
+    tail = end
+    for i in range(registry + 1, end):
+        line = lines[i]
+        m = re.match(r"^(\d+)\s*=\s*([^;\r\n]+)", line)
+        if m:
+            entries[int(m.group(1))] = m.group(2).strip()
+    entries = {k: v for k, v in entries.items() if v != name}
+    next_index = (max(entries) if entries else 0) + 1
+    kept = []
+    for i in range(registry + 1, end):
+        line = lines[i]
+        m = re.match(r"^(\d+)\s*=\s*([^;\r\n]+)", line)
+        if m and m.group(2).strip() == name:
+            continue
+        kept.append(line)
+    while kept and not kept[-1].strip():
+        kept.pop()
+    kept.append("%d=%s\r\n" % (next_index, name))
+    kept.append("\r\n")
+    lines[registry + 1:end] = kept
+
+    # Insert the section right before [SuperWeaponTypes] so the file stays tidy.
+    insert_at = registry
+    lines[insert_at:insert_at] = body + ["\r\n"]
+    return next_index
+
+
+def assert_player_nuke_section(rules_lines):
+    """The player's nuke must be its own type, and the AI's must be untouched."""
+    sections, current = {}, None
+    for line in rules_lines:
+        header = re.match(r"^\[([^\]]+)\]\s*$", line)
+        if header:
+            current = header.group(1).strip()
+            sections.setdefault(current, [])
+            continue
+        if current is not None:
+            sections[current].append(line)
+
+    def values(name):
+        out = {}
+        for line in sections.get(name, []):
+            m = re.match(r"^([A-Za-z.]+)=(.*?)(\s*;.*)?$", line.rstrip("\r\n"))
+            if m:
+                out[m.group(1).strip().lower()] = m.group(2).strip()
+        return out
+
+    player = values(PLAYER_NUKE_SECTION)
+    if not player:
+        raise SystemExit("no [%s] section" % PLAYER_NUKE_SECTION)
+    wanted = {
+        "rechargetime": "0",
+        "sw.alwaysgranted": "yes",
+        "sw.allowai": "no",
+        "sw.allowplayer": "yes",
+    }
+    bad = ["%s=%s (want %s)" % (k, player.get(k, "<missing>"), v)
+           for k, v in wanted.items() if player.get(k, "").lower() != v]
+    if bad:
+        raise SystemExit("[%s] is not the player's unlimited nuke: %s"
+                         % (PLAYER_NUKE_SECTION, "; ".join(bad)))
+
+    registry = " ".join(sections.get("SuperWeaponTypes", []))
+    if PLAYER_NUKE_SECTION not in registry:
+        raise SystemExit("[%s] is not registered in [SuperWeaponTypes]"
+                         % PLAYER_NUKE_SECTION)
+
+    # The computer's nuke must stay retail: a type-level RechargeTime of 0 or a
+    # disabled AI would silently take the computer's nuke away.
+    ai = values("NukeSpecial")
+    if ai.get("rechargetime", "").strip() != "10":
+        raise SystemExit("[NukeSpecial] RechargeTime=%r; the computer's nuke must "
+                         "stay at the retail 10"
+                         % ai.get("rechargetime", "<missing>"))
+    if ai.get("sw.allowai", "").lower() != "yes":
+        raise SystemExit("[NukeSpecial] SW.AllowAI=%r; the computer must keep its "
+                         "nuke" % ai.get("sw.allowai", "<missing>"))
+    if "sw.alwaysgranted" in ai:
+        raise SystemExit("[NukeSpecial] has SW.AlwaysGranted; that belongs on the "
+                         "player-only type")
+    return True
+
+
 def apply_superweapon_edits(lines):
     """Write the ``SW.*`` auto-fire keys into the AI's superweapon sections.
 
@@ -538,6 +672,7 @@ def build_rules(source_dir, out_dir):
 
     # Ares SW.* : make a charged superweapon actually get launched by the AI.
     apply_superweapon_edits(lines)
+    player_nuke_index = apply_player_nuke(lines)
 
     # Ares AIBuildCounts: planned copies of the production buildings that must
     # exist in numbers, keyed by difficulty (hard, normal, easy).
@@ -1464,41 +1599,6 @@ def assert_air_and_aa_boosted(aimd_lines):
     return air_tfs
 
 
-def assert_player_nuke_unlimited(rules_lines):
-    """The player's nuke must be free of a cooldown, and the AI must not use it.
-
-    ``RechargeTime`` belongs to the superweapon type, so an instant recharge is
-    inherited by every house.  Leaving the computer able to fire it would mean 119
-    houses launching nukes continuously, so the two settings only make sense as a
-    pair -- check both.
-    """
-    section = None
-    values = {}
-    for line in rules_lines:
-        header = re.match(r"^\[([^\]]+)\]\s*$", line)
-        if header:
-            section = header.group(1).strip()
-            continue
-        if section != "NukeSpecial":
-            continue
-        m = re.match(r"^([A-Za-z.]+)=(.*?)(\s*;.*)?$", line.rstrip("\r\n"))
-        if m:
-            values[m.group(1).strip().lower()] = m.group(2).strip()
-    wanted = {
-        "rechargetime": "0",
-        "sw.alwaysgranted": "yes",
-        "sw.allowai": "no",
-        "sw.allowplayer": "yes",
-    }
-    problems = ["%s=%s (want %s)" % (key, values.get(key, "<missing>"), value)
-                for key, value in wanted.items()
-                if values.get(key, "").lower() != value]
-    if problems:
-        raise SystemExit("[NukeSpecial] is not the player's unlimited nuke: "
-                         + "; ".join(problems))
-    return True
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rules-dir", required=True,
@@ -1532,7 +1632,7 @@ def main():
     assert_mcv_recovery_fillable(rules_lines, aimd_lines)
     mcv_triggers = assert_mcv_triggers_well_formed(aimd_lines)
     assert_superweapon_teams_intact(aimd_lines)
-    assert_player_nuke_unlimited(rules_lines)
+    assert_player_nuke_section(rules_lines)
     assert_air_and_aa_boosted(aimd_lines)
     counts = assert_build_counts(rules_lines)
     assert_no_walls(rules_lines)

@@ -1161,26 +1161,75 @@ AirstripLimit=0                           ; ← 额外机库上限是 0：永远
 
 ---
 
-## 17. 玩家的无限核弹（3.8）
+## 17. 玩家的无限核弹：用**独立超武类型**，别动类型级属性（3.9）
 
-0 号位玩家获得**零冷却、无限次**的核弹：
+目标：0 号位玩家零冷却、无限次投核弹，而**电脑的核弹行为一点不变**。
+
+### 17.1 3.8 的错误做法（留作教训）
+
+直接改 `[NukeSpecial]`：`RechargeTime=0` + `SW.AllowAI=no`。
+问题：**`RechargeTime` 和 `SW.AllowAI` 都是「超武类型」的属性，不是某个玩家的属性**。
+改它等于把 119 家电脑的核弹一起改掉 —— 不关 AI 就会每 tick 刷核弹，关 AI 就把电脑的核弹删了。
+
+> 教训：**要给某个玩家特权，先问"这个键作用在类型上还是房子上"。**
+> 类型级属性只能通过"新建一个类型"来实现特权。
+
+### 17.2 正确做法
+
+在 `[SuperWeaponTypes]` **末尾**追加第 13 个类型（末尾追加，避免既有索引位移 ——
+触发器动作是按索引取超武的）：
 
 ```ini
-[NukeSpecial]
+13=ZAIUnlimitedNuke
+
+[ZAIUnlimitedNuke]          ; 从 [NukeSpecial] 克隆
+Type=MultiMissile
+WeaponType=NukeCarrier
+Action=Nuke
+SidebarImage=NukeIcon
+Range=7
+LineMultiplier=2
+ShowTimer=no
+RechargeTime=0              ; 零冷却
 SW.AllowPlayer=yes
-SW.AllowAI=no          ; 必须：RechargeTime 属于「超武类型」，电脑会一起继承
-SW.AlwaysGranted=yes   ; 不需要发射井，开局就有按钮
-RechargeTime=0         ; 发射后立刻再次就绪
+SW.AllowAI=no               ; 电脑有它也不能发射
+SW.AlwaysGranted=yes        ; 不需要发射井
+SW.RequiresTarget=yes
+SW.FireIntoShroud=yes
 ```
 
-**为什么必须关掉 AI**：`RechargeTime` 是**超武类型**的属性，不是某个玩家的属性。
-只要不改 `SW.AllowAI`，119 家电脑会同时继承"零冷却"，变成每 tick 都在扔核弹。
-所以核弹变成**玩家专属**，电脑保留闪电风暴 / 铁幕 / 超时空 / 心灵控制器 / 基因突变器。
+- `[NukeSpecial]` **原封不动**（`RechargeTime=10`、`SW.AllowAI=yes`、无 `AlwaysGranted`），
+  `[NAMISL] SuperWeapon=NukeSpecial` 也没动 → 电脑照旧 10 分钟一发；
+- 玩家多一个独立按钮，打完立刻能再打。
 
-**为什么不用"新建一个超武类型"**：`--probe` 的输出里没有超武类型列表
-（只有 `superweapon_limit`），新增第 13 个类型**无法验证是否被引擎接受**；
-而单位类型注册表在原版是固定数量的，风险太大。宁可改现成的 `[NukeSpecial]`。
+### 17.3 这次的硬验证：日志里的注册表计数
 
-**防回归**：`assert_player_nuke_unlimited` 检查
-`RechargeTime=0` / `SW.AlwaysGranted=yes` / `SW.AllowAI=no` / `SW.AllowPlayer=yes` 四项，
-实测能把 `RechargeTime=10`、`AllowAI=yes`、`AlwaysGranted=no` 三种退化全部拦住。
+真实游戏加载规则时会打一行：
+
+```
+INFO vera20k_core::rules::ruleset::loading] SuperWeaponTypes: 12 loaded
+```
+
+（`logs/ra2.log.1` 里有 60 条，改动前都是 12。）
+改完后启动一次，**必须变成 `SuperWeaponTypes: 13 loaded`** —— 这是"新类型真的被接受"的硬证据。
+如果还是 12，说明注册表上限就是 12，新类型被静默丢弃，那就得换退路（见 §17.4）。
+
+### 17.4 退路（若日志仍是 12）
+
+1. 把新类型插到第 1 位（原 1–12 顺延），验证是不是"只在末尾不认"；
+2. 仍不认则说明硬上限 12，二选一：
+   - 改 `[NukeSpecial]`（电脑失去核弹）—— 3.8 的做法；
+   - 地图触发器 `trigger_grant_super`（动作 33）+ `reset_recharge_time`（动作 133），
+     但触发器只能按**国家**定位房子（`resolve_trigger_house` 用 `CountryIdx`），
+     所以需要固定玩家用哪个国家。
+
+### 17.5 防回归
+
+`assert_player_nuke_section` 双向检查：
+
+- 玩家类型：`RechargeTime=0`、`SW.AlwaysGranted=yes`、`SW.AllowAI=no`、`SW.AllowPlayer=yes`、已注册；
+- **反向**：`[NukeSpecial]` 必须仍是 `RechargeTime=10`、`SW.AllowAI=yes`、且**没有** `AlwaysGranted`
+  —— 防止以后又有人为了"给玩家"去改电脑那一份。
+
+实测四种退化全部被拦：玩家 `RechargeTime=10` / 玩家 `AllowAI=yes` /
+电脑 `RechargeTime=0` / 电脑 `AllowAI=no`。

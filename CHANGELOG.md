@@ -2,6 +2,29 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## 3.9 — 换实现：玩家的无限核弹改成独立超武类型，电脑的核弹不动
+
+3.8 直接改 `[NukeSpecial]`（`RechargeTime=0` + `SW.AllowAI=no`）是错的：
+**`RechargeTime` 和 `SW.AllowAI` 都是「超武类型」的属性**，改它必然波及 119 家电脑 ——
+不关 AI 就每 tick 刷核弹，关 AI 就把电脑的核弹删了。
+
+3.9 的做法：
+
+- `[NukeSpecial]` **完全还原**（`RechargeTime=10`、`SW.AllowAI=yes`、无 `AlwaysGranted`），
+  `[NAMISL] SuperWeapon=NukeSpecial` 也不动 → **电脑照旧 10 分钟一发**；
+- 新增第 13 个超武类型 `ZAIUnlimitedNuke`（`[SuperWeaponTypes]` **末尾**追加，
+  避免既有索引位移），克隆自 `[NukeSpecial]`，但：
+  `RechargeTime=0`、`SW.AlwaysGranted=yes`（免发射井）、`SW.AllowAI=no`、`SW.AllowPlayer=yes`；
+- 玩家因此多一个独立核弹按钮，零冷却、无限次。
+
+**验证**：引擎加载规则时会打 `SuperWeaponTypes: N loaded`（`ra2.log.1` 里有 60 条，改动前是 12）。
+启动一次后日志必须是 **`13 loaded`**，否则说明注册表硬上限是 12，需要走退路。
+
+**防回归** `assert_player_nuke_section` 双向检查：玩家类型四项必须满足；
+同时 `[NukeSpecial]` 必须仍是 `RechargeTime=10` / `SW.AllowAI=yes` / 无 `AlwaysGranted`。
+实测四种退化（玩家 `RechargeTime=10`、玩家 `AllowAI=yes`、电脑 `RechargeTime=0`、
+电脑 `AllowAI=no`）全部被拦。
+
 ## 3.8 — 0 号位玩家的无限核弹
 
 ```ini
