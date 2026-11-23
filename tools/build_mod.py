@@ -219,7 +219,24 @@ SECTION_KEY_COMMENTS = {
 #: game by the user (nuke and lightning storm both fire), so they are not touched.
 SUPERWEAPON_EDITS = {
     # Area-damage weapons: hit a clear cell inside the enemy base.  VERIFIED.
-    "NukeSpecial": {"SW.AITargeting": "offensive_cell_clear"},
+    # The player (slot 0) gets an unlimited, instant-recharge nuke: the launch
+    # button is always available and firing does not start a countdown.
+    #
+    # `SW.AlwaysGranted=yes` grants the superweapon without the missile silo, so
+    # it works even before the player builds one; `RechargeTime=0` makes it ready
+    # again the moment it fires.
+    #
+    # `SW.AllowAI=no` is NOT optional here.  RechargeTime is a property of the
+    # superweapon TYPE, not of a house, so the computer would inherit the instant
+    # recharge too and 119 houses would nuke on every AI tick.  The computer
+    # keeps the lightning storm, the Iron Curtain, the Chrono Sphere, the Psychic
+    # Dominator and the Genetic Converter; only the nuke becomes player-only.
+    "NukeSpecial": {
+        "SW.AITargeting": "offensive_cell_clear",
+        "SW.AlwaysGranted": "yes",
+        "SW.AllowAI": "no",
+        "RechargeTime": "0",
+    },
     "LightningStormSpecial": {"SW.AITargeting": "offensive_cell_clear"},
     "PsychicDominatorSpecial": {"SW.AITargeting": "offensive_cell_clear"},
     "GeneticConverterSpecial": {"SW.AITargeting": "offensive_cell_clear"},
@@ -1447,6 +1464,41 @@ def assert_air_and_aa_boosted(aimd_lines):
     return air_tfs
 
 
+def assert_player_nuke_unlimited(rules_lines):
+    """The player's nuke must be free of a cooldown, and the AI must not use it.
+
+    ``RechargeTime`` belongs to the superweapon type, so an instant recharge is
+    inherited by every house.  Leaving the computer able to fire it would mean 119
+    houses launching nukes continuously, so the two settings only make sense as a
+    pair -- check both.
+    """
+    section = None
+    values = {}
+    for line in rules_lines:
+        header = re.match(r"^\[([^\]]+)\]\s*$", line)
+        if header:
+            section = header.group(1).strip()
+            continue
+        if section != "NukeSpecial":
+            continue
+        m = re.match(r"^([A-Za-z.]+)=(.*?)(\s*;.*)?$", line.rstrip("\r\n"))
+        if m:
+            values[m.group(1).strip().lower()] = m.group(2).strip()
+    wanted = {
+        "rechargetime": "0",
+        "sw.alwaysgranted": "yes",
+        "sw.allowai": "no",
+        "sw.allowplayer": "yes",
+    }
+    problems = ["%s=%s (want %s)" % (key, values.get(key, "<missing>"), value)
+                for key, value in wanted.items()
+                if values.get(key, "").lower() != value]
+    if problems:
+        raise SystemExit("[NukeSpecial] is not the player's unlimited nuke: "
+                         + "; ".join(problems))
+    return True
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rules-dir", required=True,
@@ -1480,6 +1532,7 @@ def main():
     assert_mcv_recovery_fillable(rules_lines, aimd_lines)
     mcv_triggers = assert_mcv_triggers_well_formed(aimd_lines)
     assert_superweapon_teams_intact(aimd_lines)
+    assert_player_nuke_unlimited(rules_lines)
     assert_air_and_aa_boosted(aimd_lines)
     counts = assert_build_counts(rules_lines)
     assert_no_walls(rules_lines)

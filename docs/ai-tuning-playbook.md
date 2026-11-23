@@ -1158,3 +1158,29 @@ AirstripLimit=0                           ; ← 额外机库上限是 0：永远
 > 如果实测发现 AI 仍然只造一座空指部（`AirstripLimit` 语义与注释不符），
 > 退路是把机场型飞机压到每队 2 架、`Max=2`（4 架 = 一座空指部的容量），
 > 至少保证不再坠毁。
+
+---
+
+## 17. 玩家的无限核弹（3.8）
+
+0 号位玩家获得**零冷却、无限次**的核弹：
+
+```ini
+[NukeSpecial]
+SW.AllowPlayer=yes
+SW.AllowAI=no          ; 必须：RechargeTime 属于「超武类型」，电脑会一起继承
+SW.AlwaysGranted=yes   ; 不需要发射井，开局就有按钮
+RechargeTime=0         ; 发射后立刻再次就绪
+```
+
+**为什么必须关掉 AI**：`RechargeTime` 是**超武类型**的属性，不是某个玩家的属性。
+只要不改 `SW.AllowAI`，119 家电脑会同时继承"零冷却"，变成每 tick 都在扔核弹。
+所以核弹变成**玩家专属**，电脑保留闪电风暴 / 铁幕 / 超时空 / 心灵控制器 / 基因突变器。
+
+**为什么不用"新建一个超武类型"**：`--probe` 的输出里没有超武类型列表
+（只有 `superweapon_limit`），新增第 13 个类型**无法验证是否被引擎接受**；
+而单位类型注册表在原版是固定数量的，风险太大。宁可改现成的 `[NukeSpecial]`。
+
+**防回归**：`assert_player_nuke_unlimited` 检查
+`RechargeTime=0` / `SW.AlwaysGranted=yes` / `SW.AllowAI=no` / `SW.AllowPlayer=yes` 四项，
+实测能把 `RechargeTime=10`、`AllowAI=yes`、`AlwaysGranted=no` 三种退化全部拦住。

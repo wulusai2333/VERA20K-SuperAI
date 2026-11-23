@@ -2,6 +2,26 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## 3.8 — 0 号位玩家的无限核弹
+
+```ini
+[NukeSpecial]
+SW.AlwaysGranted=yes   ; 不需要发射井，开局就有核弹按钮
+RechargeTime=0         ; 发射后立刻再次就绪（零冷却）
+SW.AllowAI=no          ; 必须：RechargeTime 属于超武类型，电脑会一起继承
+SW.AllowPlayer=yes
+```
+
+- **为什么必须关掉 AI 的核弹**：`RechargeTime` 是超武**类型**的属性而不是玩家的属性，
+  不改 `SW.AllowAI` 的话 119 家电脑会一起零冷却，变成每 tick 扔核弹。核弹因此变成玩家专属；
+  电脑仍保留闪电风暴 / 铁幕 / 超时空 / 心灵控制器 / 基因突变器。
+- **为什么不在 `[SuperWeaponTypes]` 里加第 13 个类型**：`--probe` 的输出里没有超武类型列表，
+  新增类型**无法验证是否被引擎接受**，而单位类型注册表在原版是固定数量的 —— 宁可改现成的
+  `[NukeSpecial]`，至少可验证。
+- 新增 `assert_player_nuke_unlimited`：四项（`RechargeTime=0` / `AlwaysGranted=yes` /
+  `AllowAI=no` / `AllowPlayer=yes`）任一不满足就构建失败；实测能拦住
+  `RechargeTime=10`、`AllowAI=yes`、`AlwaysGranted=no` 三种退化。
+
 ## 3.7.1 — 修 bug：新图有一个电脑和玩家挤在 3 格内
 
 症状：`Flat Snow 120 Center` 进游戏后，**有一个电脑出生点紧贴玩家**（(151,152)，离玩家 3 格）。
