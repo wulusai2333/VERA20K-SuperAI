@@ -1271,6 +1271,22 @@ YuriParaDropInf=ZAINukeTrooper  YuriParaDropNum=1
 | 武器/节奏像火箭飞行兵 | `[ZAINukeRifle]` 克隆天启副武器 `[MammothTusk]` | `ROF=80`、`Burst=2`、`Range=200`、`Speed=20` |
 | 弹道要飘、落点要随机 | `[Weapon] Inaccurate=yes` + `[Projectile] FlakScatter=yes` + `ROT=10` | 不吸附目标点 + 落点随机 + 慢转向 |
 
+**散布的正确键（3.10.2，零售注释直接写着）**：
+
+```ini
+[CombatDamage]
+BallisticScatter=1.0 ; maximum scatter distance (cells) for inaccurate ballistic projectiles
+HomingScatter=2.0    ; maximum scatter distance (cells) for inaccurate homing projectiles
+```
+
+- **单位是格（cells）**，不是 lepton；
+- 追踪弹看 **`HomingScatter`**，弹道弹（AI 高射炮 `FlakProj`）看 `BallisticScatter`；
+- **`Inaccurate=yes` 是弹丸键**（零售写在 `[FlakProj]`/`[FlakTProj]` 上），
+  写在武器上**不生效** —— 这就是之前"散不开"的原因。
+
+要做"200 格内随机落点"：`[CombatDamage] HomingScatter=200` +
+弹丸 `Inaccurate=yes`；`BallisticScatter` 必须保持 1.0（否则 AI 高射炮全打空）。
+
 **天启弹丸的坑**：`[AAHeatSeeker]`（天启副武器的弹丸）是 `AA=yes / AG=no`，
 只能打空中；打地面必须用 `AAHeatSeeker2`（`AA=yes / AG=yes`）。
 所以我们的 `[ZAINukeRifleProj]` 克隆 `AAHeatSeeker2`，只保留 `Image=DRAGON` 的外观。

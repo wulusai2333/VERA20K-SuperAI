@@ -809,7 +809,6 @@ TROOPER_WEAPON_FIELDS = (
     ("Speed", "20"),
     ("Projectile", TROOPER_PROJECTILE),
     ("Warhead", "NUKE"),
-    ("Inaccurate", "yes"),
     ("OmniFire", "yes"),
     ("Report", "ApocalypseAttackAir"),
 )
@@ -821,6 +820,10 @@ TROOPER_PROJECTILE_FIELDS = (
     ("AG", "yes"),
     ("Image", "DRAGON"),
     ("ROT", "10"),
+    # Inaccurate is a PROJECTILE key (retail sets it on [FlakProj]/[FlakTProj]);
+    # on the weapon it does nothing.  HomingScatter in [CombatDamage] then decides
+    # how far an inaccurate homing shot may land from the target point.
+    ("Inaccurate", "yes"),
     ("FlakScatter", "yes"),
     ("Ranged", "yes"),
     ("Shadow", "no"),
@@ -829,6 +832,12 @@ TROOPER_PROJECTILE_FIELDS = (
     ("SubjectToElevation", "no"),
     ("SubjectToWalls", "no"),
 )
+#: [CombatDamage] HomingScatter -- measured in CELLS, per the retail comment
+#: ("maximum scatter distance (cells) for inaccurate homing projectiles").
+#: BallisticScatter belongs to ballistic flak and must stay at retail 1.0, or the
+#: AI's anti-air loses its accuracy.
+HOMING_SCATTER = "200"
+BALLISTIC_SCATTER = "1.0"
 PLANE_TYPE = "PDPLANE"
 PLANE_FIELDS = (
     # The cargo plane the airdrop uses.  Retail is Strength 400 / Armor light, so
@@ -945,6 +954,35 @@ def apply_nuke_gunship(lines):
             ";SuperAI: wanders (ROT 10) and lands at a random spot (FlakScatter).\r\n"]
     proj += ["%s=%s\r\n" % pair for pair in TROOPER_PROJECTILE_FIELDS]
     _replace_section(lines, TROOPER_PROJECTILE, proj)
+
+    # [CombatDamage] HomingScatter: the maximum distance (cells) an inaccurate
+    # homing shot may land from its target.  BallisticScatter stays at retail 1.0
+    # because the AI's flak cannons are what use it.
+    combat = None
+    for i, line in enumerate(lines):
+        if re.match(r"^\[CombatDamage\]\s*$", line, re.I):
+            combat = i
+            break
+    if combat is None:
+        raise SystemExit("[CombatDamage] not found")
+    end = len(lines)
+    for i in range(combat + 1, len(lines)):
+        if re.match(r"^\[[^\]]+\]\s*$", lines[i]):
+            end = i
+            break
+    for key, value in (("HomingScatter", HOMING_SCATTER),
+                       ("BallisticScatter", BALLISTIC_SCATTER)):
+        found = False
+        for i in range(combat + 1, end):
+            if re.match(r"^%s\s*=" % re.escape(key), lines[i], re.I):
+                eol = "\r\n" if lines[i].endswith("\r\n") else "\n"
+                lines[i] = "%s=%s%s" % (key, value, eol)
+                found = True
+                break
+        if not found:
+            lines.insert(combat + 1, "%s=%s\r\n" % (key, value))
+            combat += 1
+            end += 1
 
     # Harden the cargo plane the drop uses; without this the delivery is shot down.
     plane_lines, inside = [], False
@@ -1163,14 +1201,34 @@ def assert_nuke_gunship(rules_lines, aimd_lines):
     if rof < 60:
         problems.append("%s ROF=%r (want >=60: the Rocketeer's 30 fired far too "
                         "often)" % (TROOPER_WEAPON, rifle.get("rof")))
-    if rifle.get("inaccurate", "").lower() != "yes":
-        problems.append("%s must stay Inaccurate=yes (that is what stops the shot "
-                        "snapping onto the target point)" % TROOPER_WEAPON)
+    if rifle.get("inaccurate"):
+        problems.append("%s has Inaccurate on the WEAPON; it is a projectile key "
+                        "and does nothing there" % TROOPER_WEAPON)
+    combat_values = values("CombatDamage")
+    try:
+        scatter = float(combat_values.get("homingscatter", "0"))
+    except ValueError:
+        scatter = 0.0
+    if scatter < 100:
+        problems.append("[CombatDamage] HomingScatter=%r (want >=100: it is the "
+                        "random landing radius in cells)"
+                        % combat_values.get("homingscatter"))
+    try:
+        ballistic = float(combat_values.get("ballisticscatter", "0"))
+    except ValueError:
+        ballistic = 0.0
+    if abs(ballistic - 1.0) > 1e-6:
+        problems.append("[CombatDamage] BallisticScatter=%r; the AI's flak cannons "
+                        "use it and it must stay at retail 1.0"
+                        % combat_values.get("ballisticscatter"))
     shot = values(TROOPER_PROJECTILE)
     if shot.get("ag", "").lower() != "yes":
         problems.append("%s AG=%r; without AG it cannot hit the ground (the "
                         "Apocalypse's own [AAHeatSeeker] is AG=no)"
                         % (TROOPER_PROJECTILE, shot.get("ag")))
+    if shot.get("inaccurate", "").lower() != "yes":
+        problems.append("%s must carry Inaccurate=yes; that is the projectile key "
+                        "HomingScatter applies to" % TROOPER_PROJECTILE)
     if shot.get("flakscatter", "").lower() != "yes":
         problems.append("%s must keep FlakScatter=yes, or every warhead lands on "
                         "the same spot" % TROOPER_PROJECTILE)

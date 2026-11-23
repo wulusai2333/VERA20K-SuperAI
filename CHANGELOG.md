@@ -2,6 +2,33 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## 3.10.2 — 散布拉满：`[CombatDamage] HomingScatter=200`（格）
+
+零售注释写明了这两个键的位置和单位：
+
+```ini
+[CombatDamage]
+BallisticScatter=1.0 ; maximum scatter distance (cells) for inaccurate ballistic projectiles
+HomingScatter=2.0    ; maximum scatter distance (cells) for inaccurate homing projectiles
+```
+
+- **单位是格**；追踪弹看 `HomingScatter`，弹道弹（AI 高射炮）看 `BallisticScatter`；
+- **`Inaccurate=yes` 是弹丸键**（零售写在 `[FlakProj]`/`[FlakTProj]`），
+  之前写在武器上等于没生效 —— 这是"散不开"的真正原因。
+
+改动：
+
+- `[CombatDamage] HomingScatter=200`（0→200 格随机落点）、`BallisticScatter=1.0` 保持不动
+  （否则 AI 高射炮会全部打空）；
+- `Inaccurate=yes` 从 `[ZAINukeRifle]` 挪到 `[ZAINukeRifleProj]`；
+- 配合原有的 `ROT=10`（慢转向）与 `FlakScatter=yes`，落点遍布全图。
+
+守卫新增：`HomingScatter>=100`、`BallisticScatter` 必须仍是 1.0、弹丸必须 `Inaccurate=yes`、
+武器上不得再出现 `Inaccurate`；实测三种退化全部被拦。
+
+⚠️ 散布 200 格会砸到自己人（含自家基地），这是"最大散布"的必然结果；
+想收一点把 `HomingScatter` 调到 60–80 即可。
+
 ## 3.10.1 — 空投机加固、核弹兵改天启导弹、弹道随机
 
 - **运输机加固**：`[PDPLANE]` 零售 `Strength=400/Armor=light` → `100000/heavy` +
