@@ -14,7 +14,7 @@
 由两部分组成：
 
 - **SuperAI 模组**：只改规则与 AI 脚本，不替换任何美术资源。
-- **SuperAI 地图包**：6 张地图，从 1v7 观战图到 30 人 / 120 人超大混战图。
+- **SuperAI 地图包**：7 张地图，从 1v7 观战图到 30 人 / 120 人超大混战图（含一张纯平雪地 120 人图）。
 
 > English summary: a fan-made mod + spectator map pack for VERA20k. It gives the
 > skirmish AI x1001 starting credits, an aggressive global build speed, a graded
@@ -76,9 +76,16 @@
 | **Super AI Flat 200** | 200×200 | 8 | 普通角落 | 揭图 + 铁幕（1 秒起）+ 猎杀 |
 | **Super AI Flat 30** | 250×250 | 30 | 可玩区左下角 (19,256) | 揭图 + 铁幕（1 秒起）+ 猎杀 |
 | **Super AI Flat 120** | 500×500（引擎上限） | 120 | 可玩区左下角 (19,506) | 揭图 + 铁幕（1 秒起）+ 猎杀 |
+| **Super AI Flat Snow 120 Center** | 300×300（菱形全平） | 120 | **正中 (150,150)** | 揭图 + 铁幕（开局即罩、每 10 秒）+ 猎杀 |
 
-所有 Flat 地图的地形都是**同一块平地（tile 418）、同一高度（z=4）**：
-没有水、海岸线、高地、悬崖、树、石头、矿石、中立建筑，建筑可以任意摆放。
+所有 Flat 地图的地形都是**同一块平地**：没有水、海岸线、高地、悬崖、树、石头、矿石、
+中立建筑，建筑可以任意摆放。`Flat30/120/200` 用草地砖 `tile 418 / z=4`；
+**`Flat Snow 120 Center`** 用雪地砖 `tile 696 / z=1`。
+
+**Flat Snow 120 Center** 由 `IceLake 120 No Ore` 改造而来：43080 格**全部**改成雪地
+（`696/0/1`），`OverlayPack`/`Terrain`/`Structures`/`Units`/`Infantry`/`Aircraft`/`Smudge`/
+`CellTags`/`Preview` 全部清空，玩家放**地形正中 (150,150)**、开局就被铁幕罩住，
+119 个电脑用最远点采样铺满全图，最近邻间距 **22–30 格**（`assert_flat120` 每次构建都复核）。
 
 **Ice Lake 120** 是同一张冰湖图的 120 人版：**地形一格没动**
 （`IsoMapPack5` 逐字节相同，43080 格），只改了出生点列表 —— 玩家仍站原 `wp0`（右上角
@@ -95,7 +102,7 @@ git clone https://github.com/wulusai2333/VERA20K-SuperAI.git
 cd VERA20K-SuperAI
 python -m pip install -r tools/requirements.txt   # 只有 lzokay，重建地图时才需要
 python tools/install.py --game-dir "<游戏目录>" --enable
-python tools/check.py   --game-dir "<游戏目录>"   # 可选：无头校验模组与 6 张地图
+python tools/check.py   --game-dir "<游戏目录>"   # 可选：无头校验模组与 7 张地图
 ```
 
 `--enable` 会备份并改写 `config.toml` 里的 `mod = "SuperAI"`。

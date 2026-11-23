@@ -1,6 +1,36 @@
 # Changelog
 
-本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.6；以下是可复现的功能节点。
+本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
+
+## 3.7 — 新地图：纯平雪地 120 人，玩家居中罩铁幕
+
+以 `SuperAI-IceLake-120-NoOre.yrm` 为蓝本（43080 格、`Size=0,0,180,120`、`Theater=SNOW`），
+用 `build_maps.py flat` 的两个新参数生成：
+
+```bash
+python tools/build_maps.py flat \
+    --src maps/SuperAI-IceLake-120-NoOre.yrm \
+    --out maps/SuperAI-FlatSnow-120-Center.yrm \
+    --name "Super AI Flat Snow 120 Center" \
+    --players 120 --tile 696 --sub 0 --height 1 --terrain-newline crlf \
+    --player-center --spread 119
+```
+
+- `--player-center`：wp0 放在**地形包围盒中心** `(150,150)`（该格在记录里存在，已核）；
+  铁幕触发器就是打在 waypoint 0 上的，所以"居中 + 罩铁幕"是同一件事；
+- `--spread N`：**最远点采样**在全图铺 N 个电脑点，并重建 `[Header]` 的 120 个起点；
+- 地形：43080 格**全部**改成雪地砖 `696/0/1`；
+- 物件：`OverlayPack`/`OverlayDataPack`/`Terrain`/`Structures`/`Units`/`Infantry`/
+  `Aircraft`/`Smudge`/`CellTags`/`Preview`/`PreviewPack` 全部清空；
+- 触发器：`IronCurtainStart`（开局立刻罩）+ `IronCurtain`（每 10 秒）+ `RevealAll` +
+  12 段 `AIHunt`（槽位 1–119 每 20 秒 All to Hunt）。
+
+实测：119 个电脑点**最近邻间距 22–30 格**（`min 22 / median 29 / max 30`），
+连建两次逐字节相同（257373 bytes）。
+
+新增 `assert_flat120`：每次构建都复核「每格都是 `696/0/1`」「物件段一个不剩」
+「起点数与 header 一致」「起点都落在地形上」「最近邻 ≥8 格」「铁幕/揭图/猎杀触发器齐全」，
+任一不满足就拒绝写盘。
 
 ## 3.6 — 飞机起飞就坠毁：停机位是硬约束，`AirstripLimit=0` 让 AI 永远只有一座空指部
 

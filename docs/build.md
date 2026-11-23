@@ -115,6 +115,14 @@ python tools/build_maps.py flat \
 ### 2.3 只改地形
 
 ```bash
+# 纯平雪地 120 人图：玩家在地形正中、119 家均布全图、物件全部清空
+python tools/build_maps.py flat \
+    --src maps/SuperAI-IceLake-120-NoOre.yrm \
+    --out maps/SuperAI-FlatSnow-120-Center.yrm \
+    --name "Super AI Flat Snow 120 Center" \
+    --players 120 --tile 696 --sub 0 --height 1 --terrain-newline crlf \
+    --player-center --spread 119
+
 python tools/build_maps.py uniform --src raw.yrm --out flat.yrm --tile 418 --height 4
 ```
 

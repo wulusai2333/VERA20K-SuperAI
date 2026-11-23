@@ -268,6 +268,117 @@ def assert_ice120(src, text, waypoints, ground, region):
                          % (listed, declared, len(waypoints)))
 
 
+def nearest_neighbour_gaps(points):
+    """Chebyshev nearest-neighbour distance for each point, sorted."""
+    hv = [vm.cell_to_hv(*c) for c in points]
+    gaps = []
+    for i, (h, v) in enumerate(hv):
+        best = None
+        for j, (h2, v2) in enumerate(hv):
+            if i == j:
+                continue
+            distance = max(abs(h - h2), abs(v - v2))
+            if best is None or distance < best:
+                best = distance
+        gaps.append(best if best is not None else 0)
+    return sorted(gaps)
+
+
+def spread_points(cells, player, wanted):
+    """Farthest-point sampling: even coverage of every cell, player excluded.
+
+    Deterministic: the seed is the cell furthest from the player (ties broken by
+    cell order) and every later pick scans ``cells`` in its given order, so a
+    rebuild of the same source produces the same list.
+    """
+    if wanted <= 0:
+        return []
+    available = [c for c in cells if c != player]
+    if len(available) < wanted:
+        raise SystemExit("only %d cells for %d computers" % (len(available), wanted))
+    hv = {c: vm.cell_to_hv(*c) for c in available}
+    ph, pv = vm.cell_to_hv(*player)
+    seed = max(available, key=lambda c: (max(abs(hv[c][0] - ph), abs(hv[c][1] - pv)), c))
+    picks = [seed]
+    chosen = {seed}
+    nearest = {c: max(abs(hv[c][0] - hv[seed][0]), abs(hv[c][1] - hv[seed][1]))
+               for c in available}
+    while len(picks) < wanted:
+        candidate, best = None, -1
+        for c in available:
+            if c in chosen:
+                continue
+            if nearest[c] > best:
+                candidate, best = c, nearest[c]
+        if candidate is None:
+            break
+        picks.append(candidate)
+        chosen.add(candidate)
+        ch, cv = hv[candidate]
+        for c in available:
+            distance = max(abs(hv[c][0] - ch), abs(hv[c][1] - cv))
+            if distance < nearest[c]:
+                nearest[c] = distance
+    picks.sort(key=lambda c: (hv[c][1], hv[c][0]))
+    return picks
+
+
+def assert_flat120(src, text, points, tile, sub, height, min_gap=8):
+    """Refuse to write anything but "one flat tile, nothing on it, even starts".
+
+    The interesting failure modes are silent: a leftover overlay keeps its ore on
+    a "flat" map, one terrain record left at another height pokes a cliff through
+    it, and a start list the header disagrees with shows up as fewer players in
+    the lobby.  Check all three instead of trusting the pipeline.
+    """
+    problems = []
+
+    source_cells = len(vm.decode_terrain(src))
+    records = vm.decode_terrain(text)
+    if len(records) != source_cells:
+        problems.append("%d terrain cells, source had %d" % (len(records), source_cells))
+    wrong = [(r[0], r[1], r[2], r[3], r[4]) for r in records
+             if (r[2], r[3], r[4]) != (tile, sub, height)]
+    if wrong:
+        problems.append("%d cells are not tile %d/%d at height %d (first: %s)"
+                        % (len(wrong), tile, sub, height, wrong[0]))
+
+    leftovers = [name for name in vm.OBJECT_SECTIONS if vm.has_section(text, name)]
+    if leftovers:
+        problems.append("object sections survived: " + ", ".join(leftovers))
+
+    if vm.count_waypoints(text) != len(points):
+        problems.append("%d waypoints for %d starts"
+                        % (vm.count_waypoints(text), len(points)))
+    declared = vm.get_value(vm.section_body(text, "Header"), "NumberStartingPoints")
+    if str(declared) != str(len(points)):
+        problems.append("header declares %s starting points, waypoints say %d"
+                        % (declared, len(points)))
+
+    cells = {(x, y) for x, y, _t, _s, _z, _l in records}
+    outside = [c for c in points if c not in cells]
+    if outside:
+        problems.append("%d starts sit on cells the map does not have" % len(outside))
+
+    gaps = nearest_neighbour_gaps(points[1:])
+    if gaps and gaps[0] < min_gap:
+        problems.append("computer starts only %d cells apart (floor %d)"
+                        % (gaps[0], min_gap))
+
+    triggers = vm.section_body(text, "Triggers") if vm.has_section(text, "Triggers") else ""
+    for needed in ("IronCurtainStart", "IronCurtain"):
+        if needed not in triggers:
+            problems.append("no %s trigger (the player would stand unprotected)" % needed)
+    if "RevealAll" not in triggers:
+        problems.append("no RevealAll trigger")
+    if triggers.count("AIHunt") < 1:
+        problems.append("no AIHunt triggers")
+
+    if problems:
+        raise SystemExit("flat map check failed: " + "; ".join(problems[:4]))
+    return gaps
+
+
 def cmd_flat(args):
     text = vm.read_text(args.src)
     text = vm.drop_sections(text, vm.OBJECT_SECTIONS)
@@ -277,6 +388,40 @@ def cmd_flat(args):
     text = vm.ensure_value(text, "FreeRadar", "yes")
 
     players = args.players or vm.count_waypoints(text)
+
+    if args.player_center or args.spread:
+        # Every cell of the source map is now the same flat tile, so the whole
+        # terrain is buildable and the starts can use all of it.  The player goes
+        # to the centre of the terrain (the Iron Curtain trigger casts at
+        # waypoint 0, so "covered" means "standing there"), and the computers are
+        # spread with farthest-point sampling.
+        cells = [(x, y) for x, y, _t, _s, _z, _l in vm.decode_terrain(text)]
+        if not cells:
+            raise SystemExit("map has no terrain cells")
+        xs = [x for x, _y in cells]
+        ys = [y for _x, y in cells]
+        if args.player_center:
+            x, y = (min(xs) + max(xs)) // 2, (min(ys) + max(ys)) // 2
+            if (x, y) not in set(cells):
+                # The diamond has no cell exactly at the rectangle's centre on
+                # odd sizes; take the nearest cell that exists.
+                x, y = min(cells, key=lambda c: (abs(c[0] - x) + abs(c[1] - y), c))
+            text = vm.set_waypoint(text, 0, vm.pack_cell(x, y))
+            text = vm.ensure_value(text, "HomeCell", str(vm.pack_cell(x, y)))
+            print("player start -> terrain centre (%d, %d)" % (x, y))
+
+        if args.spread:
+            player = read_waypoints(text)[0]
+            points = spread_points(cells, player, args.spread)
+            all_points = [player] + points
+            if len(all_points) != players:
+                raise SystemExit("%d waypoints for %d slots" % (len(all_points), players))
+            text = vm.replace_waypoints(text, all_points, newline="\r\n")
+            text = rebuild_header(text, all_points)
+            gaps = nearest_neighbour_gaps(all_points[1:])
+            print("computers: %d spread over %d cells, nearest-neighbour min %d "
+                  "median %d max %d"
+                  % (len(points), len(cells), gaps[0], gaps[len(gaps) // 2], gaps[-1]))
 
     if args.move_player_corner or args.player_inside:
         left, top, width, height = vm.local_size(text)
@@ -293,6 +438,10 @@ def cmd_flat(args):
               % (x, y, packed, (left, top, width, height)))
 
     full = args.triggers == "full"
+    # The source may already carry a trigger block (the Ice Lake maps do); drop it
+    # so the generated one is the only one, exactly as `ice120` does.
+    if vm.has_section(text, "Triggers"):
+        text = vm.drop_sections(text, vm.TRIGGER_SECTIONS, separator="\r\n")
     text = vm.add_triggers(
         text,
         vm.trigger_block(
@@ -303,6 +452,13 @@ def cmd_flat(args):
             hunt=True,
         ),
     )
+
+    if args.player_center or args.spread:
+        gaps = assert_flat120(vm.read_text(args.src), text, read_waypoints(text),
+                              args.tile, args.sub, args.height)
+        print("checked: every cell is %d/%d at height %d, no objects left, "
+              "starts %d cells apart at worst"
+              % (args.tile, args.sub, args.height, gaps[0] if gaps else 0))
 
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     vm.write_text(args.out, text)
@@ -411,6 +567,11 @@ def main():
                            "fits, N cells clear of the playfield edge")
     flat.add_argument("--corner-gap", type=int, default=3,
                       help="cells between playfield bottom and the player start")
+    flat.add_argument("--player-center", action="store_true",
+                      help="put waypoint 0 on the centre cell of the terrain")
+    flat.add_argument("--spread", type=int, default=0, metavar="N",
+                      help="spread N computer starts evenly over the whole terrain "
+                           "with farthest-point sampling (implies a rebuilt [Header])")
     flat.set_defaults(func=cmd_flat)
 
     retrigger = sub.add_parser("retrigger", help="replace a map's trigger block")
