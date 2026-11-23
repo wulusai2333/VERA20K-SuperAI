@@ -621,13 +621,135 @@ def assert_player_nuke_section(rules_lines):
     return True
 
 
-def assert_nuke_gunship(rules_lines, aimd_lines):
-    """The nuclear gunship: one aircraft, one bomb, one spy-plane superweapon.
+#: The nuclear gunship: a player-built aircraft carrying a nuke bomb.
+#:
+#: The spy-plane superweapon was tried first and failed for three reasons that
+#: are all engine behaviour, not configuration: `Mission_SpyplaneApproach` /
+#: `Overfly` never use the aircraft's weapon (so it dropped nothing), the flight
+#: path is hard-coded (so it went where the engine wanted), and an ordinary
+#: Strength let anti-air shoot it down.  A normal buildable unit fixes all three:
+#: the player chooses the route, the weapon fires, and a huge Strength plus
+#: Insignificant=yes keeps it alive and untargeted.
+GUNSHIP_PLANE = "ZAINukePlane"
+GUNSHIP_BOMB = "ZAINukeBomb"
+GUNSHIP_PLANE_FIELDS = (
+    ("UIName", "Name:BPLN"),
+    ("Name", "Nuclear Gunship"),
+    ("Strength", "100000"),
+    ("Category", "AirLift"),
+    ("Armor", "heavy"),
+    ("TechLevel", "1"),
+    ("Prerequisite", "GAAIRC"),
+    ("Cost", "1500"),
+    ("Primary", GUNSHIP_BOMB),
+    ("Spawned", "no"),
+    ("Selectable", "yes"),
+    ("Insignificant", "yes"),
+    ("LeadershipRating", "10"),
+    ("RadarInvisible", "no"),
+    ("Sight", "12"),
+    ("Landable", "no"),
+    ("MoveToShroud", "yes"),
+    ("PitchAngle", "0"),
+    ("Speed", "10"),
+    ("Owner", "British,French,Germans,Americans,Alliance,Russians,Confederation,"
+              "Africans,Arabs,Yuri"),
+    ("Points", "30"),
+    ("ROT", "2"),
+    ("Crewed", "no"),
+    ("Ammo", "100"),
+    ("Explosion", "TWLT070,S_BANG48,S_BRNL58,S_CLSN58,S_TUMU60"),
+    ("MaxDebris", "2"),
+    ("Locomotor", "{4A582746-9839-11d1-B709-00A024DDAFD1}"),
+    ("MovementZone", "Fly"),
+    ("ThreatPosed", "0"),
+    ("DamageParticleSystems", "SparkSys,SmallGreySSys"),
+    ("ImmuneToPsionics", "yes"),
+    ("CanPassiveAquire", "yes"),
+    ("CanRetaliate", "no"),
+    ("Fighter", "no"),
+    ("AirportBound", "no"),
+    ("Trainable", "no"),
+    ("DeathWeapon", "BlimpBomb"),
+    ("DeathWeaponDamageModifier", ".1"),
+    ("FlyBy", "true"),
+)
+GUNSHIP_BOMB_FIELDS = (
+    ("Damage", "600"),
+    ("ROF", "45"),
+    ("Range", "25"),
+    ("Speed", "100"),
+    ("Projectile", "InvisibleHigh"),
+    ("Warhead", "NUKE"),
+    ("Report", "NukeSiren"),
+)
 
-    The plane must be spawned by the superweapon and must never be reachable by
-    the computer: a new aircraft type that a TaskForce names would be built by
-    the AI and would nuke on its own.
-    """
+
+def _replace_section(lines, name, body):
+    out, skip = [], False
+    for line in lines:
+        header = re.match(r"^\[([^\]]+)\]\s*$", line)
+        if header:
+            skip = header.group(1).strip() == name
+        if not skip:
+            out.append(line)
+    lines[:] = out
+    at = len(lines)
+    for i, line in enumerate(lines):
+        if re.match(r"^\[SuperWeaponTypes\]\s*$", line):
+            at = i
+            break
+    lines[at:at] = body
+
+
+def _append_registry(lines, section, name):
+    reg = None
+    for i, line in enumerate(lines):
+        if re.match(r"^\[%s\]\s*$" % re.escape(section), line):
+            reg = i
+            break
+    if reg is None:
+        raise SystemExit("[%s] not found" % section)
+    end = len(lines)
+    for i in range(reg + 1, len(lines)):
+        if re.match(r"^\[[^\]]+\]\s*$", lines[i]):
+            end = i
+            break
+    kept, highest = [], 0
+    for i in range(reg + 1, end):
+        line = lines[i]
+        m = re.match(r"^(\d+)\s*=\s*([^;\r\n]+)", line)
+        if m:
+            if m.group(2).strip() == name:
+                continue
+            highest = max(highest, int(m.group(1)))
+        kept.append(line)
+    while kept and not kept[-1].strip():
+        kept.pop()
+    kept.append("%d=%s\r\n" % (highest + 1, name))
+    kept.append("\r\n")
+    lines[reg + 1:end] = kept
+    return highest + 1
+
+
+def apply_nuke_gunship(lines):
+    """Write the gunship aircraft and its nuke bomb."""
+    plane = ["[%s]\r\n" % GUNSHIP_PLANE,
+             ";SuperAI: player-built nuclear gunship. The AI never gets it.\r\n"]
+    plane += ["%s=%s\r\n" % pair for pair in GUNSHIP_PLANE_FIELDS]
+    _replace_section(lines, GUNSHIP_PLANE, plane)
+
+    bomb = ["[%s]\r\n" % GUNSHIP_BOMB,
+            ";SuperAI: nuke warhead on a plane. [NUKE] itself is untouched.\r\n"]
+    bomb += ["%s=%s\r\n" % pair for pair in GUNSHIP_BOMB_FIELDS]
+    _replace_section(lines, GUNSHIP_BOMB, bomb)
+
+    _append_registry(lines, "AircraftTypes", GUNSHIP_PLANE)
+    return True
+
+
+def assert_nuke_gunship(rules_lines, aimd_lines):
+    """The gunship must be player-buildable, unkillable and unknown to the AI."""
     sections, current = {}, None
     for line in rules_lines:
         header = re.match(r"^\[([^\]]+)\]\s*$", line)
@@ -647,240 +769,54 @@ def assert_nuke_gunship(rules_lines, aimd_lines):
         return out
 
     problems = []
-    plane = values("ZAINukePlane")
+    plane = values(GUNSHIP_PLANE)
     if not plane:
-        problems.append("no [ZAINukePlane] section")
+        problems.append("no [%s] section" % GUNSHIP_PLANE)
     else:
-        primary = plane.get("primary", "").strip()
-        if primary != "ZAINukeBomb":
-            problems.append("ZAINukePlane Primary=%r" % primary)
-        if plane.get("spawned", "").lower() != "yes":
-            problems.append("ZAINukePlane must stay Spawned=yes (the AI must not "
-                            "be able to build it)")
-    bomb = values("ZAINukeBomb")
+        if plane.get("spawned", "").lower() != "no":
+            problems.append("Spawned=%r; it must be player-buildable"
+                            % plane.get("spawned"))
+        if plane.get("selectable", "").lower() != "yes":
+            problems.append("Selectable=%r; the player must be able to command it"
+                            % plane.get("selectable"))
+        try:
+            tech = int(float(plane.get("techlevel", "-1")))
+        except ValueError:
+            tech = -1
+        if tech < 1:
+            problems.append("TechLevel=%r; it must be buildable" % plane.get("techlevel"))
+        if not plane.get("prerequisite", "").strip():
+            problems.append("no Prerequisite; nothing could build it")
+        try:
+            strength = int(float(plane.get("strength", "0")))
+        except ValueError:
+            strength = 0
+        if strength < 10000:
+            problems.append("Strength=%r; anti-air would shoot it down"
+                            % plane.get("strength"))
+        if plane.get("insignificant", "").lower() != "yes":
+            problems.append("must stay Insignificant=yes so AI defences ignore it")
+        if plane.get("primary", "").strip() != GUNSHIP_BOMB:
+            problems.append("Primary=%r" % plane.get("primary"))
+    bomb = values(GUNSHIP_BOMB)
     if bomb.get("warhead", "").strip() != "NUKE":
-        problems.append("ZAINukeBomb Warhead=%r (want NUKE)" % bomb.get("warhead"))
-    if "ZAINukePlane" not in " ".join(sections.get("AircraftTypes", [])):
-        problems.append("ZAINukePlane is not in [AircraftTypes]")
-    general = values("General")
-    for key, want in (("spyplane.type", "ZAINukePlane"),
-                      ("spyplane.count", "1"),
-                      ("spyplane.mission", "Attack")):
-        if general.get(key, "").strip().lower() != want.lower():
-            problems.append("[General] %s=%r (want %s)"
-                            % (key, general.get(key, "<missing>"), want))
-    world = values("ZAIWorldNuke")
-    if world.get("type", "").strip() != "SpyPlane":
-        problems.append("ZAIWorldNuke Type=%r (want SpyPlane)" % world.get("type"))
-    if world.get("sw.allowai", "").lower() != "no":
-        problems.append("ZAIWorldNuke SW.AllowAI=%r (the computer must not fly it)"
-                        % world.get("sw.allowai"))
-    if "ZAIWorldNuke" not in " ".join(sections.get("SuperWeaponTypes", [])):
-        problems.append("ZAIWorldNuke is not in [SuperWeaponTypes]")
+        problems.append("%s Warhead=%r (want NUKE)"
+                        % (GUNSHIP_BOMB, bomb.get("warhead")))
+    if GUNSHIP_PLANE not in " ".join(sections.get("AircraftTypes", [])):
+        problems.append("%s is not in [AircraftTypes]" % GUNSHIP_PLANE)
 
-    # No TaskForce may name the plane, or the computer builds it.
+    general = values("General")
+    leftovers = [key for key in general if key.startswith("spyplane.")]
+    if leftovers:
+        problems.append("[General] still overrides " + ", ".join(leftovers))
+
     in_teams = [line.strip() for line in aimd_lines
-                if re.match(r"^\d+=\d+,ZAINukePlane\b", line.strip())]
+                if re.match(r"^\d+=\d+,%s\b" % GUNSHIP_PLANE, line.strip())]
     if in_teams:
-        problems.append("a TaskForce names ZAINukePlane: " + in_teams[0])
+        problems.append("a TaskForce names %s: %s" % (GUNSHIP_PLANE, in_teams[0]))
 
     if problems:
         raise SystemExit("nuke gunship check failed: " + "; ".join(problems[:4]))
-    return True
-
-
-#: The nuclear gunship: a spawned aircraft with a nuke bomb, flown by the
-#: spy-plane superweapon, which already crosses the map on its own.
-GUNSHIP_PLANE = "ZAINukePlane"
-GUNSHIP_BOMB = "ZAINukeBomb"
-GUNSHIP_SW = "ZAIWorldNuke"
-GUNSHIP_PLANE_FIELDS = (
-    ("UIName", "Name:BPLN"),
-    ("Name", "Nuclear Gunship"),
-    ("Strength", "800"),
-    ("Category", "AirLift"),
-    ("Armor", "heavy"),
-    ("TechLevel", "-1"),
-    ("Primary", GUNSHIP_BOMB),
-    ("Spawned", "yes"),
-    ("Selectable", "no"),
-    ("LeadershipRating", "10"),
-    ("RadarInvisible", "no"),
-    ("Sight", "10"),
-    ("Landable", "no"),
-    ("MoveToShroud", "yes"),
-    ("PitchAngle", "0"),
-    ("Speed", "14"),
-    ("Owner", "British,French,Germans,Americans,Alliance,Russians,Confederation,"
-              "Africans,Arabs,Yuri"),
-    ("Points", "30"),
-    ("ROT", "2"),
-    ("Crewed", "yes"),
-    ("Ammo", "10"),
-    ("Explosion", "TWLT070,S_BANG48,S_BRNL58,S_CLSN58,S_TUMU60"),
-    ("MaxDebris", "2"),
-    ("Locomotor", "{4A582746-9839-11d1-B709-00A024DDAFD1}"),
-    ("MovementZone", "Fly"),
-    ("ThreatPosed", "0"),
-    ("DamageParticleSystems", "SparkSys,SmallGreySSys"),
-    ("ImmuneToPsionics", "yes"),
-    ("CanPassiveAquire", "yes"),
-    ("CanRetaliate", "no"),
-    ("Fighter", "yes"),
-    ("Trainable", "no"),
-    ("DeathWeapon", "BlimpBomb"),
-    ("DeathWeaponDamageModifier", ".1"),
-    ("FlyBy", "true"),
-)
-GUNSHIP_BOMB_FIELDS = (
-    ("Damage", "600"),
-    ("ROF", "45"),
-    ("Range", "25"),
-    ("Speed", "100"),
-    ("Projectile", "InvisibleHigh"),
-    ("Warhead", "NUKE"),
-    ("Report", "NukeSiren"),
-)
-GUNSHIP_SW_FIELDS = (
-    ("UIName", "Name:Nuke"),
-    ("Name", "N U K E !!! (gunship)"),
-    ("Type", "SpyPlane"),
-    ("SidebarImage", "NukeIcon"),
-    ("ShowTimer", "no"),
-    ("RechargeTime", "0.01"),
-    ("SW.AllowPlayer", "yes"),
-    ("SW.AllowAI", "no"),
-    ("SW.AlwaysGranted", "yes"),
-)
-GUNSHIP_GENERAL_KEYS = (
-    ("SpyPlane.Type", GUNSHIP_PLANE),
-    ("SpyPlane.Count", "1"),
-    ("SpyPlane.Mission", "Attack"),
-)
-
-
-def _replace_section(lines, name, body):
-    out, skip = [], False
-    for line in lines:
-        header = re.match(r"^\[([^\]]+)\]\s*$", line)
-        if header:
-            skip = header.group(1).strip() == name
-        if not skip:
-            out.append(line)
-    lines[:] = out
-    at = None
-    for i, line in enumerate(lines):
-        if re.match(r"^\[SuperWeaponTypes\]\s*$", line):
-            at = i
-            break
-    if at is None:
-        at = len(lines)
-    lines[at:at] = body
-
-
-def _register(lines, name):
-    registry = None
-    for i, line in enumerate(lines):
-        if re.match(r"^\[SuperWeaponTypes\]\s*$", line):
-            registry = i
-            break
-    if registry is None:
-        raise SystemExit("[SuperWeaponTypes] not found")
-    end = len(lines)
-    for i in range(registry + 1, len(lines)):
-        if re.match(r"^\[[^\]]+\]\s*$", lines[i]):
-            end = i
-            break
-    kept, highest = [], 0
-    for i in range(registry + 1, end):
-        line = lines[i]
-        m = re.match(r"^(\d+)\s*=\s*([^;\r\n]+)", line)
-        if m:
-            if m.group(2).strip() == name:
-                continue
-            highest = max(highest, int(m.group(1)))
-        kept.append(line)
-    while kept and not kept[-1].strip():
-        kept.pop()
-    kept.append("%d=%s\r\n" % (highest + 1, name))
-    kept.append("\r\n")
-    lines[registry + 1:end] = kept
-    return highest + 1
-
-
-def apply_nuke_gunship(lines):
-    """Write the gunship aircraft, its bomb, the spy-plane superweapon and the
-    three [General] keys that make the spy plane fly our aircraft on an attack
-    mission."""
-    plane = ["[%s]\r\n" % GUNSHIP_PLANE,
-             ";SuperAI: player-only nuclear gunship, flown by the spy-plane superweapon.\r\n"]
-    plane += ["%s=%s\r\n" % pair for pair in GUNSHIP_PLANE_FIELDS]
-    _replace_section(lines, GUNSHIP_PLANE, plane)
-
-    bomb = ["[%s]\r\n" % GUNSHIP_BOMB,
-            ";SuperAI: nuke warhead on a plane. [NUKE] itself is untouched.\r\n"]
-    bomb += ["%s=%s\r\n" % pair for pair in GUNSHIP_BOMB_FIELDS]
-    _replace_section(lines, GUNSHIP_BOMB, bomb)
-
-    sw = ["[%s]\r\n" % GUNSHIP_SW,
-          ";SuperAI: one click flies the gunship across the map.\r\n"]
-    sw += ["%s=%s\r\n" % pair for pair in GUNSHIP_SW_FIELDS]
-    _replace_section(lines, GUNSHIP_SW, sw)
-    _register(lines, GUNSHIP_SW)
-
-    # [AircraftTypes] registry entry, appended last.
-    reg = None
-    for i, line in enumerate(lines):
-        if re.match(r"^\[AircraftTypes\]\s*$", line):
-            reg = i
-            break
-    if reg is None:
-        raise SystemExit("[AircraftTypes] not found")
-    end = len(lines)
-    for i in range(reg + 1, len(lines)):
-        if re.match(r"^\[[^\]]+\]\s*$", lines[i]):
-            end = i
-            break
-    kept, highest = [], 0
-    for i in range(reg + 1, end):
-        line = lines[i]
-        m = re.match(r"^(\d+)\s*=\s*([^;\r\n]+)", line)
-        if m:
-            if m.group(2).strip() == GUNSHIP_PLANE:
-                continue
-            highest = max(highest, int(m.group(1)))
-        kept.append(line)
-    while kept and not kept[-1].strip():
-        kept.pop()
-    kept.append("%d=%s\r\n" % (highest + 1, GUNSHIP_PLANE))
-    kept.append("\r\n")
-    lines[reg + 1:end] = kept
-
-    # [General] keys: set or insert.
-    general = None
-    for i, line in enumerate(lines):
-        if re.match(r"^\[General\]\s*$", line):
-            general = i
-            break
-    if general is None:
-        raise SystemExit("[General] not found")
-    end = len(lines)
-    for i in range(general + 1, len(lines)):
-        if re.match(r"^\[[^\]]+\]\s*$", lines[i]):
-            end = i
-            break
-    for key, value in GUNSHIP_GENERAL_KEYS:
-        found = False
-        for i in range(general + 1, end):
-            if re.match(r"^%s\s*=" % re.escape(key), lines[i], re.I):
-                eol = "\r\n" if lines[i].endswith("\r\n") else "\n"
-                lines[i] = "%s=%s%s" % (key, value, eol)
-                found = True
-                break
-        if not found:
-            lines.insert(general + 1, "%s=%s\r\n" % (key, value))
-            general += 1
-            end += 1
     return True
 
 

@@ -1224,7 +1224,47 @@ INFO vera20k_core::rules::ruleset::loading] SuperWeaponTypes: 12 loaded
      但触发器只能按**国家**定位房子（`resolve_trigger_house` 用 `CountryIdx`），
      所以需要固定玩家用哪个国家。
 
-### 17.8 全图核弹改走「核弹炮艇」：`Type=SpyPlane` + 自定义机型（3.9.4）
+### 17.9 核弹炮艇改成玩家可造（3.9.5）——`Type=SpyPlane` 这条路走不通
+
+3.9.4 用 `Type=SpyPlane` + `SpyPlane.Type/Count/Mission` 让飞机横穿地图，实测三个问题：
+
+| 现象 | 原因 |
+| --- | --- |
+| 飞机被防空打掉 | `Strength=800` 就是普通飞机血量 |
+| **不投弹** | `Type=SpyPlane` 强制 `Mission_SpyplaneApproach` / `Overfly`，**这两个 mission 不看武器** |
+| 航线不对 | spy plane 航路引擎写死（边缘进场→过目标→离场），`SpyPlane.*` 改不了 |
+
+**结论**：`Type=SpyPlane` 天生"只拍照不开火"，不能当炮艇。
+
+3.9.5 改成**普通可造单位**：
+
+```ini
+[AircraftTypes]
+13=ZAINukePlane
+
+[ZAINukePlane]
+Spawned=no            ; 玩家可造（不再是超武生成）
+Selectable=yes
+TechLevel=1
+Prerequisite=GAAIRC   ; 空指部
+Cost=1500
+Strength=100000       ; 打不死
+Insignificant=yes     ; AI 的防空不把它当目标
+Primary=ZAINukeBomb
+Ammo=100
+Fighter=no
+AirportBound=no       ; 不需要停机位，不会因机场满而坠毁
+```
+
+同时删掉 `[ZAIWorldNuke]`（`Type=SpyPlane`）和 `[General] SpyPlane.*` 三个全局覆盖
+（它们会改到所有侦察机，包括电脑的）。
+
+**玩家可操控 = 航线自己定**；`Warhead=NUKE` 不变，所以电脑的核弹依旧不受影响。
+`assert_nuke_gunship` 现在检查：可造（`Spawned=no`/`Selectable=yes`/`TechLevel>=1`/有前置）、
+打不死（`Strength>=10000`）、不被瞄（`Insignificant=yes`）、弹头是 `NUKE`、
+**不进任何 TaskForce**、且 `[General]` 里没有 `SpyPlane.*` 残留。
+
+### 17.8 全图核弹改走「核弹炮艇」：`Type=SpyPlane` + 自定义机型（3.9.4，已废弃）
 
 3.9.2/3.9.3 试过的三种"一次撒满全图"全部失败（`MultiMissile` + `Range`/`LineMultiplier`、
 `Type=Battery` + `SW.MaxCount`、`MultiMissile` + `SW.MaxCount`），实测都是一发普通核弹。

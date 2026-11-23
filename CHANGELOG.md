@@ -2,6 +2,25 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## 3.9.5 — 核弹炮艇改成玩家可造（`Type=SpyPlane` 走不通）
+
+3.9.4 的 spy-plane 方案实测三个问题：**被防空打掉**（`Strength=800`）、**不投弹**
+（`Mission_SpyplaneApproach`/`Overfly` 不看武器）、**航线不对**（航路引擎写死）。
+
+改成普通可造单位：
+
+- `[ZAINukePlane]`：`Spawned=no`、`Selectable=yes`、`TechLevel=1`、`Prerequisite=GAAIRC`、
+  `Cost=1500`、`Strength=100000`（打不死）、`Insignificant=yes`（防空不瞄）、`Ammo=100`、
+  `Fighter=no`、`AirportBound=no`（不需要停机位）；
+- 武器 `[ZAINukeBomb]` 不变：`Damage=600 / ROF=45 / Range=25 / Warhead=NUKE`；
+- **删除** `[ZAIWorldNuke]`（`Type=SpyPlane`）与 `[General] SpyPlane.Type/Count/Mission`
+  三个全局覆盖（会改到所有侦察机，包括电脑的）。
+
+玩家自己造、自己指挥航线，因此"打不掉 / 会投弹 / 路径自己定"三个问题一次解决。
+`assert_nuke_gunship` 检查：可造、打不死、不被瞄、弹头是 `NUKE`、不进任何 TaskForce、
+无 `SpyPlane.*` 残留；实测 `Spawned=yes`、`Strength=800`、`Insignificant=no`、`TechLevel=-1`、
+spy-plane 残留五种退化全部被拦。
+
 ## 3.9.4 — 全图核弹改走「核弹炮艇」：`Type=SpyPlane` + 自定义机型
 
 3.9.2/3.9.3 的三种"一次撒满全图"全部失败（`MultiMissile`+`Range`/`LineMultiplier`、
