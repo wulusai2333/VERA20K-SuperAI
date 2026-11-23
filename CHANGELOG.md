@@ -2,6 +2,26 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## 3.11.2 — 试「武器级」散布：把 BallisticScatter.Min/Max 写进弹丸段（公共表回零售）
+
+先纠正一个常见误解（我按二进制字段表逐条核对）：
+
+- `Inaccurate` / `FlakScatter` 确实是**抛射体**键，但只是**开关**，不提供半径；
+- **半径**只在 `[CombatDamage] BallisticScatter`（全局，单位格）；
+- `Airburst` 是 **VoxelAnimType** 的键（和 `AnimLow/AnimHigh/Degenerates` 同列），**不是**抛射体键；
+- `Cluster` / `ShrapnelCount` 确实在抛射体字段表里。
+
+本版做一次**武器级**散布实验，并把公共表全部还原：
+
+- `[CombatDamage] BallisticScatter` 回 **1.0**、`HomingScatter` 回 2.0；
+- 零售 `[FlakProj]`/`[FlakTProj]` 恢复 `FlakScatter=yes`/`Inaccurate=yes`；
+- 只在 `[ZAINukeRifleProj]` 里加 `BallisticScatter.Min=50` / `BallisticScatter.Max=200`。
+
+守卫：公共表回到"必须等于零售值"的严格检查；`[ZAINukeRifleProj]` 必须带这两个键（≥50）。
+
+若实测无效（落点仍聚在一起），说明 VERA 只认全局值，下一版回到
+"全局 200 + 关掉零售高炮散布"的受控方案（3.11.1 的做法，效果等价）。
+
 ## 3.11.1 — 第二艘飞艇的散布：走 `[CombatDamage]`（全局唯一段）+ 关掉零售高炮的散布
 
 `[CombatDamage]` **没有"按单位一份"这种东西** —— 引擎只读一个全局段。所以：

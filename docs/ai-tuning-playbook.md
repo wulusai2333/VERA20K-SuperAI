@@ -1242,6 +1242,22 @@ INFO vera20k_core::rules::ruleset::loading] SuperWeaponTypes: 12 loaded
 | 弹丸 | `ZAINukeMissileProj`（AA+AG 追踪弹） | `ZAINukeRifleProj`（弹道弹：`Arcing`+`Ranged`+`Inaccurate`+`FlakScatter`，无 `Arm`/`ROT`） |
 | 弹头 | `[NUKE]`（零售，未改） | `ZAINukeWH`（3 星无畏 `[DMISLEWH]` 克隆：`CellSpread=3`、`MININUKE`、弹头级 `BallisticScatter=200`） |
 
+**方法论：先查二进制字段表，再信"某个键能不能按单位生效"**（3.11.2）：
+
+| 键 | 实际归属（二进制字段表） | 结论 |
+| --- | --- | --- |
+| `Inaccurate` / `FlakScatter` | **Projectile** | 真的按弹丸生效，但只是**开关**，半径不在这里 |
+| `BallisticScatter`（单值） | **`[CombatDamage]`** | 全局散布半径（格），改它会影响所有弹道/高炮 |
+| `BallisticScatter.Min/.Max` | 与全局散布键同族，**未证实**抛射体段会读 | 已作为实验写进 `[ZAINukeRifleProj]` |
+| `Airburst` | **VoxelAnimType**（与 `AnimLow/AnimHigh/Degenerates` 同列） | **不是**抛射体键，写上去无效 |
+| `AirburstWeapon` / `ShrapnelWeapon` | 另一张表（非抛射体） | 同上 |
+| `Cluster` / `ShrapnelCount` | **Projectile** | 这两个才是真的抛射体级"多发/子母弹"键 |
+
+所以"某教程说把散布半径写在抛射体段里"是**错的** —— 半径只在 `[CombatDamage]`，
+抛射体只能决定"要不要散"。3.11.2 用 `BallisticScatter.Min/Max=50/200` 做了一次
+**武器级**散布实验（公共表保持零售 1.0、零售高炮弹丸未改）：生效则拿到干净的武器专属方案，
+无效则回到全局方案。
+
 **`[CombatDamage]` 是全局唯一段，不能"给某个单位单独来一份"**（3.11.1）：
 
 ```ini
