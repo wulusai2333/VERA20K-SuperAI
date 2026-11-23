@@ -2,6 +2,26 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## 3.9.9 — 空投实测：`ParaDrop.Types` 不生效，改走 `DropPod`
+
+3.9.7 的 `[General] ParaDrop.Aircraft/Types/Num` 实测**投出来的是普通伞兵**（盟军 `E1`），
+而且运输机是零售 `PDPLANE`，被防空打掉。
+
+原因：VERA 的 paradrop 只保留**按阵营的步兵列表**
+（`GeneralTypeLists { paradrop_infantry: [...] }`，键 `*ParaDropInf`），`ParaDrop.Types` 未被使用。
+
+改走 `Type=DropPod`（类型表里有 `DropPod`、有 `sim/superweapon/drop_pod.rs` 实现、
+有 `AresDropPodRules` 结构体、有 `[General] DropPod.Types` 键，零售本身也有
+`DropPodWeapon/Height/Speed/Angle` 配置）：
+
+```ini
+[General] DropPod.Types=ZAINukeGunship   MinimumDropPod=1   MaximumDropPod=1
+[ZAIWorldNuke] Type=DropPod  Action=DropPod  RechargeTime=0.01
+               SW.AlwaysGranted=yes  SW.AllowAI=no  SW.RequiresTarget=yes
+```
+
+**不再有运输机** → 被防空打掉的问题消失。`ParaDrop.*` 必须删干净，守卫会检查残留。
+
 ## 3.9.8 — 飞艇自动开火、200 格射程、依次连投
 
 之前只改武器 `Range` 是不够的 —— 二进制里这几个键各管一段：

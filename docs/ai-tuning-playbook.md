@@ -1224,7 +1224,39 @@ INFO vera20k_core::rules::ruleset::loading] SuperWeaponTypes: 12 loaded
      但触发器只能按**国家**定位房子（`resolve_trigger_house` 用 `CountryIdx`），
      所以需要固定玩家用哪个国家。
 
-### 17.11 空投投送：`ParaDrop.Types` 能投载具（3.9.7）
+### 17.12 空投实测：`ParaDrop.Types` **不生效**，改走 `DropPod`（3.9.9）
+
+3.9.7 用 `[General] ParaDrop.Aircraft/Types/Num` 想把飞艇空投下来，实测**投出来的是普通伞兵**，
+而且运输机是零售的 `PDPLANE`（血薄，被防空打掉）。
+
+**原因**：VERA 的 paradrop 只保留**按阵营的步兵列表** ——
+`GeneralTypeLists { paradrop_infantry: [Vec<String>; 4] }`
+（键 `AmerParaDropInf / AllyParaDropInf / SovParaDropInf / YuriParaDropInf`），
+`ParaDrop.Types` 根本没有被使用，于是回退到 `AllyParaDropInf=E1`。
+
+**改走 `Type=DropPod`**（证据齐全）：
+
+- 超武类型表里有 `DropPod`；
+- 有真实实现模块 `src\sim\superweapon\drop_pod.rs`；
+- 有 `AresDropPodRules` 结构体；
+- 有 `[General] DropPod.Types` 键，零售本身也有 `DropPodWeapon / DropPodHeight /
+  DropPodSpeed / DropPodAngle / DropPod=DROPPOD,DROPPOD2` 这套配置。
+
+```ini
+[General]
+DropPod.Types=ZAINukeGunship
+MinimumDropPod=1
+MaximumDropPod=1
+
+[ZAIWorldNuke]
+Type=DropPod   Action=DropPod
+RechargeTime=0.01  SW.AlwaysGranted=yes  SW.AllowAI=no  SW.RequiresTarget=yes
+```
+
+- **不再有运输机** → "运输机被防空打掉"这个问题消失；
+- `ParaDrop.*` 三个键必须删干净（残留会退回步兵列表），守卫会检查。
+
+### 17.11 空投投送：`ParaDrop.Types` 能投载具（3.9.7，实测不成立）
 
 我一开始判断"地图/超武没法把单位送给玩家"，是因为只看了零售的
 `[General] AmerParaDropInf / AllyParaDropInf / SovParaDropInf / YuriParaDropInf`

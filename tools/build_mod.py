@@ -645,15 +645,21 @@ GUNSHIP_PROJECTILE = "ZAINukeMissileProj"
 #: only ever affect the player.
 GUNSHIP_SW = "ZAIWorldNuke"
 GUNSHIP_GENERAL_KEYS = (
-    ("ParaDrop.Aircraft", "PDPLANE"),
-    ("ParaDrop.Types", GUNSHIP_UNIT),
-    ("ParaDrop.Num", "1"),
+    # VERA's paradrop stores per-side INFANTRY lists only (GeneralTypeLists
+    # paradrop_infantry), so `ParaDrop.Types` is ignored and the drop falls back
+    # to AllyParaDropInf -- that is why a vehicle paradrop delivered riflemen.
+    # DropPod has a real module (sim/superweapon/drop_pod.rs) plus a
+    # [General] DropPod.Types key, and it drops a pod from the sky instead of
+    # flying a thin cargo plane into the player's anti-air.
+    ("DropPod.Types", GUNSHIP_UNIT),
+    ("MinimumDropPod", "1"),
+    ("MaximumDropPod", "1"),
 )
 GUNSHIP_SW_FIELDS = (
     ("UIName", "Name:Para"),
-    ("Name", "N U K E !!! (airdrop)"),
-    ("Type", "ParaDrop"),
-    ("Action", "ParaDrop"),
+    ("Name", "N U K E !!! (drop pod)"),
+    ("Type", "DropPod"),
+    ("Action", "DropPod"),
     ("SidebarImage", "PARAICON"),
     ("ShowTimer", "no"),
     ("RechargeTime", "0.01"),
@@ -841,7 +847,8 @@ def apply_nuke_gunship(lines):
     _replace_section(lines, GUNSHIP_SW, sw)
     _append_registry(lines, "SuperWeaponTypes", GUNSHIP_SW)
 
-    # [General] keys: set or insert.
+    # Drop any leftover ParaDrop.* overrides: they make the engine fall back to
+    # the per-side infantry list, which is the bug this replaces.
     general = None
     for i, line in enumerate(lines):
         if re.match(r"^\[General\]\s*$", line):
@@ -849,6 +856,18 @@ def apply_nuke_gunship(lines):
             break
     if general is None:
         raise SystemExit("[General] not found")
+    end = len(lines)
+    for i in range(general + 1, len(lines)):
+        if re.match(r"^\[[^\]]+\]\s*$", lines[i]):
+            end = i
+            break
+    i = general + 1
+    while i < end:
+        if re.match(r"^ParaDrop\.", lines[i], re.I):
+            del lines[i]
+            end -= 1
+            continue
+        i += 1
     for key, value in GUNSHIP_GENERAL_KEYS:
         end = len(lines)
         for i in range(general + 1, len(lines)):
@@ -967,21 +986,17 @@ def assert_nuke_gunship(rules_lines, aimd_lines):
     # Airdrop delivery: ParaDrop.Types is what makes a vehicle droppable; the
     # retail *ParaDropInf lists only ever carry infantry.
     general = values("General")
-    if general.get("paradrop.types", "").strip() != GUNSHIP_UNIT:
-        problems.append("[General] ParaDrop.Types=%r (want %s)"
-                        % (general.get("paradrop.types", "<missing>"), GUNSHIP_UNIT))
-    if not general.get("paradrop.aircraft", "").strip():
-        problems.append("[General] ParaDrop.Aircraft is missing")
-    try:
-        drop_num = int(float(general.get("paradrop.num", "0")))
-    except ValueError:
-        drop_num = 0
-    if drop_num < 1:
-        problems.append("[General] ParaDrop.Num=%r (want at least 1)"
-                        % general.get("paradrop.num"))
+    droppod = general.get("droppod.types", "")
+    if GUNSHIP_UNIT not in [part.strip() for part in droppod.split(",")]:
+        problems.append("[General] DropPod.Types=%r (want %s)"
+                        % (droppod or "<missing>", GUNSHIP_UNIT))
+    stale = [key for key in general if key.startswith("paradrop.")]
+    if stale:
+        problems.append("[General] still has " + ", ".join(stale)
+                        + "; the engine then drops the per-side infantry list")
     sw = values(GUNSHIP_SW)
-    if sw.get("type", "").strip() != "ParaDrop":
-        problems.append("[%s] Type=%r (want ParaDrop)" % (GUNSHIP_SW, sw.get("type")))
+    if sw.get("type", "").strip() != "DropPod":
+        problems.append("[%s] Type=%r (want DropPod)" % (GUNSHIP_SW, sw.get("type")))
     if sw.get("sw.allowai", "").lower() != "no":
         problems.append("[%s] SW.AllowAI=%r (the computer must not drop it)"
                         % (GUNSHIP_SW, sw.get("sw.allowai")))
