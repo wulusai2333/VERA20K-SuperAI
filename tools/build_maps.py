@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import collections
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -60,215 +61,211 @@ def cmd_ice(args):
 
 
 #: Ice Lake ground tile (snow theater): tile, sub, height.  Seven of the eight
-#: retail start cells stand on exactly this, so it is proven walkable and
-#: buildable -- filling the new ground with it cannot introduce a cliff.
-ICE_GROUND = (696, 0, 1)
+#: retail computer start cells stand on exactly this, so it is proven walkable.
+ICE_GROUND_TILE = 696
+ICE_GROUND_HEIGHT = 1
 
-#: Canvas for the 120-player version.  504x512 is the size the proven
-#: SuperAI-Flat120 map uses for 120 starts (515584 cells).
-ICE120_SIZE = (504, 512)
-ICE120_LOCAL = (2, 5, 500, 500)
-
-#: `[Header]` values for that canvas, copied from the proven Flat120 map.
-#: Width/Height are the playfield dimensions the minimap uses; StartX/StartY is
-#: the camera start.  They are not derivable from Size alone (Flat120 uses
-#: 499x500 for a 504x512 map), so the known-good numbers are pinned here.
-ICE120_HEADER = {"Width": 499, "Height": 500, "StartX": 6, "StartY": 258}
-
-#: Where the original lake block lands: a rigid translation of every IceLake
-#: cell.  ``dx=12, dy=328`` is equivalent to ``dh=-316, dv=+340``, which puts the
-#: block (h [-179,179], v [181,420]) at h [-495,-137], v [521,760] -- the
-#: upper-left of the playfield (which is h in (-500,500], v in (518,1520]).
-ICE_GRAFT = (12, 328)
-
-#: AI start lattice: rows of ``v`` with points spread along ``h``, all of it
-#: below/right of the lake block so the player keeps the corner to himself.
-ICE120_AI_V = (770, 1520)
-ICE120_STEP_H = 48
-ICE120_STEP_V = 56
-ICE120_MIN_SPACING = 40
+#: ICE120_COLS/ROWS/SNAP_RADIUS belonged to the abandoned grid layout; the
+#: sampler below needs neither.  ``CORNER_DROP`` samples a few extra points and
+#: throws away the ones nearest the player, so the corner stays his alone.
+ICE120_CORNER_DROP = 4
+ICE120_MIN_SPACING = 10
 
 
-def section_list(text):
-    """Section names in file order."""
-    return [m.group(1).strip() for m in re.finditer(r"(?m)^\[([^\]]+)\]", text)]
+def rebuild_header(text, waypoints):
+    """Rewrite ``[Header]`` so its start list matches ``[Waypoints]``.
 
-
-def rebuild_header(waypoints, starting_points):
-    """``[Header]`` for the 120 canvas, with ``WaypointN`` for every start.
-
-    The header keeps its own coordinate space: half-tile of the diamond axes,
-    ``((x-y+512)/2, (x+y+1)/2)``.  That formula reproduces all eight starts of
-    both Ice Lake maps exactly and 119 of Flat120's 120 (one rounding edge), so
-    it is the engine's own conversion rather than a guess.
+    The header keeps its own coordinate space -- half a tile of the diamond
+    axes, ``((x-y+512)/2, (x+y+1)/2)``.  That formula reproduces all eight
+    starts of both Ice Lake maps exactly (and 119 of Flat120's 120, one
+    rounding edge), so it is the engine's own conversion, not a guess.
+    ``NumberStartingPoints`` and the ``Width``/``Height``/``StartX``/``StartY``
+    of the source are kept.
     """
-    lines = ["[Header]"]
-    for key in ("Width", "Height", "StartX", "StartY"):
-        lines.append("%s=%d" % (key, ICE120_HEADER[key]))
+    body = vm.section_body(text, "Header")
+    kept = [line for line in body.splitlines()
+            if line.strip() and not re.match(r"(?i)^(Waypoint\d+|NumberStartingPoints)=",
+                                             line.strip())]
+    lines = ["[Header]"] + kept
     for index, (x, y) in enumerate(waypoints, start=1):
         lines.append("Waypoint%d=%d,%d"
                      % (index, ((x - y) + 512) // 2, ((x + y) + 1) // 2))
-    lines.append("NumberStartingPoints=%d" % starting_points)
-    return "\r\n".join(lines) + "\r\n\r\n"
+    lines.append("NumberStartingPoints=%d" % len(waypoints))
+    span = vm.section_span(text, "Header")
+    return text[:span[0]] + "\r\n".join(lines) + "\r\n\r\n" + text[span[1]:]
 
 
-def cmd_ice120(args):
-    """120-player Ice Lake: player alone in the upper-left, 119 AI lower-right.
-
-    Ice Lake's terrain is only 43080 cells (a playfield of roughly 359x240
-    screen cells); 119 computer bases cannot fit in it.  So the lake is used as
-    *material*: a 504x512 ice canvas is generated, the original lake block is
-    translated into the upper-left corner for the player, and the new ice in the
-    lower-right holds the 119 computer starts.
-    """
-    src = vm.read_text(args.src)
-    width, height = ICE120_SIZE
-    tile, sub, level = ICE_GROUND
-    dx, dy = ICE_GRAFT
-
-    # 1. Canvas: every cell of a 504x512 diamond, filled with the lake's ground.
-    canvas = {cell: [tile, sub, level, 0]
-              for cell in vm.diamond_cells(width, height)}
-
-    # 2. Graft the original lake into the upper-left.
-    ice = vm.decode_terrain(src)
-    grafted = 0
-    graft_cells = []
-    for x, y, t, s, z, legacy in ice:
-        key = (x + dx, y + dy)
-        if key not in canvas:
-            raise SystemExit("grafted lake cell %s falls outside the canvas" % (key,))
-        canvas[key] = [t, s, z, legacy]
-        graft_cells.append(key)
-        grafted += 1
-    if grafted != len(ice):
-        raise SystemExit("grafted %d of %d lake cells" % (grafted, len(ice)))
-
-    # The lake block, in screen space, where it now sits on the canvas.
-    lake_h = [min(x - y for x, y in graft_cells), max(x - y for x, y in graft_cells)]
-    lake_v = [min(x + y for x, y in graft_cells), max(x + y for x, y in graft_cells)]
-
-    # 3. Player start: the retail player cell, moved with the lake.
-    body = vm.section_body(src, "Waypoints")
-    player = None
+def read_waypoints(text):
+    body = vm.section_body(text, "Waypoints")
+    out = {}
     for line in body.splitlines():
         line = line.strip()
-        if line.startswith("0=") and line.split("=", 1)[1].strip().isdigit():
-            player = vm.unpack_cell(int(line.split("=", 1)[1].strip()))
-            break
-    if player is None:
-        raise SystemExit("source map has no waypoint 0")
-    player_cell = (player[0] + dx, player[1] + dy)
-    if player_cell not in canvas:
-        raise SystemExit("player cell %s is outside the canvas" % (player_cell,))
-
-    # 4. 119 computer starts on the ice, below/right of the lake.
-    bounds = (width, height, ICE120_LOCAL[0], ICE120_LOCAL[1],
-              ICE120_LOCAL[2], ICE120_LOCAL[3])
-    h_lo, h_hi = lake_h
-    v_lo, v_hi = lake_v
-
-    def in_lake(h, v):
-        return h_lo <= h <= h_hi and v_lo <= v <= v_hi
-
-    candidates = []
-    for v in range(ICE120_AI_V[0], ICE120_AI_V[1], ICE120_STEP_V):
-        # A cell needs ``x``/``y`` integral, i.e. ``h`` and ``v`` of the same
-        # parity; step in 2-cell strides from a start of the right parity or
-        # every candidate on this row is rejected.
-        start = -width + 1
-        if (start + v) % 2:
-            start += 1
-        for h in range(start, width, 2 * ICE120_STEP_H):
-            if (h + v) % 2:
-                continue
-            x, y = vm.hv_to_cell(h, v)
-            if x < 0 or y < 0 or (x, y) not in canvas:
-                continue
-            if not vm.in_playfield(bounds, x, y):
-                continue
-            if in_lake(h, v):
-                continue
-            candidates.append((x, y))
-    if len(candidates) < args.ai:
-        raise SystemExit(
-            "only %d start candidates for %d computers; widen ICE120_AI_V or "
-            "shrink ICE120_STEP_H" % (len(candidates), args.ai))
-
-    # Spread the picks over the whole candidate set instead of taking the first
-    # N, which would pile every base into the top rows.
-    step = (len(candidates) - 1) / float(args.ai - 1)
-    picks, used = [], set()
-    for index in range(args.ai):
-        point = candidates[int(round(index * step))]
-        if point in used:
-            point = next(p for p in candidates if p not in used)
-        used.add(point)
-        picks.append(point)
-
-    waypoints = [player_cell] + picks
-    if len(waypoints) != args.players:
-        raise SystemExit("%d waypoints for %d slots" % (len(waypoints), args.players))
-
-    # 5. Assemble a minimal map: exactly the sections the engine needs.
-    keep = ("Header", "Basic", "Map", "Lighting")
-    parts = [rebuild_header(waypoints, len(waypoints))]
-    for name in keep:
-        if name == "Header":
+        if "=" not in line or line.startswith(";"):
             continue
-        if not vm.has_section(src, name):
-            raise SystemExit("source map has no [%s]" % name)
-        parts.append("[%s]\r\n%s\r\n" % (name, vm.section_body(src, name).strip("\r\n")))
+        key, value = line.split("=", 1)
+        if key.isdigit() and value.strip().isdigit():
+            out[int(key)] = vm.unpack_cell(int(value.strip()))
+    return [out[i] for i in sorted(out)]
+def cmd_ice120(args):
+    """Write a 120-slot copy of the Ice Lake map, terrain untouched.
 
-    text = "".join(parts)
-    text = vm.set_value(text, "Name", "Super AI Ice Lake 120 No Ore")
-    text = vm.set_value(text, "Size", "0,0,%d,%d" % (width, height))
-    text = vm.set_value(text, "LocalSize", "%d,%d,%d,%d" % ICE120_LOCAL)
+    Only the start list changes: waypoint 0 (the player) stays exactly where it
+    is in the source -- the upper-right corner of this map -- and the 119
+    computers are laid out on the proven ground in the lower-left.
+
+    Everything else is copied byte for byte: ``[IsoMapPack5]``, ``Size``,
+    ``LocalSize``, ``Theater``, lighting, terrain objects.  ``assert_ice120``
+    checks that afterwards, so "I only moved the starts" is verifiable rather
+    than a promise.
+    """
+    src = vm.read_text(args.src)
+    waypoints = read_waypoints(src)
+    if len(waypoints) < 2:
+        raise SystemExit("source map has only %d waypoints" % len(waypoints))
+    player = waypoints[0]
+    player_h, player_v = vm.cell_to_hv(*player)
+
+    # Cells the retail computer starts stand on: this is the only ground we can
+    # promise is standable, because the stock data puts seven starts on it.
+    ground = [(x, y) for x, y, tile, _sub, z, _legacy in vm.decode_terrain(src)
+              if tile == ICE_GROUND_TILE and z == ICE_GROUND_HEIGHT]
+
+    # Lower-left of the player: smaller h (further left), larger v (further down).
+    region = [(x, y) for x, y in ground
+              if vm.cell_to_hv(x, y)[0] < player_h and vm.cell_to_hv(x, y)[1] > player_v]
+    if not region:
+        raise SystemExit("no walkable ground in the lower-left of the player")
+    hs = [vm.cell_to_hv(x, y)[0] for x, y in region]
+    vs = [vm.cell_to_hv(x, y)[1] for x, y in region]
+    if args.verbose:
+        print("ground cells: %d total, %d in the lower-left" % (len(ground), len(region)))
+        print("lower-left h %d..%d  v %d..%d" % (min(hs), max(hs), min(vs), max(vs)))
+
+    # Even spacing on an irregular region: farthest-point sampling.  Seed with
+    # the ground cell furthest from the player, then repeatedly take the cell
+    # whose nearest chosen neighbour is furthest away.  That adapts to the lake's
+    # patchy ground (a fixed grid left 51 of 132 cells over water) and always
+    # yields exactly the requested count, all of them on proven ground.
+    hv = {cell: vm.cell_to_hv(*cell) for cell in region}
+    wanted = args.ai
+    picks = []
+    if region:
+        seed = max(region, key=lambda c: max(abs(hv[c][0] - player_h),
+                                            abs(hv[c][1] - player_v)))
+        picks.append(seed)
+        chosen = {seed}
+        nearest = {c: max(abs(hv[c][0] - hv[seed][0]), abs(hv[c][1] - hv[seed][1]))
+                   for c in region}
+        target = wanted + ICE120_CORNER_DROP
+        floor = args.spacing or 0
+        while len(picks) < target:
+            candidate, best = None, -1
+            for c in region:                       # list order: deterministic
+                if c in chosen:
+                    continue
+                if nearest[c] > best:
+                    candidate, best = c, nearest[c]
+            if candidate is None or best < floor:
+                break
+            picks.append(candidate)
+            chosen.add(candidate)
+            ch, cv = hv[candidate]
+            for c in region:
+                distance = max(abs(hv[c][0] - ch), abs(hv[c][1] - cv))
+                if distance < nearest[c]:
+                    nearest[c] = distance
+    if len(picks) < wanted:
+        raise SystemExit(
+            "only %d ground cells for %d computers" % (len(picks), wanted))
+
+    # The player keeps his corner: drop the starts closest to him, then number
+    # the rest in a stable order so rebuilds stay byte-identical.
+    picks.sort(key=lambda c: max(abs(hv[c][0] - player_h), abs(hv[c][1] - player_v)))
+    picks = picks[len(picks) - wanted:]
+    picks.sort(key=lambda c: (hv[c][1], hv[c][0]))
+    if args.verbose:
+        # Nearest-neighbour, not all pairs: the all-pairs maximum is just the
+        # region's diagonal and says nothing about how packed the starts are.
+        gaps = sorted(
+            min(max(abs(hv[a][0] - hv[b][0]), abs(hv[a][1] - hv[b][1]))
+                for j, b in enumerate(picks) if j != i)
+            for i, a in enumerate(picks))
+        print("nearest-neighbour spacing: min %d, median %d, max %d"
+              % (gaps[0], gaps[len(gaps) // 2], gaps[-1]))
+
+    all_points = [player] + picks
+    if len(all_points) != args.players:
+        raise SystemExit("%d waypoints for %d slots" % (len(all_points), args.players))
+
+    text = vm.replace_waypoints(src, all_points, newline="\r\n")
+    text = rebuild_header(text, all_points)
+    text = vm.set_value(text, "Name", args.name)
     for key, value in (("MaxPlayer", str(args.players)),
                        ("MaxPlayers", str(args.players)),
-                       ("MinPlayer", "2"), ("MinPlayers", "2"),
-                       ("FreeRadar", "yes"), ("MultiplayerOnly", "1"),
-                       ("GameMode", "standard"),
-                       ("TiberiumGrows", "no"), ("TiberiumSpreads", "no")):
+                       ("MinPlayer", "2"), ("MinPlayers", "2")):
         text = vm.set_value(text, key, value) if vm.get_value(text, key) is not None \
             else vm.ensure_value(text, key, value)
 
-    records = [[x, y, t, s, z, legacy] for (x, y), (t, s, z, legacy)
-               in sorted(canvas.items(), key=lambda kv: (kv[0][1], kv[0][0]))]
-    text += vm.encode_terrain(records, "\r\n") + "\r\n"
-    text += "[Waypoints]\r\n\r\n"
-    text = vm.replace_waypoints(text, waypoints, newline="\r\n")
-    # `add_triggers` anchors on [Waypoints] and refuses to merge blocks, so the
-    # waypoint section has to be in place first.
+    # The stock AIHuntAll only covers slots 1..7.  Keep the same three triggers
+    # but widen All to Hunt to every computer slot, or slots 8+ never leave home.
+    text = vm.drop_sections(text, vm.TRIGGER_SECTIONS, separator="\r\n")
     text = vm.add_triggers(
         text,
-        vm.trigger_block(len(waypoints), reveal=True, iron_curtain=True,
+        vm.trigger_block(len(all_points), reveal=True, iron_curtain=True,
                          hunt=True, newline="\r\n"),
     )
 
-    # 6. Refuse to ship a map whose starts cannot work.
-    if len(records) != len(vm.diamond_cells(width, height)):
-        raise SystemExit("terrain cell count %d != canvas" % len(records))
-    if player_cell == waypoints[0] and not in_lake(*vm.cell_to_hv(*player_cell)):
-        raise SystemExit("player start is not on the grafted lake")
-    for index, (x, y) in enumerate(picks, start=1):
-        if in_lake(*vm.cell_to_hv(x, y)):
-            raise SystemExit("computer start %d sits inside the lake block" % index)
-        if not vm.in_playfield(bounds, x, y):
-            raise SystemExit("computer start %d is outside the playfield" % index)
-    for i in range(len(picks)):
-        for j in range(i + 1, len(picks)):
-            hi, vi = vm.cell_to_hv(*picks[i])
-            hj, vj = vm.cell_to_hv(*picks[j])
-            if abs(hi - hj) < ICE120_MIN_SPACING and abs(vi - vj) < ICE120_MIN_SPACING:
-                raise SystemExit("computer starts %d and %d are too close"
-                                 % (i + 1, j + 1))
-
+    assert_ice120(src, text, all_points, ground, region)
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     vm.write_text(args.out, text)
-    print("written %s (%d cells, %d starts: player %s, %d computers in the "
-          "lower-right, %d bytes)"
-          % (args.out, len(records), len(waypoints), player_cell, len(picks), len(text)))
+    print("written %s (%d starts: player %s upper-right, %d computers lower-left "
+          "on %d ground cells, %d bytes)"
+          % (args.out, len(all_points), player, len(picks), len(region), len(text)))
+
+
+def assert_ice120(src, text, waypoints, ground, region):
+    """Refuse to write anything but "the same map with a new start list"."""
+    for section in ("IsoMapPack5", "Terrain", "Structures", "OverlayPack",
+                    "OverlayDataPack"):
+        if vm.has_section(src, section) != vm.has_section(text, section):
+            raise SystemExit("[%s] appeared or disappeared" % section)
+        if vm.has_section(src, section) and \
+                vm.section_body(src, section) != vm.section_body(text, section):
+            raise SystemExit("[%s] changed; only the start list may move" % section)
+
+    for key in ("Size", "LocalSize", "Theater"):
+        if vm.get_value(src, key) != vm.get_value(text, key):
+            raise SystemExit("%s changed: %r -> %r"
+                             % (key, vm.get_value(src, key), vm.get_value(text, key)))
+
+    if len(waypoints) != 120:
+        raise SystemExit("%d waypoints, expected 120" % len(waypoints))
+    if vm.count_waypoints(text) != len(waypoints):
+        raise SystemExit("waypoint count mismatch")
+    player = waypoints[0]
+    if player != read_waypoints(src)[0]:
+        raise SystemExit("player start moved")
+
+    ground_set, region_set = set(ground), set(region)
+    for index, cell in enumerate(waypoints[1:], start=1):
+        if cell not in ground_set:
+            raise SystemExit("computer start %d is not on proven ground" % index)
+        if cell not in region_set:
+            raise SystemExit("computer start %d is not in the lower-left region" % index)
+    for i in range(1, len(waypoints)):
+        for j in range(i + 1, len(waypoints)):
+            hi, vi = vm.cell_to_hv(*waypoints[i])
+            hj, vj = vm.cell_to_hv(*waypoints[j])
+            if max(abs(hi - hj), abs(vi - vj)) < ICE120_MIN_SPACING:
+                raise SystemExit("starts %d and %d are closer than %d cells"
+                                 % (i, j, ICE120_MIN_SPACING))
+
+    header = vm.section_body(text, "Header")
+    listed = len(re.findall(r"(?m)^Waypoint\d+=", header))
+    declared = vm.get_value(header, "NumberStartingPoints")
+    if listed != len(waypoints) or declared != str(len(waypoints)):
+        raise SystemExit("header lists %s starts, declares %s, expected %d"
+                         % (listed, declared, len(waypoints)))
 
 
 def cmd_flat(args):
@@ -379,11 +376,19 @@ def main():
     ice.set_defaults(func=cmd_ice)
 
     ice120 = sub.add_parser(
-        "ice120", help="120-player Ice Lake: player upper-left, computers lower-right")
-    ice120.add_argument("--src", required=True, help="the 1v7 no-ore map (terrain donor)")
+        "ice120", help="120-slot Ice Lake: player keeps the upper-right, "
+                       "the computers fill the lower-left; terrain untouched")
+    ice120.add_argument("--src", required=True,
+                        help="the 1v7 no-ore map (left untouched)")
     ice120.add_argument("--out", required=True, help="output .yrm")
     ice120.add_argument("--players", type=int, default=120)
     ice120.add_argument("--ai", type=int, default=119, help="computer slots")
+    ice120.add_argument("--spacing", type=int, default=0,
+                        help="minimum cells between computer starts (0 = pack "
+                             "as evenly as the ground allows)")
+    ice120.add_argument("--name", default="Super AI Ice Lake 120 No Ore",
+                        help="map display name")
+    ice120.add_argument("--verbose", action="store_true")
     ice120.set_defaults(func=cmd_ice120)
 
     flat = sub.add_parser("flat", help="build a flat spectator map")

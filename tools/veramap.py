@@ -331,12 +331,8 @@ def uniform_terrain(text: str, tile: int = 418, sub: int = 0, z: int = 4,
 # --------------------------------------------------------- diamond geometry
 #
 # The iso grid is a diamond in (x, y): screen-right is ``h = x - y`` and
-# screen-down is ``v = x + y``.  A 504x512 map therefore holds exactly the cells
-# with ``h`` in [-503, 503], ``v`` in [505, 1528] and ``h``/``v`` of the same
-# parity -- 515584 records, which is what VERA's own generator writes and what
-# ``--probe`` accepts.  Working in (h, v) instead of (x, y) makes "put this
-# block in the upper-left, those starts in the lower-right" a plain 2-D layout
-# problem.
+# screen-down is ``v = x + y``.  Working in (h, v) makes "keep this corner for
+# the player, put the computers over there" a plain 2-D layout problem.
 def hv_to_cell(h: int, v: int):
     """``(h, v)`` -> ``(x, y)``; both sums must share parity to be a cell."""
     if (h + v) % 2 != 0:
@@ -346,24 +342,6 @@ def hv_to_cell(h: int, v: int):
 
 def cell_to_hv(x: int, y: int):
     return x - y, x + y
-
-
-def diamond_cells(width: int, height: int, level: int = 4):
-    """Every cell of a ``width``x``height`` map, as ``(x, y)`` in record order."""
-    h_max = width - 1
-    v_min = width + 1
-    v_max = width + 2 * height
-    cells = []
-    for v in range(v_min, v_max + 1):
-        for h in range(-h_max, h_max + 1):
-            if (h + v) % 2:
-                continue
-            x = (v + h) // 2
-            y = (v - h) // 2
-            if x < 0 or y < 0:
-                continue
-            cells.append((x, y))
-    return cells
 
 
 def resolve_waypoints(layout, spacing: int = 0):
@@ -390,8 +368,8 @@ def replace_waypoints(text: str, cells, newline: str = "\r\n") -> str:
     lines = ["[Waypoints]"]
     for index, (x, y) in enumerate(cells):
         lines.append("%d=%d" % (index, pack_cell(x, y)))
-    body = newline.join(lines) + newline + newline
-    return text[:span[0]] + body + text[span[1]:]
+    body = newline.join(lines) + newline
+    return text[:span[0]] + body + newline + text[span[1]:]
 
 
 # --------------------------------------------------------------- triggers
