@@ -156,8 +156,6 @@ SECTION_KEY_EDITS = {
     # draw.  The number of defence nodes is untouched (*BaseDefenseCounts stays
     # at retail 25/20/6), so the build intensity the user asked to keep does not
     # change -- only which building gets chosen inside those nodes.
-    "NASAM": {"AntiInfantryValue": "25", "AntiArmorValue": "10"},
-    "NAFLAK": {"AntiInfantryValue": "25", "AntiArmorValue": "10"},
 }
 
 #: Comment written beside a rewritten key, replacing the retail one.  Retail's
@@ -2382,17 +2380,24 @@ def assert_superweapon_teams_intact(aimd_lines):
 
 
 def assert_aa_defenses_competitive(rules_lines):
-    """Every anti-air defence must be a candidate in all three categories.
+    """Anti-air buildings must stay reachable, but on retail numbers.
 
-    ``DefenseChoice::candidates`` only offers a building for a category when its
-    value for that category is above zero, and the category is chosen before the
-    building.  Retail's ``0/0/25`` shape therefore leaves the Allied and Soviet
-    AA guns reachable only through the air category -- which almost never wins
-    between computer houses.  The build would look perfectly healthy while the
-    AI quietly stopped building AA, so check the shape explicitly.
+    ``DefenseChoice::candidates`` only offers a building for a category whose value
+    is above zero, and the category is picked before the building.  Retail's
+    ``0/0/25`` shape therefore leaves the Allied and Soviet AA guns reachable only
+    through the air category -- which rarely wins between computer houses, because
+    the category is decided by the enemy's cost share per category (plus a 3000
+    floor) against the AI's own coverage.
+
+    That is engine behaviour, not a tuning knob: the earlier build faked it by
+    giving the two guns ground values, which made the AI buy AA for ground threats.
+    Since 3.11.6 the values are back to retail, and this check keeps them there
+    while still asserting the one thing that has to hold -- ``AntiAirValue`` above
+    zero, or the building could never be a candidate at all.
     """
     aa = ("NASAM", "NAFLAK", "YAGGUN")
     keys = ("AntiInfantryValue", "AntiArmorValue", "AntiAirValue")
+    retail_ground = {"NASAM": (0, 0), "NAFLAK": (0, 0), "YAGGUN": (25, 10)}
     section = None
     found = {}
     for line in rules_lines:
@@ -2415,14 +2420,19 @@ def assert_aa_defenses_competitive(rules_lines):
         missing = [key for key in keys if key not in values]
         if missing:
             raise SystemExit("[%s] has no %s" % (name, ", ".join(missing)))
-        zero = [key for key in keys if values[key] <= 0]
-        if zero:
+        if values["AntiAirValue"] <= 0:
             raise SystemExit(
-                "[%s] has %s at zero; the defence picker only offers a building "
-                "for a category whose value is above zero, so this AA gun would "
-                "be reachable only through the categories it scores in"
-                % (name, ", ".join(zero)))
-    return found
+                "[%s] AntiAirValue=%d; with zero the defence picker can never offer "
+                "it for the air category, so the AI would never build it at all"
+                % (name, values["AntiAirValue"]))
+        want_inf, want_arm = retail_ground[name]
+        if (values["AntiInfantryValue"], values["AntiArmorValue"]) != (want_inf, want_arm):
+            raise SystemExit(
+                "[%s] ground values are %d/%d, expected the retail %d/%d; giving an "
+                "AA gun ground values makes the AI buy it for ground threats it "
+                "cannot shoot"
+                % (name, values["AntiInfantryValue"], values["AntiArmorValue"],
+                   want_inf, want_arm))
 
 
 def boost_air_and_aa(doc):

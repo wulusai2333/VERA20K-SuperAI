@@ -27,9 +27,6 @@ RETAIL_VALUE_EDITS = {
         "teamdelays", "totalaiteamcap", "usemindefenserule",
     },
     "AI": {"airstriplimit", "airstripratio", "paranoid"},
-    # Unit-level numbers on retail defences (registered, and flagged in the docs).
-    "NASAM": {"antiarmorvalue", "antiinfantryvalue"},
-    "NAFLAK": {"antiarmorvalue", "antiinfantryvalue"},
     "GADEPT": {"aibuildthis"},
     "NADEPT": {"aibuildthis"},
     "YADEPT": {"aibuildthis"},

@@ -70,7 +70,12 @@
 
 > 机器可读版本在 `tools/check_retail.py` 的 `RETAIL_VALUE_EDITS` / `RETAIL_KEY_ADDITIONS`
 > 两张白名单里；**构建会强制校验**，任何未登记的原版改动都会让构建失败。
-> 当前实测：**22 个键被改值（7 个段）、67 个键被追加、10 个新增段、0 个删除**。
+> 当前实测：**18 个键被改值（5 个段）、67 个键被追加、10 个新增段、0 个删除**。
+
+> 3.11.6 起 `[NASAM]` / `[NAFLAK]` **已还原为零售的 `0/0/25`**（原先给它们加地面分数，
+> 只是让 AI 拿打不到地面的房子去应付地面威胁）。AI 的防空数量因此回落到零售水平 ——
+> 这是"让引擎按设计工作"的代价，不是 bug：类别选择由**敌方三类造价份额**（各加 3000 底盘、
+> 再按 `AIForcePredictionFudge` 浮动）决定，配置单方面扭不动它。
 
 > 这张表是**唯一允许出现"改原版"的地方**。以后任何新的原版改动都必须先登记在此，
 > 否则视为越界。
@@ -81,8 +86,9 @@
 | --- | --- | --- |
 | `[General]` | 12 个键（`BuildSpeed`、`TeamDelays`、`MultiplayerAICM`、`AISlaveMinerNumber`、`AirstripLimit/Ratio` 等） | AI 调优 |
 | `[AI]` | 3 个键（`AirstripRatio`、`AirstripLimit`、`Paranoid`） | AI 调优 |
-| `[NASAM]` / `[NAFLAK]` | 各 2 键（`AntiInfantryValue` / `AntiArmorValue`） | **改原版单位数值** |
-| `[GADEPT]` / `[NADEPT]` / `[YADEPT]` | 各 1 键（`AIBuildThis`） | **改原版单位数值** |
+| `[GADEPT]` / `[NADEPT]` / `[YADEPT]` | 各 1 键（`AIBuildThis`） | **改原版单位数值**（保留，用户确认需要） |
+
+（`[NASAM]` / `[NAFLAK]` 的 4 个键已于 **3.11.6 还原**，不再出现在本表。）
 
 **给原版段追加键（12 个段，只加不改）**：
 `[General] AINearestEnemy`；`[GACNST]/[NACNST]/[YACNST] SpySat`；
