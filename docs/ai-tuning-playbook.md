@@ -1271,6 +1271,21 @@ YuriParaDropInf=ZAINukeTrooper  YuriParaDropNum=1
 | 武器/节奏像火箭飞行兵 | `[ZAINukeRifle]` 克隆天启副武器 `[MammothTusk]` | `ROF=80`、`Burst=2`、`Range=200`、`Speed=20` |
 | 弹道要飘、落点要随机 | `[Weapon] Inaccurate=yes` + `[Projectile] FlakScatter=yes` + `ROT=10` | 不吸附目标点 + 落点随机 + 慢转向 |
 
+**追踪弹永远不会撒（3.10.3 实测）**：`FlakScatter` 只对**非追踪弹**（`Ranged=yes`、无 `Arm`/`ROT`）
+生效；追踪弹最后一定会咬住目标点，所以 `HomingScatter` 调到 200 也照样精确命中。
+要真撒，弹丸必须写成零售高炮那种弹道弹：
+
+```ini
+[ZAINukeRifleProj]       ; 参考 [FlakTProj]
+Image=DRAGON   Arcing=true   Ranged=yes
+Inaccurate=yes   FlakScatter=yes   AA=yes  AG=yes
+; 不能有 Arm= / ROT=  （追踪会抵消散布）
+```
+
+散布半径来自 `[CombatDamage] BallisticScatter`（格）。它是**全局**的，AI 高炮的
+`[FlakProj]`/`[FlakTProj]` 也吃 —— 所以把这两枚零售弹丸的 `FlakScatter`/`Inaccurate`
+关掉（`no`），AI 防空只会变准、不会一起乱撒。
+
 **散布的正确键（3.10.2，零售注释直接写着）**：
 
 ```ini

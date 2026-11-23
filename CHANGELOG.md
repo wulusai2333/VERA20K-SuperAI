@@ -2,6 +2,24 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## 3.10.3 — 弹丸改成高炮式弹道弹，散布才真的生效
+
+实测发现：**追踪弹永远不会撒** —— `FlakScatter` 只对非追踪弹生效，追踪弹最后一定咬住目标点，
+所以 `HomingScatter=200` 也照样精确命中。
+
+- `[ZAINukeRifleProj]` 改成参照零售 `[FlakTProj]` 的弹道弹：`Arcing=true`、`Ranged=yes`、
+  `Inaccurate=yes`、`FlakScatter=yes`、`AA=yes/AG=yes`，**去掉 `Arm`/`ROT`**（追踪会抵消散布）；
+- `[CombatDamage] BallisticScatter` 1.0 → **200**（格），`HomingScatter` 保持 200；
+- 为不让 AI 高炮一起乱撒，把零售 `[FlakProj]`/`[FlakTProj]` 的 `FlakScatter`/`Inaccurate` 改为 `no`
+  （它们只是变准，不会变弱）；
+- 新增 `[ZAINukeWH]`（`[NUKE]` 克隆 + 弹头级 `BallisticScatter=200`），武器 `Warhead=ZAINukeWH`，
+  `[NUKE]` 本身仍未被改动；
+- 顺带修掉构建脚本的一个真 bug：**段头带注释**（`[FlakProj]	; ...`）时正则匹配不到，
+  导致改不到这些段 —— 现在段头正则允许尾随注释。
+
+守卫新增：`BallisticScatter>=100`、零售高炮弹丸必须 `FlakScatter=no`+`Inaccurate=no`、
+弹丸不得有 `Arm`/`ROT`、武器必须用 `[ZAINukeWH]`；三种退化实测被拦。
+
 ## 3.10.2 — 散布拉满：`[CombatDamage] HomingScatter=200`（格）
 
 零售注释写明了这两个键的位置和单位：

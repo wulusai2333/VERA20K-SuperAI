@@ -368,7 +368,7 @@ def read_ini_value(lines, section, key):
     """The value of ``key`` inside ``section`` as written, comment stripped."""
     current = None
     for line in lines:
-        header = re.match(r"^\[([^\]]+)\]\s*$", line)
+        header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
         if header:
             current = header.group(1).strip()
             continue
@@ -430,7 +430,7 @@ def apply_section_key_edits(lines):
     remaining = {name: dict(edits) for name, edits in SECTION_KEY_EDITS.items()}
     section = None
     for i, line in enumerate(lines):
-        header = re.match(r"^\[([^\]]+)\]\s*$", line)
+        header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
         if header:
             section = header.group(1).strip()
             continue
@@ -514,7 +514,7 @@ def apply_player_nuke(lines, name=PLAYER_NUKE_SECTION, fields=None):
     # Drop an old copy of the section.
     out, skip = [], False
     for line in lines:
-        header = re.match(r"^\[([^\]]+)\]\s*$", line)
+        header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
         if header:
             skip = header.group(1).strip() == name
         if not skip:
@@ -566,7 +566,7 @@ def assert_player_nuke_section(rules_lines):
     """The player's nuke must be its own type, and the AI's must be untouched."""
     sections, current = {}, None
     for line in rules_lines:
-        header = re.match(r"^\[([^\]]+)\]\s*$", line)
+        header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
         if header:
             current = header.group(1).strip()
             sections.setdefault(current, [])
@@ -797,6 +797,7 @@ TROOPER_INF_FIELDS = (
     ("OpportunityFire", "yes"),
 )
 TROOPER_PROJECTILE = "ZAINukeRifleProj"
+TROOPER_WARHEAD = "ZAINukeWH"
 TROOPER_WEAPON_FIELDS = (
     # Clone of the Apocalypse's [MammothTusk] missile: ROF 80 is the slow cadence
     # the Rocketeer's 20mm (ROF 30) lacked, and Burst 2 is what that missile has.
@@ -808,50 +809,61 @@ TROOPER_WEAPON_FIELDS = (
     ("Burst", "2"),
     ("Speed", "20"),
     ("Projectile", TROOPER_PROJECTILE),
-    ("Warhead", "NUKE"),
+    ("Warhead", TROOPER_WARHEAD),
     ("OmniFire", "yes"),
     ("Report", "ApocalypseAttackAir"),
 )
 TROOPER_PROJECTILE_FIELDS = (
-    # [AAHeatSeeker] (the Apocalypse's own projectile) is AA=yes AG=no, so it can
-    # never hit the ground; [AAHeatSeeker2] is the one that does both.
-    ("Arm", "2"),
+    # Modelled on retail [FlakTProj], the only shape in the game that actually
+    # scatters: FlakScatter only works on a NON-homing projectile, which is why the
+    # homing version always hit its mark no matter what HomingScatter said.
+    ("Image", "DRAGON"),
+    ("Arcing", "true"),
+    ("Inviso", "no"),
     ("AA", "yes"),
     ("AG", "yes"),
-    ("Image", "DRAGON"),
-    ("ROT", "10"),
-    # Inaccurate is a PROJECTILE key (retail sets it on [FlakProj]/[FlakTProj]);
-    # on the weapon it does nothing.  HomingScatter in [CombatDamage] then decides
-    # how far an inaccurate homing shot may land from the target point.
+    ("Shadow", "no"),
+    ("Ranged", "yes"),
     ("Inaccurate", "yes"),
     ("FlakScatter", "yes"),
-    ("Ranged", "yes"),
-    ("Shadow", "no"),
-    ("Proximity", "no"),
     ("SubjectToCliffs", "no"),
-    ("SubjectToElevation", "no"),
+    ("SubjectToElevation", "yes"),
     ("SubjectToWalls", "no"),
 )
-#: [CombatDamage] HomingScatter -- measured in CELLS, per the retail comment
-#: ("maximum scatter distance (cells) for inaccurate homing projectiles").
-#: BallisticScatter belongs to ballistic flak and must stay at retail 1.0, or the
-#: AI's anti-air loses its accuracy.
+#: Our own nuke warhead: [NUKE] stays untouched for the computer.  BallisticScatter
+#: also exists as a warhead field in the binary, so this is the isolated place to
+#: ask for a wide spread without disturbing anything else.
+TROOPER_WARHEAD_FIELDS = (
+    ("CellSpread", "10"),
+    ("PercentAtMax", ".02"),
+    ("WallAbsoluteDestroyer", "yes"),
+    ("Wood", "yes"),
+    ("Verses", "100%,100%,100%,200%,100%,100%,60%,100%,8%,100%,100%"),
+    ("InfDeath", "7"),
+    ("Sparky", "no"),
+    ("Tiberium", "yes"),
+    ("AnimList", "NUKEANIM"),
+    ("BallisticScatter", "200"),
+)
+#: Retail flak projectiles share the global scatter, so they get their scatter
+#: switched off; otherwise raising BallisticScatter would blind the AI's AA.
+#: [CombatDamage] scatter distances, in CELLS per the retail comments.
 HOMING_SCATTER = "200"
-BALLISTIC_SCATTER = "1.0"
+BALLISTIC_SCATTER = "200"
 PLANE_TYPE = "PDPLANE"
 PLANE_FIELDS = (
-    # The cargo plane the airdrop uses.  Retail is Strength 400 / Armor light, so
-    # the player's own anti-air (or anyone's) shoots the delivery down.
     ("Strength", "100000"),
     ("Armor", "heavy"),
     ("Insignificant", "yes"),
 )
+FLAK_PROJECTILES = ("FlakProj", "FlakTProj")
+FLAK_DAMPING = (("FlakScatter", "no"), ("Inaccurate", "no"))
 
 
 def _replace_section(lines, name, body):
     out, skip = [], False
     for line in lines:
-        header = re.match(r"^\[([^\]]+)\]\s*$", line)
+        header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
         if header:
             skip = header.group(1).strip() == name
         if not skip:
@@ -900,7 +912,7 @@ def apply_nuke_gunship(lines):
     for stale in ("ZAINukePlane", "ZAINukeBomb"):
         out, skip = [], False
         for line in lines:
-            header = re.match(r"^\[([^\]]+)\]\s*$", line)
+            header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
             if header:
                 skip = header.group(1).strip() == stale
             if not skip:
@@ -955,6 +967,33 @@ def apply_nuke_gunship(lines):
     proj += ["%s=%s\r\n" % pair for pair in TROOPER_PROJECTILE_FIELDS]
     _replace_section(lines, TROOPER_PROJECTILE, proj)
 
+    warhead = ["[%s]\r\n" % TROOPER_WARHEAD,
+               ";SuperAI: [NUKE] clone so the computer's nuke stays exact.\r\n"]
+    warhead += ["%s=%s\r\n" % pair for pair in TROOPER_WARHEAD_FIELDS]
+    _replace_section(lines, TROOPER_WARHEAD, warhead)
+
+    # Retail flak shares [CombatDamage] BallisticScatter; turn its scatter off so
+    # widening the global value only affects our projectile.
+    for section in FLAK_PROJECTILES:
+        patched, seen = [], False
+        inside = False
+        out = []
+        for line in lines:
+            header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
+            if header:
+                inside = header.group(1).strip().lower() == section.lower()
+                out.append(line)
+                continue
+            if inside:
+                key = line.split("=", 1)[0].strip()
+                hit = [v for k, v in FLAK_DAMPING if k.lower() == key.lower()]
+                if hit:
+                    eol = "\r\n" if line.endswith("\r\n") else "\n"
+                    out.append("%s=%s%s" % (key, hit[0], eol))
+                    continue
+            out.append(line)
+        lines[:] = out
+
     # [CombatDamage] HomingScatter: the maximum distance (cells) an inaccurate
     # homing shot may land from its target.  BallisticScatter stays at retail 1.0
     # because the AI's flak cannons are what use it.
@@ -971,7 +1010,7 @@ def apply_nuke_gunship(lines):
             end = i
             break
     for key, value in (("HomingScatter", HOMING_SCATTER),
-                       ("BallisticScatter", BALLISTIC_SCATTER)):
+                       ("BallisticScatter", HOMING_SCATTER)):
         found = False
         for i in range(combat + 1, end):
             if re.match(r"^%s\s*=" % re.escape(key), lines[i], re.I):
@@ -987,7 +1026,7 @@ def apply_nuke_gunship(lines):
     # Harden the cargo plane the drop uses; without this the delivery is shot down.
     plane_lines, inside = [], False
     for line in lines:
-        header = re.match(r"^\[([^\]]+)\]\s*$", line)
+        header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
         if header:
             inside = header.group(1).strip().upper() == PLANE_TYPE
         if inside:
@@ -1009,7 +1048,7 @@ def apply_nuke_gunship(lines):
                 patched.append("%s=%s\r\n" % (k, v))
         out, inside = [], False
         for line in lines:
-            header = re.match(r"^\[([^\]]+)\]\s*$", line)
+            header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
             if header:
                 inside = header.group(1).strip().upper() == PLANE_TYPE
                 if inside:
@@ -1071,7 +1110,7 @@ def assert_nuke_gunship(rules_lines, aimd_lines):
     """The gunship must be buildable, unkillable, ground-capable and AI-free."""
     sections, current = {}, None
     for line in rules_lines:
-        header = re.match(r"^\[([^\]]+)\]\s*$", line)
+        header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
         if header:
             current = header.group(1).strip()
             sections.setdefault(current, [])
@@ -1118,6 +1157,9 @@ def assert_nuke_gunship(rules_lines, aimd_lines):
     if weapon.get("warhead", "").strip() != "NUKE":
         problems.append("%s Warhead=%r (want NUKE)"
                         % (GUNSHIP_WEAPON, weapon.get("warhead")))
+    trooper_wh = values(TROOPER_WARHEAD)
+    if not trooper_wh:
+        problems.append("no [%s] section" % TROOPER_WARHEAD)
     if weapon.get("projectile", "").strip() != GUNSHIP_PROJECTILE:
         problems.append("%s Projectile=%r" % (GUNSHIP_WEAPON, weapon.get("projectile")))
     try:
@@ -1191,9 +1233,9 @@ def assert_nuke_gunship(rules_lines, aimd_lines):
             problems.append("%s must stay JumpJet=yes so the drop can fly away"
                             % TROOPER_INF)
     rifle = values(TROOPER_WEAPON)
-    if rifle.get("warhead", "").strip() != "NUKE":
-        problems.append("%s Warhead=%r (want NUKE)"
-                        % (TROOPER_WEAPON, rifle.get("warhead")))
+    if rifle.get("warhead", "").strip() != TROOPER_WARHEAD:
+        problems.append("%s Warhead=%r (want %s, our own copy of NUKE)"
+                        % (TROOPER_WEAPON, rifle.get("warhead"), TROOPER_WARHEAD))
     try:
         rof = int(float(rifle.get("rof", "0")))
     except ValueError:
@@ -1217,10 +1259,19 @@ def assert_nuke_gunship(rules_lines, aimd_lines):
         ballistic = float(combat_values.get("ballisticscatter", "0"))
     except ValueError:
         ballistic = 0.0
-    if abs(ballistic - 1.0) > 1e-6:
-        problems.append("[CombatDamage] BallisticScatter=%r; the AI's flak cannons "
-                        "use it and it must stay at retail 1.0"
+    if ballistic < 100:
+        problems.append("[CombatDamage] BallisticScatter=%r (want >=100: it is the "
+                        "flak-style spread radius in cells)"
                         % combat_values.get("ballisticscatter"))
+    # The retail flak projectiles share that global spread, so they must have
+    # theirs switched off or the AI's anti-air scatters across the whole map.
+    for flak in FLAK_PROJECTILES:
+        damped = values(flak)
+        for key, want in FLAK_DAMPING:
+            if damped.get(key.lower(), "").lower() != want:
+                problems.append("[%s] %s=%r (want %s: it shares BallisticScatter "
+                                "with our projectile)" % (flak, key, damped.get(key.lower()),
+                                                          want))
     shot = values(TROOPER_PROJECTILE)
     if shot.get("ag", "").lower() != "yes":
         problems.append("%s AG=%r; without AG it cannot hit the ground (the "
@@ -1229,6 +1280,11 @@ def assert_nuke_gunship(rules_lines, aimd_lines):
     if shot.get("inaccurate", "").lower() != "yes":
         problems.append("%s must carry Inaccurate=yes; that is the projectile key "
                         "HomingScatter applies to" % TROOPER_PROJECTILE)
+    for homing in ("arm", "rot"):
+        if shot.get(homing):
+            problems.append("%s has %s=; a homing projectile always hits, which "
+                            "is exactly what stopped the spread"
+                            % (TROOPER_PROJECTILE, homing.upper()))
     if shot.get("flakscatter", "").lower() != "yes":
         problems.append("%s must keep FlakScatter=yes, or every warhead lands on "
                         "the same spot" % TROOPER_PROJECTILE)
@@ -1287,7 +1343,7 @@ def apply_superweapon_edits(lines):
         wanted.update(targeting)
         start = None
         for i, line in enumerate(lines):
-            header = re.match(r"^\[([^\]]+)\]\s*$", line)
+            header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
             if header and header.group(1).strip() == name:
                 start = i
                 break
@@ -1347,7 +1403,7 @@ def build_rules(source_dir, out_dir):
     inserted = set()
     for line in lines:
         out.append(line)
-        m = re.match(r"^\[([^\]]+)\]\s*$", line)
+        m = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
         if m and m.group(1).strip() in BUILD_COUNTS and m.group(1).strip() not in inserted:
             name = m.group(1).strip()
             count = BUILD_COUNTS[name]
@@ -1376,7 +1432,7 @@ class Aimd:
     def reindex(self):
         self.starts = {}
         for i, line in enumerate(self.lines):
-            m = re.match(r"^\[([^\]]+)\]\s*$", line)
+            m = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
             if m:
                 self.starts[m.group(1).strip()] = i
 
@@ -1794,7 +1850,7 @@ def assert_build_counts(rules_lines):
     written = []
     section = None
     for line in rules_lines:
-        header = re.match(r"^\[([^\]]+)\]\s*$", line)
+        header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
         if header:
             section = header.group(1).strip()
             continue
@@ -1862,7 +1918,7 @@ def assert_superweapon_autofire(rules_lines):
         found = {}
         section = None
         for line in rules_lines:
-            header = re.match(r"^\[([^\]]+)\]\s*$", line)
+            header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
             if header:
                 section = header.group(1).strip()
                 continue
@@ -1901,7 +1957,7 @@ def assert_superweapon_autofire(rules_lines):
                  "PsychicRevealSpecial", "ChronoWarpSpecial")
     section = None
     for line in rules_lines:
-        header = re.match(r"^\[([^\]]+)\]\s*$", line)
+        header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
         if header:
             section = header.group(1).strip()
             continue
@@ -1980,7 +2036,7 @@ def assert_aa_defenses_competitive(rules_lines):
     section = None
     found = {}
     for line in rules_lines:
-        header = re.match(r"^\[([^\]]+)\]\s*$", line)
+        header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
         if header:
             section = header.group(1).strip()
             continue
@@ -2183,7 +2239,7 @@ def assert_air_and_aa_boosted(aimd_lines):
     # after every loss.
     sections, current = {}, None
     for line in aimd_lines:
-        header = re.match(r"^\[([^\]]+)\]\s*$", line)
+        header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
         if header:
             current = header.group(1).strip()
             sections.setdefault(current, [])
