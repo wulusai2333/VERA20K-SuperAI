@@ -121,20 +121,28 @@ PCV  Prerequisite=YAWEAP,YAGRND
 
 ### AI 有超武却不发射
 
-ForceShield 这类**不用选目标**的超武由 AI 自动使用（日志里有
-`superweapon::force_shield ForceShield launched at ...`），
-而核弹/闪电风暴/心灵控制器这类**要选目标**的过去从不发射 —— 因为零售数据里
-一个 `SW.*`（Ares 超武扩展）键都没有。2.7 起已给 6 个带目标超武显式打开
-`SW.AutoFire=yes` + `SW.UseAITargeting=yes`。
+ForceShield 这类**不用选目标**的超武由 AI 自动使用；核弹/闪电这类**打敌人**的，
+2.7 起已能正常开火。若某个超武仍不放，先看它是「打敌人」还是「帮自己」：
 
-若仍然不放，按顺序排查，**每次只改一个变量**：
+| 超武要的效果 | 正确 `SW.AITargeting` | 选错的后果 |
+| --- | --- | --- |
+| 炸敌方空地（核弹/闪电/心灵/基因） | `offensive_cell_clear` | — |
+| **罩住自家有部队的格子**（铁幕） | **`defensive_cell_set`** | 用 `*_cell_clear` 会在自家找**空地**去罩 → 一发不放 |
+| **传送自家部队到敌方有东西的格子**（超时空） | **`offensive_cell_set`** | 用 `*_cell_clear` 挑敌方空地当落点 → 空转 |
 
-1. `RechargeTime` 是**分钟**（`10` = 十分钟），确认它真的充满了，而不是显示满；
-2. `SW.RequiresTarget=yes` 在某些实现里会让「找不到目标」的超武一直等待 —— 试着去掉；
-3. 换 `SW.AITargeting` 的取值：`offensive_cell_clear` → `attacked`（词表见
-   [ai-tuning-playbook.md §13](ai-tuning-playbook.md#13-超级武器ai-为什么充满不放)）；
-4. 确认超武建筑在不在、有没有断电：`[NAMSIL]`/`[YAPPET]` 这类 `Powered=true`，
-   断电时充能不涨。
+`cell_clear` = 空格子，`cell_set` = 格子里有东西；`offensive` = 敌方地盘，`defensive` = 自家地盘。
+作用于自家单位的还要 `SW.AffectsHouse=yes`。
+
+排查顺序（**每次只改一个值**）：
+
+1. `RechargeTime` 是**分钟**（`10` = 十分钟），确认它真的充满了；
+2. 铁幕：`defensive_cell_set` → `defensive_cell_set,attacked` → `attacked`；
+3. 超时空：`offensive_cell_set` → `defensive_cell_set` → 放弃（两段式超武，可能本就无解）；
+4. `SW.RequiresTarget=yes` 试着去掉；
+5. 确认超武建筑在不在、有没有断电：`[NAMISL]`/`[YAPPET]` 这类 `Powered=true`，断电不涨充能。
+
+词表与回退阶梯见
+[ai-tuning-playbook.md §13](ai-tuning-playbook.md#13-超级武器ai-为什么充满不放)。
 
 > 别去调 `AISuperDefenseProbability` / `AISuperDefenseFrames` / `AISuperDefenseDistance`：
 > 零售注释写明它们**只管 ForceShield**，改了不会让核弹开火。

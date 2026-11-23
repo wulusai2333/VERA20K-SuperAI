@@ -202,27 +202,34 @@ SW.AllowAI=yes
 SW.AutoFire=yes        ; 关键：AI 没有「玩家点击」这条路径，只能走自动发射
 SW.UseAITargeting=yes
 SW.RequiresTarget=yes
-SW.AITargeting=offensive_cell_clear   ; 铁幕用 defensive_cell_clear
+SW.AITargeting=offensive_cell_clear   ; 打敌人的用这个
+SW.AffectsHouse=yes                   ; 只加给「作用于自家单位」的铁幕/超时空
 ```
 
-| 超武 | 建筑 |
-| --- | --- |
-| `NukeSpecial` | `NAMISL` |
-| `LightningStormSpecial` | `GAWEAT` |
-| `PsychicDominatorSpecial` | `YAPPET` |
-| `GeneticConverterSpecial` | `YAGNTC` |
-| `ChronoSphereSpecial` | `GACSPH` |
-| `IronCurtainSpecial` | `NAIRON` |
+| 超武 | 建筑 | `SW.AITargeting` | 说明 |
+| --- | --- | --- | --- |
+| `NukeSpecial` | `NAMISL` | `offensive_cell_clear` | 实测可用 |
+| `LightningStormSpecial` | `GAWEAT` | `offensive_cell_clear` | 实测可用 |
+| `PsychicDominatorSpecial` | `YAPPET` | `offensive_cell_clear` | 同族 |
+| `GeneticConverterSpecial` | `YAGNTC` | `offensive_cell_clear` | 同族 |
+| `ChronoSphereSpecial` | `GACSPH` | **`offensive_cell_set`** | 传送自家部队到敌方**有东西**的格子 |
+| `IronCurtainSpecial` | `NAIRON` | **`defensive_cell_set`** | 罩住自家**有部队**的格子 |
+
+> **`cell_clear` 是「空格子」，`cell_set` 是「格子里有东西」**；`offensive` 指敌方地盘，
+> `defensive` 指自家地盘。铁幕要罩自己人 → `defensive_cell_set`；
+> 2.7 误写成 `defensive_cell_clear`（在自家找**空地**罩），于是它一发都不放 ——
+> 这正是「核弹闪电正常、铁幕超时空不动」的原因。详见
+> [playbook §13.1.1](ai-tuning-playbook.md#1311-最容易搞错的一点cell_clear-还是-cell_set)。
 
 `ForceShield`/`ParaDrop`/`SpyPlane`/`PsychicReveal`/`ChronoWarp` 不动 ——
 前四个本来正常，最后一个的 `GADUMY` 是 `AIBuildThis=no`，AI 造不出来。
-`assert_superweapon_autofire` 会校验键是否齐全、`SW.AITargeting` 是否落在引擎认识的词表里
-（拼错会被**静默丢弃**），并禁止把 `SW.*` 写进那 5 个不该动的段。
+`assert_superweapon_autofire` 会校验键是否齐全、`SW.AITargeting` 的每个词是否都在引擎认识的
+词表里（拼错会被**静默丢弃**；支持逗号分隔多个词），并禁止把 `SW.*` 写进那 5 个不该动的段。
 
-> 证据等级：**中**。决定 AI 是否发射的代码不在抽取集里，本结论由「引擎自身的键名 +
-> `house_state.rs` 对 `SW.AutoFire` 的说明 + 日志里 ForceShield 能放而进攻型从未发射」推导而来，
-> 尚未进游戏实测。判定方法与回退顺序见
-> [playbook §13](ai-tuning-playbook.md#13-超级武器ai-为什么充满不放)。
+> 证据等级：核弹/闪电**已由实测确认**（用户观察到它们正常开火）；铁幕/超时空是 2.8 按
+> `cell_clear`/`cell_set` 的语义修正的，**仍待实测**。若仍不放，按
+> [playbook §13.1](ai-tuning-playbook.md#131-结论核弹闪电已实测确认铁幕超时空待确认) 的回退阶梯
+> 一次改一个值。
 
 ## 4. 地图层：All to Hunt
 

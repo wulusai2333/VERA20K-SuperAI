@@ -699,19 +699,19 @@ choose_building 处理 "-1"（防御）节点时：
 
 ## 13. 超级武器：AI 为什么「充满不放」
 
-### 13.1 结论（证据等级：**中**，未能进游戏实测）
+### 13.1 结论（核弹/闪电**已实测确认**；铁幕/超时空待确认）
 
 **改动**：给 AI 能造出来的 6 个带目标超武，显式写上 Ares 的 `SW.*` 开关。
 零售数据里 12 个超武段**一条 `SW.*` 都没有**，AI 就停在默认瞄准状态。
 
-| 超武 | 建筑 | AI 可造 | 写入的 `SW.AITargeting` |
-| --- | --- | --- | --- |
-| `NukeSpecial` | `NAMISL` | 是 | `offensive_cell_clear` |
-| `LightningStormSpecial` | `GAWEAT` | 是 | `offensive_cell_clear` |
-| `PsychicDominatorSpecial` | `YAPPET` | 是 | `offensive_cell_clear` |
-| `GeneticConverterSpecial` | `YAGNTC` | 是 | `offensive_cell_clear` |
-| `ChronoSphereSpecial` | `GACSPH` | 是 | `offensive_cell_clear` |
-| `IronCurtainSpecial` | `NAIRON` | 是 | `defensive_cell_clear`（它罩自己人） |
+| 超武 | 建筑 | AI 可造 | `SW.AITargeting` | 备注 |
+| --- | --- | --- | --- | --- |
+| `NukeSpecial` | `NAMISL` | 是 | `offensive_cell_clear` | **实测可用** |
+| `LightningStormSpecial` | `GAWEAT` | 是 | `offensive_cell_clear` | **实测可用** |
+| `PsychicDominatorSpecial` | `YAPPET` | 是 | `offensive_cell_clear` | 同族 |
+| `GeneticConverterSpecial` | `YAGNTC` | 是 | `offensive_cell_clear` | 同族 |
+| `ChronoSphereSpecial` | `GACSPH` | 是 | `offensive_cell_set` + `SW.AffectsHouse=yes` | 传送**自家**部队 |
+| `IronCurtainSpecial` | `NAIRON` | 是 | `defensive_cell_set` + `SW.AffectsHouse=yes` | 罩**自家**部队 |
 
 每个段都同时写：
 
@@ -722,6 +722,35 @@ SW.AutoFire=yes        ; ← 关键：自动发射（AI 没有「点击」这条
 SW.UseAITargeting=yes
 SW.RequiresTarget=yes
 ```
+
+### 13.1.1 最容易搞错的一点：`cell_clear` 还是 `cell_set`
+
+那 7 个取值是**同一个枚举**的变体，成对出现：
+
+```
+offensive_cell_clear  defensive_cell_clear  offensive_cell_set  defensive_cell_set
+attacked  lightningstorm_inactive  dominator_inactive
+```
+
+- **`cell_clear` = 挑一个「空的」格子**；**`cell_set` = 挑一个「里面确实有东西」的格子**。
+- **`offensive` = 敌方地盘**；**`defensive` = 自家地盘**。
+
+于是「打敌人」和「帮自己」是两回事：
+
+| 超武要的效果 | 正确取值 | 选错的后果 |
+| --- | --- | --- |
+| 核弹/闪电：炸敌方空地 | `offensive_cell_clear` | — |
+| 铁幕：罩住**自家有部队**的格子 | **`defensive_cell_set`** | 用 `defensive_cell_clear` 会让 AI 在自家找**空地**去罩 —— 罩空地没意义，于是**一发都不放** |
+| 超时空：把自家部队送到**敌方有东西**的格子 | **`offensive_cell_set`** | 用 `offensive_cell_clear` 会挑敌方空地当落点，没有可传送的目标 → 空转 |
+
+**这就是 2.7 的实际翻车方式**：核弹和闪电能用（模式选对了），铁幕和超时空一发不放（模式选错）。
+另外这两个作用于**自家单位**的超武还要 `SW.AffectsHouse=yes`，否则 AI 不会把目标选在自己地盘上。
+
+> 如果铁幕仍不放，按顺序**一次只改一个值**试：
+> `defensive_cell_set` → `defensive_cell_set,attacked` → `attacked`。
+> 超时空：`offensive_cell_set` → `defensive_cell_set` → 放弃（它是两段式超武，
+> 「先选自己部队、再选落点」，引擎可能本来就没有对应的 AI 发射路径）。
+> `SW.AITargeting` 支持逗号分隔多个词，构建期会逐个校验。
 
 **不动的**：`ForceShieldSpecial`（本来就在放）、`ParaDropSpecial`、`SpyPlaneSpecial`、
 `PsychicRevealSpecial`、`ChronoWarpSpecial`（`GADUMY` 是 `AIBuildThis=no`，AI 造不出来）。

@@ -1,6 +1,34 @@
 # Changelog
 
-本项目在 2026-11-22 从零迭代到 2.0，同日继续到 2.7；以下是可复现的功能节点。
+本项目在 2026-11-22 从零迭代到 2.0，同日继续到 2.8；以下是可复现的功能节点。
+
+## 2.8 — 铁幕 / 超时空：瞄准模式选错了
+
+2.7 之后实测反馈：**核弹和闪电风暴正常开火，铁幕和超时空一发不放**。
+这两个恰好是**唯一两个作用于自家单位**的超武 —— 问题出在 `SW.AITargeting` 的取值上。
+
+那 7 个取值是**同一个枚举**的变体，成对存在：
+`offensive_cell_clear` / `defensive_cell_clear` / `offensive_cell_set` / `defensive_cell_set`
+/ `attacked` / `lightningstorm_inactive` / `dominator_inactive`。
+
+- **`cell_clear` = 空格子，`cell_set` = 格子里有东西**；`offensive` = 敌方地盘，`defensive` = 自家地盘；
+- 2.7 给铁幕写的是 `defensive_cell_clear` → AI 在自家找**空地**去罩，罩空地毫无意义 → 不开火；
+- 超时空写的是 `offensive_cell_clear` → 挑敌方空地当落点，没有可传送的目标 → 空转。
+
+改成：
+
+| 超武 | 2.7 | 2.8 |
+| --- | --- | --- |
+| `IronCurtainSpecial` | `defensive_cell_clear` | **`defensive_cell_set`** + `SW.AffectsHouse=yes` |
+| `ChronoSphereSpecial` | `offensive_cell_clear` | **`offensive_cell_set`** + `SW.AffectsHouse=yes` |
+| 核弹 / 闪电 / 心灵 / 基因 | `offensive_cell_clear` | **不动**（已实测可用） |
+
+`SW.AffectsHouse=yes` 只加给这两个「作用于自家单位」的超武：不加的话 AI 不会把目标选在自己地盘上。
+`assert_superweapon_autofire` 放宽为支持**逗号分隔多个词**（逐个校验词表），
+便于按回退阶梯试 `defensive_cell_set,attacked`。
+
+> 证据等级：核弹/闪电**已由实测确认**；铁幕/超时空是本次按 `cell_clear`/`cell_set` 语义修正，
+> **仍待实测**。若仍不放，按 `docs/ai-tuning-playbook.md` §13.1 的回退阶梯一次改一个值。
 
 ## 地图 — 新增 `SuperAI-IceLake-120-NoOre.yrm`（冰湖 120 人）
 

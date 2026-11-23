@@ -169,21 +169,38 @@ SECTION_KEY_COMMENTS = {
 #: ``AIBuildThis=no``) are deliberately left alone: changing something that
 #: already behaves correctly would hide the effect of this change.
 #:
-#: ``SW.AITargeting`` values are the vocabulary the binary accepts
-#: (``offensive_cell_clear``, ``defensive_cell_clear``, ``offensive_cell_set``,
-#: ``defensive_cell_set``, ``attacked``, ``lightningstorm_inactive``,
-#: ``dominator_inactive``).  An unknown word is ignored silently, which is why
-#: ``assert_superweapon_autofire`` checks every value against that list.
+#: ``SW.AITargeting`` values are the seven variants of ONE enum in the engine:
+#:
+#:   offensive_cell_clear   defensive_cell_clear   lightningstorm_inactive
+#:   dominator_inactive     attacked               offensive_cell_set
+#:   defensive_cell_set
+#:
+#: The pair that matters is ``*_cell_clear`` vs ``*_cell_set``: **clear** means
+#: an empty cell, **set** means a cell that actually has something in it.  Get
+#: that wrong and the weapon silently never fires -- which is exactly what
+#: happened to the Iron Curtain and the Chrono Sphere in 2.7:
+#:
+#:   * Iron Curtain covers the house's OWN units, so it needs a *populated*
+#:     friendly cell: ``defensive_cell_set``.  ``defensive_cell_clear`` made the
+#:     AI look for an empty spot in its own base, and shielding nothing is
+#:     pointless, so it never fired.
+#:   * Chrono Sphere sends the house's own units somewhere enemy: the useful
+#:     target is a *populated* enemy cell, ``offensive_cell_set``.
+#:
+#: The four damage weapons keep ``offensive_cell_clear``: they were verified in
+#: game by the user (nuke and lightning storm both fire), so they are not touched.
 SUPERWEAPON_EDITS = {
-    # Area-damage weapons: hit a clear cell inside the enemy base.
+    # Area-damage weapons: hit a clear cell inside the enemy base.  VERIFIED.
     "NukeSpecial": {"SW.AITargeting": "offensive_cell_clear"},
     "LightningStormSpecial": {"SW.AITargeting": "offensive_cell_clear"},
     "PsychicDominatorSpecial": {"SW.AITargeting": "offensive_cell_clear"},
     "GeneticConverterSpecial": {"SW.AITargeting": "offensive_cell_clear"},
-    "ChronoSphereSpecial": {"SW.AITargeting": "offensive_cell_clear"},
-    # Iron Curtain is dropped on the house's OWN units, so it wants the
-    # defensive target selector, not the offensive one.
-    "IronCurtainSpecial": {"SW.AITargeting": "defensive_cell_clear"},
+    # The house's own units are the point: pick a cell that has them in it, and
+    # let the AI target its own territory at all.
+    "IronCurtainSpecial": {"SW.AITargeting": "defensive_cell_set",
+                           "SW.AffectsHouse": "yes"},
+    "ChronoSphereSpecial": {"SW.AITargeting": "offensive_cell_set",
+                            "SW.AffectsHouse": "yes"},
 }
 
 #: Keys written into every section of :data:`SUPERWEAPON_EDITS`.
@@ -855,12 +872,14 @@ def assert_superweapon_autofire(rules_lines):
             if actual.lower() != value.lower():
                 raise SystemExit("[%s] %s=%r, expected %r"
                                  % (name, key, actual, value))
-        word = found.get("sw.aitargeting", "")
-        if word.lower() not in ALLOWED_AITARGETING:
+        raw = found.get("sw.aitargeting", "")
+        words = [part.strip().lower() for part in raw.split(",") if part.strip()]
+        unknown = [word for word in words if word not in ALLOWED_AITARGETING]
+        if not words or unknown:
             raise SystemExit(
-                "[%s] SW.AITargeting=%r is not a value this engine knows; it "
-                "would be dropped silently. Known: %s"
-                % (name, word, ", ".join(sorted(ALLOWED_AITARGETING))))
+                "[%s] SW.AITargeting=%r contains values this engine does not "
+                "know; they would be dropped silently. Known: %s"
+                % (name, raw, ", ".join(sorted(ALLOWED_AITARGETING))))
 
     # Superweapons that already work (or are support type) must stay untouched.
     untouched = ("ForceShieldSpecial", "ParaDropSpecial",
