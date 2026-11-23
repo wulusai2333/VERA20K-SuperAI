@@ -579,7 +579,7 @@ class Aimd:
         return "".join(self.lines)
 
 
-def build_aimd(source_dir, out_dir):
+def build_aimd(source_dir, out_dir, assembly_teams=False):
     """Rewrite the AI teams for mechanism 1: charge, and nobody stays home.
 
     Deliberately minimal.  Retail's team types, task forces, trigger weights
@@ -595,6 +595,14 @@ def build_aimd(source_dir, out_dir):
     base-defence team types in the set, a house cannot own a defensive team.
     That is only safe because ``UseMinDefenseRule=no`` and the two
     ``*AIDefensiveTeams`` are zero -- see ``assert_defense_gate_consistent``.
+
+    ``assembly_teams`` is a DIAGNOSTIC switch, not a gameplay option: it skips
+    the script rewrite so the teams keep retail's "regroup at base, then attack"
+    behaviour.  It exists to answer one question -- do the Iron Curtain and the
+    Chrono Sphere only fail because this mod never leaves the AI with a cluster
+    of units (the Iron Curtain covers a 3x3 cell patch, so it needs one)?  Build
+    it into a separate mod folder and compare in game; the shipped mod keeps
+    charging.
     """
     text = open(os.path.join(source_dir, "aimd.ini"), "rb").read().decode("latin-1")
     doc = Aimd(text)
@@ -629,7 +637,7 @@ def build_aimd(source_dir, out_dir):
             if "max" in fields:
                 doc.replace_value(fields["max"][1], "Max", "2")
             continue
-        if "script" in fields:
+        if "script" in fields and not assembly_teams:
             doc.replace_value(fields["script"][1], "Script", ATTACK_SCRIPT)
             switched += 1
         for key, wanted in (("Aggressive", "yes"), ("IsBaseDefense", "no")):
@@ -948,6 +956,10 @@ def main():
     parser.add_argument("--rules-dir", required=True,
                         help="folder containing retail rulesmd.ini / artmd.ini / aimd.ini")
     parser.add_argument("--out", required=True, help="output mod folder")
+    parser.add_argument("--assembly-teams", action="store_true",
+                        help="DIAGNOSTIC: keep retail's regroup-at-base team "
+                             "script instead of the charge script (used to test "
+                             "whether superweapons need a unit cluster)")
     parser.add_argument("--no-art", action="store_true",
                         help="do not copy artmd.ini (the mod does not change it)")
     args = parser.parse_args()
@@ -958,7 +970,7 @@ def main():
 
     os.makedirs(args.out, exist_ok=True)
     buildings = build_rules(args.rules_dir, args.out)
-    switched, recovered = build_aimd(args.rules_dir, args.out)
+    switched, recovered = build_aimd(args.rules_dir, args.out, args.assembly_teams)
 
     # Refuse to ship the "base builds, AI never moves" combination.
     with open(os.path.join(args.out, "rulesmd.ini"), "r",

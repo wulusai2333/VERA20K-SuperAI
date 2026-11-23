@@ -161,6 +161,21 @@ python tools/build_maps.py info --src maps/SuperAI-Flat120.yrm
 模组构建依赖原版规则文件的字节内容；不同语言版本（`rulesmd.ini` 被本地化修改过）
 会导致 `RULES_EDITS` 找不到原值而报错，这是有意的保护。
 
+## 4.0 诊断用：队伍集结版（`--assembly-teams`）
+
+```bash
+python tools/build_mod.py --rules-dir "F:/Games/red2" \
+    --out "F:/Games/VERA20K/Mods/SuperAI-assembly" --assembly-teams
+```
+
+**默认关闭，只用于诊断。** 它跳过"把 160 支队伍的脚本换成不集结脚本"这一步，
+让 AI 恢复原版"先回基地集结、再成队出击"。产出的模组与正式版**只差这 160 行 `Script=`**，
+其余（`rulesmd.ini`、`artmd.ini`、`aimd.ini` 的其它行）逐字节相同。
+
+用途：判定"铁幕/超时空不放"到底是**我们的进攻逻辑消灭了 3×3 集群**，
+还是**引擎没有对应的 AI 发射路径**。判定规则见
+[ai-tuning-playbook.md §13.1.3](ai-tuning-playbook.md#1313-铁幕超时空一个是不是我们自己把机会弄没了的对照实验)。
+
 ## 4.1 规则键的「无头判定器」（tools/probe_rules.py）
 
 ```bash
