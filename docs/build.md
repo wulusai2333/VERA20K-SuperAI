@@ -161,6 +161,21 @@ python tools/build_maps.py info --src maps/SuperAI-Flat120.yrm
 模组构建依赖原版规则文件的字节内容；不同语言版本（`rulesmd.ini` 被本地化修改过）
 会导致 `RULES_EDITS` 找不到原值而报错，这是有意的保护。
 
+## 4.1 规则键的「无头判定器」（tools/probe_rules.py）
+
+```bash
+python tools/probe_rules.py --game-dir "F:/Games/VERA20K" --selftest
+```
+
+想确认某个 INI 键到底被不被引擎解析时用这个工具：它把模组复制到临时的
+`Mods/_probe`，改一处键、跑一次 `--probe`、比对 `rules_digest`，测完删掉临时目录。
+
+`--selftest` 会先做三个对照（改注释 / 改活键 `TeamDelays` / 改死键 `WarRatio`）。
+**注意：目前的自检结论是"这个判定器不可用"** —— `rules_digest` 连注释都会影响，
+说明它是文件哈希而不是解析摘要。工具因此会拒绝给出结论。
+留着它是因为：换引擎版本后重跑一次，就能知道这个判定器有没有变得可用；
+它也是「非法值一律被静默接受」这个事实的可复现证据。
+
 ## 5. 安装到游戏
 
 ```bash

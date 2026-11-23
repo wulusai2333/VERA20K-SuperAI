@@ -710,8 +710,22 @@ choose_building 处理 "-1"（防御）节点时：
 | `LightningStormSpecial` | `GAWEAT` | 是 | `offensive_cell_clear` | **实测可用** |
 | `PsychicDominatorSpecial` | `YAPPET` | 是 | `offensive_cell_clear` | 同族 |
 | `GeneticConverterSpecial` | `YAGNTC` | 是 | `offensive_cell_clear` | 同族 |
-| `ChronoSphereSpecial` | `GACSPH` | 是 | `offensive_cell_set` + `SW.AffectsHouse=yes` | 传送**自家**部队 |
-| `IronCurtainSpecial` | `NAIRON` | 是 | `defensive_cell_set` + `SW.AffectsHouse=yes` | 罩**自家**部队 |
+| `ChronoSphereSpecial` | `GACSPH` | 是 | `offensive_cell_set` + `SW.AffectsHouse/AffectsTarget=yes` + `SW.AIRequiresTarget=no` + `.Constraints/.Preference` | 传送**自家**部队，**仍不发射（2.9）** |
+| `IronCurtainSpecial` | `NAIRON` | 是 | `defensive_cell_set` + `SW.AffectsHouse/AffectsTarget=yes` + `SW.AIRequiresTarget=no` + `.Constraints/.Preference` | 罩**自家**部队，**仍不发射（2.9）** |
+
+> 2.9 对这两个改用了**一次性写全所有候选键**的做法：`SW.AITargeting` 平键 +
+> `SW.AITargeting.Constraints` + `SW.AITargeting.Preference`（后两个键名在二进制里存在），
+> 再补 `SW.AffectsHouse=yes`、`SW.AffectsTarget=yes`、`SW.AIRequiresTarget=no`。
+> 理由见 §13.1.2：**没有任何无头手段能判断哪个键是活的**，所以只能一次全写，
+> 让"键名/取值不对"这个可能性被彻底排除。被忽略的键不会造成伤害。
+>
+> 已经确认的事实：AI **确实造出了这两个建筑**（日志 `placed NAIRON` 912 次、
+> `placed GACSPH` 121 次），所以问题只在"要不要开火"。
+> 另外 `house_state.rs` 的 `HouseSuperWeaponTargets` 只建模了 `nuke_target` / `emp_target`，
+> 暗示原生 AI 瞄准只覆盖固定几种超武。
+>
+> **若 2.9 仍不发射，结论就定为：引擎没有「作用于发射方自家单位」的超武 AI 发射路径。**
+> 这是引擎限制，不再继续试配置 —— 届时会写进 README 的已知限制。
 
 每个段都同时写：
 
@@ -754,6 +768,24 @@ attacked  lightningstorm_inactive  dominator_inactive
 
 **不动的**：`ForceShieldSpecial`（本来就在放）、`ParaDropSpecial`、`SpyPlaneSpecial`、
 `PsychicRevealSpecial`、`ChronoWarpSpecial`（`GADUMY` 是 `AIBuildThis=no`，AI 造不出来）。
+
+### 13.1.2 三个「无头判定器」全部失效（2.9 实测记录）
+
+想把「这个键到底被不被解析」变成可测的是非题，试了三条路，**全都不可用**。
+记在这里，免得以后又从头试一遍：
+
+| 判定器 | 期望 | 实测结果 | 结论 |
+| --- | --- | --- | --- |
+| `--probe` 的 `rules_digest` | 解析后规则的摘要：改注释不变、改活键变 | **改一条注释它也变** | 它是**文件内容哈希**，不是语义摘要。`tools/probe_rules.py --selftest` 一次就能证伪 |
+| 非法值是否被拒绝 | 写 `bogus` 应当报错 | `[NukeSpecial] Type=BogusType`、`SW.AutoFire=bogus`、甚至 `SW.TotallyBogusKey=1` **全部静默接受** | 引擎对未知键/非法值一律不吭声，**永远观察不到"被拒绝"** |
+| 录像 `replays/*.json` | 记录超武发射指令 | 每局只有 **4–5 条**本地玩家指令，没有 AI 动作 | 录像只存玩家输入，看不到 AI |
+
+再加一条：**只有 `superweapon::force_shield` 会写日志**，核弹/闪电/铁幕的发射都不写。
+所以「AI 到底放没放超武」这件事，**只能进游戏看**。
+
+> 方法论教训：**先确认判定器有效，再用它下结论**。
+> 这次三条路都是先写了自检（注释/活键/死键三测、对照用例），才没把"摘要变了"
+> 误当成"键被解析了"——否则会得出完全相反的结论。
 
 ### 13.2 证据链（为什么这么判断）
 

@@ -147,6 +147,11 @@ ForceShield 这类**不用选目标**的超武由 AI 自动使用；核弹/闪�
 > 别去调 `AISuperDefenseProbability` / `AISuperDefenseFrames` / `AISuperDefenseDistance`：
 > 零售注释写明它们**只管 ForceShield**，改了不会让核弹开火。
 
+> **不要试图用工具"验证"某个 `SW.*` 键是否生效**：2.9 实测过三条路都不行 ——
+> `--probe` 的 `rules_digest` 是文件哈希（改注释就变）、引擎对非法值/未知键
+> **一律静默接受**（`SW.TotallyBogusKey=1` 也不报错）、录像只存玩家指令。
+> 详见 [ai-tuning-playbook.md §13.1.2](ai-tuning-playbook.md#1312-三个无头判定器全部失效29-实测记录)。
+
 ### AI 建筑被打掉了却不重建
 
 「打掉就重建」是引擎原生的节点重规划，不需要触发器，但**按类型分档**：

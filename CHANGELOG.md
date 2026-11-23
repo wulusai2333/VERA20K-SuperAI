@@ -1,6 +1,44 @@
 # Changelog
 
-本项目在 2026-11-22 从零迭代到 2.0，同日继续到 2.8；以下是可复现的功能节点。
+本项目在 2026-11-22 从零迭代到 2.0，同日继续到 2.9；以下是可复现的功能节点。
+
+## 2.9 — 铁幕 / 超时空：写全所有候选键，并把「测不出来」这件事记下来
+
+实测反馈：2.8 之后这两个**仍然不发射**（核弹/闪电正常）。这一轮先查了两个前提：
+
+- **建筑是有的**：日志 `placed NAIRON` **912 次**、`placed GACSPH` **121 次**
+  —— 不是"没造出来"，纯粹是"不开火"。
+- **没有任何无头手段能判断某个 `SW.*` 键是否生效**（三条路全部实测失效）：
+
+| 判定器 | 实测结果 |
+| --- | --- |
+| `--probe` 的 `rules_digest` | 改一条**注释**它也变 → 是文件哈希，不是解析摘要 |
+| 非法值是否被拒绝 | `Type=BogusType`、`SW.AutoFire=bogus`、`SW.TotallyBogusKey=1` **全部静默接受** |
+| 录像 `replays/*.json` | 每局只有 4–5 条**玩家**指令，没有 AI 动作 |
+
+（另外只有 `superweapon::force_shield` 会写日志，其余超武发射不写。）
+
+因此改成**一次性写全所有候选键**，把"键名/取值不对"这个可能性排除掉：
+
+```ini
+SW.AITargeting=defensive_cell_set          ; 铁幕
+SW.AITargeting.Constraints=defensive_cell_set
+SW.AITargeting.Preference=defensive_cell_set
+SW.AffectsHouse=yes
+SW.AffectsTarget=yes
+SW.AIRequiresTarget=no
+```
+
+超时空同理，取值换成 `offensive_cell_set`。`.Constraints`/`.Preference` 这两个键名在二进制里存在
+（Ares 把瞄准规则拆成"约束/偏好"），被忽略的键不会造成伤害。
+
+新增 `tools/probe_rules.py`：对临时 `Mods/_probe` 跑变体并比对摘要，
+`--selftest` 会先验证摘要是否真的是语义摘要（**这次它当场证伪了自己**）。
+这个工具的价值不是"测通了"，而是把"哪些判定器不可用"变成可复现的事实。
+
+> 若 2.9 仍不发射，结论定为：**引擎没有「作用于发射方自家单位」的超武 AI 发射路径**，
+> 记为引擎限制，不再试配置。`HouseSuperWeaponTargets` 只建模 `nuke_target`/`emp_target`
+> 也支持这个判断。
 
 ## 2.8 — 铁幕 / 超时空：瞄准模式选错了
 

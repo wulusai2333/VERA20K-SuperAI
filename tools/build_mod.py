@@ -195,13 +195,53 @@ SUPERWEAPON_EDITS = {
     "LightningStormSpecial": {"SW.AITargeting": "offensive_cell_clear"},
     "PsychicDominatorSpecial": {"SW.AITargeting": "offensive_cell_clear"},
     "GeneticConverterSpecial": {"SW.AITargeting": "offensive_cell_clear"},
-    # The house's own units are the point: pick a cell that has them in it, and
-    # let the AI target its own territory at all.
-    "IronCurtainSpecial": {"SW.AITargeting": "defensive_cell_set",
-                           "SW.AffectsHouse": "yes"},
-    "ChronoSphereSpecial": {"SW.AITargeting": "offensive_cell_set",
-                            "SW.AffectsHouse": "yes"},
+    # The two weapons whose effect lands on the house's OWN units.  2.7 and 2.8
+    # both failed to make these fire, and there is no way to test a key
+    # headlessly (see the note below), so every plausible key is written with the
+    # same intent: pick a cell in our own territory that has units in it.
+    #
+    # Ares splits the targeting rules into ``SW.AITargeting.Constraints`` and
+    # ``SW.AITargeting.Preference`` (both key names are in the binary), while the
+    # plain ``SW.AITargeting`` enum is what the working damage weapons use.  Set
+    # all three: whichever the engine reads gets the right value, and the ones it
+    # ignores cost nothing.
+    "IronCurtainSpecial": {
+        "SW.AITargeting": "defensive_cell_set",
+        "SW.AITargeting.Constraints": "defensive_cell_set",
+        "SW.AITargeting.Preference": "defensive_cell_set",
+        "SW.AffectsHouse": "yes",
+        "SW.AffectsTarget": "yes",
+        "SW.AIRequiresTarget": "no",
+    },
+    "ChronoSphereSpecial": {
+        "SW.AITargeting": "offensive_cell_set",
+        "SW.AITargeting.Constraints": "offensive_cell_set",
+        "SW.AITargeting.Preference": "offensive_cell_set",
+        "SW.AffectsHouse": "yes",
+        "SW.AffectsTarget": "yes",
+        "SW.AIRequiresTarget": "no",
+    },
 }
+
+#: Why the shot-gun above rather than one measured key: none of the three
+#: headless oracles works.  All were tried in 2.9:
+#:
+#: 1. ``--probe``'s ``rules_digest`` looks like a parsed-rules digest, but it
+#:    moves when only a COMMENT changes, so it hashes the file, not the rules
+#:    (``tools/probe_rules.py --selftest`` proves this in one run).
+#: 2. Invalid values are accepted in silence: ``[NukeSpecial] Type=BogusType``,
+#:    ``SW.AutoFire=bogus`` and even a made-up ``SW.TotallyBogusKey=1`` all load
+#:    without a warning, so "the engine rejected it" can never be observed.
+#: 3. Replays only store the local player's commands (4-5 per match, no AI
+#:    actions), and only ``superweapon::force_shield`` ever logs a launch.
+#:
+#: What IS known: the AI builds both buildings (the log has 912 ``placed
+#: NAIRON`` and 121 ``placed GACSPH``), so this is purely about firing; and
+#: ``HouseSuperWeaponTargets`` in house_state.rs only models ``nuke_target`` and
+#: ``emp_target``, which hints the native AI targeting covers a fixed set of
+#: weapons.  If this shot-gun still does not make them fire, the honest
+#: conclusion is that the engine has no AI firing path for superweapons that
+#: affect the caster's own units.
 
 #: Keys written into every section of :data:`SUPERWEAPON_EDITS`.
 SUPERWEAPON_SHARED_KEYS = {
@@ -872,14 +912,19 @@ def assert_superweapon_autofire(rules_lines):
             if actual.lower() != value.lower():
                 raise SystemExit("[%s] %s=%r, expected %r"
                                  % (name, key, actual, value))
-        raw = found.get("sw.aitargeting", "")
-        words = [part.strip().lower() for part in raw.split(",") if part.strip()]
-        unknown = [word for word in words if word not in ALLOWED_AITARGETING]
-        if not words or unknown:
-            raise SystemExit(
-                "[%s] SW.AITargeting=%r contains values this engine does not "
-                "know; they would be dropped silently. Known: %s"
-                % (name, raw, ", ".join(sorted(ALLOWED_AITARGETING))))
+        for targeting_key in ("sw.aitargeting", "sw.aitargeting.constraints",
+                              "sw.aitargeting.preference"):
+            raw = found.get(targeting_key, "")
+            if not raw:
+                continue
+            words = [part.strip().lower() for part in raw.split(",") if part.strip()]
+            unknown = [word for word in words if word not in ALLOWED_AITARGETING]
+            if not words or unknown:
+                raise SystemExit(
+                    "[%s] %s=%r contains values this engine does not know; they "
+                    "would be dropped silently. Known: %s"
+                    % (name, targeting_key, raw,
+                       ", ".join(sorted(ALLOWED_AITARGETING))))
 
     # Superweapons that already work (or are support type) must stay untouched.
     untouched = ("ForceShieldSpecial", "ParaDropSpecial",
