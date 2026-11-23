@@ -2725,6 +2725,19 @@ def main():
     aa_defences = assert_aa_defenses_competitive(rules_lines)
     superweapons = assert_superweapon_autofire(rules_lines)
 
+    # The mod is additive against the RETAIL rules: anything else would silently
+    # rewrite the game for every map.  Our own ZAI* sections are ours to change, so
+    # the comparison is retail-vs-built, not against our previous version.
+    import check_retail
+    retail_rules = check_retail.parse_ini(os.path.join(args.rules_dir, "rulesmd.ini"))
+    built_rules = check_retail.parse_ini(os.path.join(args.out, "rulesmd.ini"))
+    retail_problems = check_retail.check(retail_rules, built_rules)
+    if retail_problems:
+        raise SystemExit(
+            "retail guard: %d change(s) to the official rules are not registered in "
+            "tools/check_retail.py:\n  %s"
+            % (len(retail_problems), "\n  ".join(retail_problems[:10])))
+
     if not args.no_art:
         source = os.path.join(args.rules_dir, "artmd.ini")
         if not os.path.isfile(source):

@@ -2,6 +2,25 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## 3.11.5 — 明确定义「原版」= 官方零售数据，并把规则做成构建期强制检查
+
+**定义**（写进手册 §0.0）：
+
+> 原版 = 官方《红色警戒2：尤里的复仇》的零售数据（`F:\Games\red2\rulesmd.ini` 等），
+> **不是**我们 mod 的上一版，**也不是**我们自己新增的 `ZAI*` 条目。
+
+三条推论：① 我们自己的 `ZAI*` 段/追加行/追加键可以随意改删（属 mod 自有内容）；
+② 只有"零售段已有键被改值/删除"才算改原版；③ 自检要比**零售 vs 构建产物**，不是 `git diff`。
+
+新增 `tools/check_retail.py` 并**接进构建**：
+
+- 白名单：`RETAIL_VALUE_EDITS`（22 个键 / 7 个段）+ `RETAIL_KEY_ADDITIONS`
+  （67 个键 / 21 个段）+ 注册表末尾追加（`VehicleTypes` 85/86、`SuperWeaponTypes` 13/14/15）；
+- 任何白名单外的"零售键改值/删除/新增"→ **构建失败并点名**；
+- 自测：正常构建输出
+  `retail diff OK: 22 allowed value edits, 67 allowed key additions, 10 new sections, 0 removals`；
+  把 `[ZEP] Strength=2000` 改成 9999 → 立即报 `ZEP: retail key 'strength' was changed`。
+
 ## 3.11.4 — 总原则入库：默认「只增不改」+ 原版改动登记表
 
 在边界手册里补上最高优先级的一条：
