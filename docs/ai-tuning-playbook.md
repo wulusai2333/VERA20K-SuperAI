@@ -1271,6 +1271,17 @@ YuriParaDropInf=ZAINukeTrooper  YuriParaDropNum=1
 | 武器/节奏像火箭飞行兵 | `[ZAINukeRifle]` 克隆天启副武器 `[MammothTusk]` | `ROF=80`、`Burst=2`、`Range=200`、`Speed=20` |
 | 弹道要飘、落点要随机 | `[Weapon] Inaccurate=yes` + `[Projectile] FlakScatter=yes` + `ROT=10` | 不吸附目标点 + 落点随机 + 慢转向 |
 
+**无畏导弹有两个弹头（3.10.6 更正）**：
+
+| 弹头 | `CellSpread` | `PercentAtMax` | `AnimList` | 用于 |
+| --- | --- | --- | --- | --- |
+| `[DMISLWH]` | 1.5 | .25 | `XGRYSML1,...,TWLT070` | 普通无畏导弹 |
+| **`[DMISLEWH]`** | **3** | **.5** | **`MININUKE`**（小蘑菇云） | **3 星（精英）无畏导弹** |
+
+命名规律：**精英版 = 同名 + `E`**（`DMISLWH` → `DMISLEWH`），伤害另有
+`[General] DMislEliteDamage=600`。我第一版拿成了普通版（1.5 格 + XGRY），
+所以你说"是小蘑菇云、范围不止 1.5"是对的。
+
 **弹头对照：核弹 vs 3 星无畏导弹（3.10.5）**
 
 | | `[NUKE]`（核弹） | `[DMislWH]`（无畏导弹） |

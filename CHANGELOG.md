@@ -2,6 +2,24 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## 3.10.6 — 更正：3 星无畏用的是 `[DMISLEWH]`（3 格 + `MININUKE` 小蘑菇云）
+
+3.10.5 我拿错了弹头 —— 无畏导弹在零售里有**两个**：
+
+| 弹头 | `CellSpread` | `AnimList` | 用于 |
+| --- | --- | --- | --- |
+| `[DMISLWH]` | 1.5 | `XGRYSML1,...,TWLT070` | 普通无畏 |
+| `[DMISLEWH]` | **3** | **`MININUKE`**（小蘑菇云） | **3 星无敌** |
+
+- `[ZAINukeWH]` 改为 `[DMISLEWH]` 的克隆：`CellSpread=3`、`PercentAtMax=.5`、
+  `AnimList=MININUKE`，其余（`Wall/Wood/Verses/Conventional/InfDeath/ProneDamage`）同无畏；
+- 伤害仍 600 = `[General] DMislEliteDamage`；`BallisticScatter=200` 保留；
+- `[NUKE]` 依旧未改动。
+
+命名规律记进 playbook：**精英版 = 同名 + `E`**。
+守卫改为 `CellSpread` 必须在 2.5–4、`AnimList` 必须含 `MININUKE` 且不得是 `NUKEANIM`
+（`CellSpread=1.5`、`XGRY` 列表、`NUKEANIM` 三种退化实测全部被拦）。
+
 ## 3.10.5 — 弹头换成 3 星无畏导弹（范围/特效/伤害）
 
 原核弹头 `CellSpread=10` + `NUKEANIM` 太大、没意思。换成零售无畏导弹的弹头：
