@@ -1248,15 +1248,16 @@ INFO vera20k_core::rules::ruleset::loading] SuperWeaponTypes: 12 loaded
 | --- | --- | --- |
 | `Inaccurate` / `FlakScatter` | **Projectile** | 真的按弹丸生效，但只是**开关**，半径不在这里 |
 | `BallisticScatter`（单值） | **`[CombatDamage]`** | 全局散布半径（格），改它会影响所有弹道/高炮 |
-| `BallisticScatter.Min/.Max` | 与全局散布键同族，**未证实**抛射体段会读 | 已作为实验写进 `[ZAINukeRifleProj]` |
+| `BallisticScatter.Min/.Max` | 与全局散布键同族，**但抛射体段确实会读** | ✅ 实测生效：写在 `[ZAINukeRifleProj]` 里就能得到武器专属的大散布 |
 | `Airburst` | **VoxelAnimType**（与 `AnimLow/AnimHigh/Degenerates` 同列） | **不是**抛射体键，写上去无效 |
 | `AirburstWeapon` / `ShrapnelWeapon` | 另一张表（非抛射体） | 同上 |
 | `Cluster` / `ShrapnelCount` | **Projectile** | 这两个才是真的抛射体级"多发/子母弹"键 |
 
 所以"某教程说把散布半径写在抛射体段里"是**错的** —— 半径只在 `[CombatDamage]`，
 抛射体只能决定"要不要散"。3.11.2 用 `BallisticScatter.Min/Max=50/200` 做了一次
-**武器级**散布实验（公共表保持零售 1.0、零售高炮弹丸未改）：生效则拿到干净的武器专属方案，
-无效则回到全局方案。
+**武器级**散布实验（公共表保持零售 1.0、零售高炮弹丸未改）：**已验收生效**（3.11.2）：弹丸段里的
+`BallisticScatter.Min/Max=50/200` 让第二艘飞艇的弹道弹大范围散开，而
+`[CombatDamage]` 仍是零售 `1.0`、零售高炮弹丸也保持原样 —— 这就是"武器专属散布"的正解。
 
 **`[CombatDamage]` 是全局唯一段，不能"给某个单位单独来一份"**（3.11.1）：
 
@@ -1282,8 +1283,9 @@ Inaccurate=no
 
 **素材版本来源**：飞行兵那套武器取的是它**最后可用的一版（3.10.6）**。
 注意当时"满地乱飞"还有一半来自全局 `[CombatDamage] BallisticScatter=200`（已按边界要求撤回），
-所以第二艘只能靠弹丸的 `Inaccurate`/`FlakScatter` + 弹头级 `BallisticScatter=200` 来散，
-散布会比当时小一些。
+而 3.11.2 的实测证明：**散布半径可以写在弹丸段**
+（`BallisticScatter.Min=50` / `.Max=200`），不需要动 `[CombatDamage]`，
+所以第二艘现在的散布是**武器专属**的，公共表零改动。
 
 ### 18. `UnitDelivery` 超武：把自建单位投给玩家（3.10.9）
 

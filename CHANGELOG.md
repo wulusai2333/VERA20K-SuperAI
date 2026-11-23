@@ -2,6 +2,26 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## 3.11.3 — 武器级散布验收通过 + 新增边界手册
+
+**验收结论（你实测）**：弹丸段里的 `BallisticScatter.Min=50` / `BallisticScatter.Max=200`
+**确实生效** —— 第二艘飞艇的弹道弹大范围散开，而 `[CombatDamage]` 仍是零售 `1.0`、
+零售高炮弹丸也保持原样。也就是说**散布可以做到武器专属，公共表零改动**。
+
+新增 **[`docs/boundaries-and-lessons.md`](docs/boundaries-and-lessons.md)**：
+
+- 动手前必答的三个问题（属于哪一级 / 验证信号 / 回滚方式）；
+- 已确认可复用的正确路径（专属超武、`UnitDelivery`、`Image=` 写 rules、弹丸级散布、
+  无畏弹头克隆、自动开火三键、基洛夫机体）；
+- 黑名单（`ParaDrop.Types`、改 `*ParaDropInf`、`DropPod.Types`、`SpyPlane.*`、
+  `MultiMissile` 散射、`Battery`、`PlaceUnits`、artmd 写 `Image=`、按单位拆 `[CombatDamage]`、
+  `Airburst` 挂弹丸、`RechargeTime=0`、追踪弹靠 `HomingScatter`）；
+- 方法论（先查二进制字段表归类 → 单变量 → 静默失败变断言 → 改公共表前列使用者 → 错了整体回滚）；
+- 今日版本轨迹，方便回溯。
+
+文档同步：playbook 里"`BallisticScatter.Min/Max` 未证实"改为"实测生效"，
+§18.1 的"散布会比当时小"替换为武器专属散布的结论。
+
 ## 3.11.2 — 试「武器级」散布：把 BallisticScatter.Min/Max 写进弹丸段（公共表回零售）
 
 先纠正一个常见误解（我按二进制字段表逐条核对）：
