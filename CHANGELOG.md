@@ -51,8 +51,8 @@
 新增**诊断开关**（默认关）：
 
 ```bash
-python tools/build_mod.py --rules-dir "F:/Games/red2" \
-    --out "F:/Games/VERA20K/Mods/SuperAI-assembly" --assembly-teams
+python tools/build_mod.py --rules-dir "<原版规则目录>" \
+    --out "<游戏目录>/Mods/SuperAI-assembly" --assembly-teams
 ```
 
 `--assembly-teams` 只跳过"换不集结脚本"这一步，让 AI 恢复原版"先集结再出击"。

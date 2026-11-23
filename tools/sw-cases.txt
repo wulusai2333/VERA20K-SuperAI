@@ -1,0 +1,33 @@
+# Cases for tools/probe_rules.py --cases
+#
+# Each block starts with [Section]; a line "key=value" is applied inside that
+# section, a line "-key" removes the key.  The tool prints whether the engine's
+# parsed-rules digest moved, i.e. whether the key was read at all.
+#
+# WARNING: with VERA20k 0.4.0 that digest turned out to be a *file* hash -- it
+# moves when only a comment changes -- so the tool's own selftest refuses to
+# report results.  These cases are kept because they document what was tried and
+# because the selftest will tell you if a future engine version makes the oracle
+# usable again.  See docs/ai-tuning-playbook.md 13.1.2.
+
+[IronCurtainSpecial]
+SW.AITargeting.Constraints=defensive_cell_set
+SW.AITargeting.Preference=defensive_cell_set
+SW.AffectsHouse=yes
+SW.AffectsTarget=yes
+SW.AIRequiresTarget=no
+SW.RequiresHouse=yes
+SW.AIRequiresHouse=yes
+SW.RangeMinimum=1
+SW.RangeMaximum=9
+
+[NukeSpecial]
+SW.AutoFire=yes
+SW.ManualFire=no
+SW.FireIntoShroud=yes
+SW.AllowAI=yes
+SW.AllowPlayer=yes
+
+[General]
+TeamDelays=111,222,333
+WarRatio=77

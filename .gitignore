@@ -15,3 +15,11 @@ dist/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Game-side and developer-only material: never publish these.
+logs/
+replays/
+.workbuddy/
+Mods/
+spawn.ini
+config.toml

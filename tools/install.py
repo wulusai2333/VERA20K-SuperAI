@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Install the SuperAI mod and its maps into a VERA20k folder.
 
-    python tools/install.py --game-dir "F:/Games/VERA20K" --enable
+    python tools/install.py --game-dir "<游戏目录>" --enable
 
 ``--enable`` rewrites the ``mod =`` line in ``config.toml`` (a .bak copy is
 written first).  Without it the files are installed but you pick the mod in

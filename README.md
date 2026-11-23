@@ -1,7 +1,14 @@
 # Super AI for VERA20k
 
+[![repo](https://img.shields.io/badge/GitHub-VERA20K--SuperAI-blue)](https://github.com/wulusai2333/VERA20K-SuperAI)
+[![mod version](https://img.shields.io/badge/mod-v3.0-green)](CHANGELOG.md)
+[![license](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
+
 把《红色警戒 2：尤里的复仇》遭遇战里的电脑，变成一个**会铺满地图、几乎全员冲锋、永不囤兵**的对手；
-再附上一套专门为「看 AI 打 AI」设计的纯平地图。
+再附上一套专门为「看 AI 打 AI」设计的地图包（平地图 + 冰湖图）。
+
+当前版本 **3.0**：电脑会被打到就立刻重建、把基地铺到 3 个、超武（核弹/闪电/心灵/基因/铁幕/超时空）
+充满即用；本模组**不造围墙**，冷酷难度给到 3 兵营 / 5 战车工厂。
 
 本项目面向 [VERA20k](https://github.com/YuriPlanet/vera20k)（YR 的开源重制引擎），
 由两部分组成：
@@ -81,9 +88,11 @@
 前置：VERA20k 本体 + 一份可用的 YR 游戏数据（`ra2.mix` 等），Ares 设为 **Auto** 或 **On**。
 
 ```bash
-git clone <this repo> VERA20K-SuperAI
+git clone https://github.com/wulusai2333/VERA20K-SuperAI.git
 cd VERA20K-SuperAI
-python tools/install.py --game-dir "F:/Games/VERA20K" --enable
+python -m pip install -r tools/requirements.txt   # 只有 lzokay，重建地图时才需要
+python tools/install.py --game-dir "<游戏目录>" --enable
+python tools/check.py   --game-dir "<游戏目录>"   # 可选：无头校验模组与 6 张地图
 ```
 
 `--enable` 会备份并改写 `config.toml` 里的 `mod = "SuperAI"`。
@@ -149,6 +158,14 @@ AI 设计取舍见 [docs/ai-design.md](docs/ai-design.md)，每个键该调到�
   最多两台同时在路上）。代价：不满 3 座期间该户暂停组建新的进攻队，
   已在场的部队不受影响。想让它更激进就去打掉它的建造厂 —— 它会优先补回来。
 - **触发器不能下建造令**。`[AITriggerTypes]` 只能组队，所以「造建筑」只有计划节点一条路。
+- **铁幕 / 超时空由「队伍脚本」施放，不是超武 AI**。引擎里这两个超武的唯一使用路径是
+  队伍脚本动作 `53`（集结到敌方基地）→ `55`（放铁幕）/ `57`（超时空传送）→ `49`（进攻），
+  零售数据已配好（`Soviet Iron Curtain Team`、`Allied Chrono-Sphere Unit`，触发条件 5/6、权重 5000）。
+  所以它们**只在有队伍被拉出来时才会放**；纯防守、没有成队出击的 AI 不会用。
+  本模组会保留这些脚本（`assert_superweapon_teams_intact` 守着），改 AI 脚本时不要把它们一起换掉。
+- **超武发射不写日志**。只有 `superweapon::force_shield` 会打日志，核弹/铁幕/超时空的发射
+  一条都不写；录像也只存本地玩家指令。所以「AI 到底放没放超武」只能进游戏看，
+  不要指望用日志或工具验证（`docs/ai-tuning-playbook.md` §13.1.2 记录了三条失效的判定器）。
 - **AI 造基地车是有前提的**。引擎本来就有这条路：3 个「自己 0 座建造厂」的触发器
   （权重 5000 = 引擎的接管权重，命中即清空其它触发器）拉起 3 支 MCV 队伍，
   走原版 `043F23CC-G` 移动并展开脚本。

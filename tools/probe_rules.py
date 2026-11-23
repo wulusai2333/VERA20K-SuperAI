@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Ask the engine which INI keys it actually parses.
 
-    python tools/probe_rules.py --game-dir "F:/Games/VERA20K" --cases tools/sw-cases.txt
+    python tools/probe_rules.py --game-dir "<游戏目录>" --cases tools/sw-cases.txt
 
 VERA20k's ``--probe`` prints a ``rules_digest``.  If that digest is a digest of
 the *parsed* rules rather than of the file bytes, it is an oracle: change one

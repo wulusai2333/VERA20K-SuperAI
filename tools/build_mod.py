@@ -5,7 +5,7 @@ The mod is a full replacement of ``rulesmd.ini`` / ``artmd.ini`` / ``aimd.ini``.
 This script starts from the retail files, applies a fixed list of edits and
 writes them next to the ``mod.ini`` that ships in this repository.
 
-    python tools/build_mod.py --rules-dir "F:/Games/red2" --out mod/SuperAI
+    python tools/build_mod.py --rules-dir "<原版规则目录>" --out mod/SuperAI
 
 ``--rules-dir`` must contain the retail ``rulesmd.ini``, ``artmd.ini`` and
 ``aimd.ini`` (a YR install, or the extracted files next to the game).

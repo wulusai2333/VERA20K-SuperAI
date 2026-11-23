@@ -14,7 +14,7 @@ python -m pip install -r tools/requirements.txt
 （YR 安装目录，或从 MIX 中提取出来的规则文件）：
 
 ```bash
-python tools/build_mod.py --rules-dir "F:/Games/red2" --out mod/SuperAI
+python tools/build_mod.py --rules-dir "<原版规则目录>" --out mod/SuperAI
 ```
 
 输出：
@@ -131,7 +131,7 @@ python tools/build_maps.py retrigger \
 ## 3. 校验
 
 ```bash
-python tools/check.py --game-dir "F:/Games/VERA20K"
+python tools/check.py --game-dir "<游戏目录>"
 ```
 
 它会对模组和 `maps/` 下所有 `.yrm` 跑 `--probe`，打印 `starts` 与错误。
@@ -164,8 +164,8 @@ python tools/build_maps.py info --src maps/SuperAI-Flat120.yrm
 ## 4.0 诊断用：队伍集结版（`--assembly-teams`）
 
 ```bash
-python tools/build_mod.py --rules-dir "F:/Games/red2" \
-    --out "F:/Games/VERA20K/Mods/SuperAI-assembly" --assembly-teams
+python tools/build_mod.py --rules-dir "<原版规则目录>" \
+    --out "<游戏目录>/Mods/SuperAI-assembly" --assembly-teams
 ```
 
 **默认关闭，只用于诊断。** 它跳过"把 151 支队伍的脚本换成不集结脚本"这一步，
@@ -179,11 +179,14 @@ python tools/build_mod.py --rules-dir "F:/Games/red2" \
 ## 4.1 规则键的「无头判定器」（tools/probe_rules.py）
 
 ```bash
-python tools/probe_rules.py --game-dir "F:/Games/VERA20K" --selftest
+python tools/probe_rules.py --game-dir "<游戏目录>" --selftest
 ```
 
 想确认某个 INI 键到底被不被引擎解析时用这个工具：它把模组复制到临时的
 `Mods/_probe`，改一处键、跑一次 `--probe`、比对 `rules_digest`，测完删掉临时目录。
+
+用例文件：`tools/sw-cases.txt`（每一行 `键=值`，`-键` 表示删除该键，`[段名]` 切换段）。
+`--log` 参数对 `tools/analyze_log.py` 是**必填**的，没有内置默认路径。
 
 `--selftest` 会先做三个对照（改注释 / 改活键 `TeamDelays` / 改死键 `WarRatio`）。
 **注意：目前的自检结论是"这个判定器不可用"** —— `rules_digest` 连注释都会影响，
@@ -194,7 +197,7 @@ python tools/probe_rules.py --game-dir "F:/Games/VERA20K" --selftest
 ## 5. 安装到游戏
 
 ```bash
-python tools/install.py --game-dir "F:/Games/VERA20K" --enable
+python tools/install.py --game-dir "<游戏目录>" --enable
 ```
 
 见 [install.md](install.md)。

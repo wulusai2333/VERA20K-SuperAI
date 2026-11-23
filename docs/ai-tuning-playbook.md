@@ -5,8 +5,8 @@
 当时的错误结论 → 实际原因」，因为本项目在同一类问题上反复浪费过时间。
 
 > 适用引擎：VERA20k 0.4.0（Ares 扩展开启）。
-> 本文所有「引擎行为」结论都可以在 `F:\Games\VERA20K\.workbuddy\work\src\` 下的
-> 抽取源码里逐行核对，括号内给出文件名与函数名。
+> 本文所有「引擎行为」结论都可以在**引擎抽取源码**里逐行核对（本地自备，不入库；
+> 把 VERA20k 的 `src/` 拷到任意目录即可），括号内给出文件名与函数名。
 
 **先读这两节**（2.4 起的核心设计）：
 
@@ -254,27 +254,27 @@ Yuri 有三个特殊之处，叠在一起变成「矿场洪水」：
 ## 6. 标准操作流程（改 AI 数值时必须照这个顺序）
 
 ```powershell
-cd F:\Games\VERA20K-SuperAI
+cd <仓库目录>
 
 # 1. 只改 tools/build_mod.py —— 它是唯一真相源，直接改发布版 INI 会被下次重建覆盖
 #    （规则：RULES_EDITS / SECTION_KEY_EDITS / BUILD_COUNTS）
 
 # 2. 重建到临时目录并确认幂等
-python tools\build_mod.py --rules-dir "F:/Games/red2" --out %TEMP%\rebuild
+python tools/build_mod.py --rules-dir "<原版规则目录>" --out %TEMP%/rebuild
 
 # 3. 逐字节对齐仓库
 #    重建结果必须与 mod/SuperAI/* 完全一致，否则说明有人手改过发布文件
 #    （用 Get-FileHash -Algorithm SHA256 比对三个文件）
 
 # 4. 无窗口加载校验（规则语法、地图、Ares）
-python tools\check.py --game-dir "F:/Games/VERA20K"
+python tools/check.py --game-dir "<游戏目录>"
 
 # 5. 装进游戏
-python tools\install.py --game-dir "F:/Games/VERA20K"
+python tools/install.py --game-dir "<游戏目录>"
 
 # 6. 打一局，然后判读日志结构（不看强弱，只看有没有建对）
-python tools\analyze_log.py --log "F:/Games/VERA20K/logs/ra2.log" --session last
-python tools\analyze_log.py --log "F:/Games/VERA20K/logs/ra2.log" --session all --strict
+python tools/analyze_log.py --log "<游戏目录>/logs/ra2.log" --session last
+python tools/analyze_log.py --log "<游戏目录>/logs/ra2.log" --session all --strict
 ```
 
 ### 6.1 `tools/analyze_log.py` 的验收闸门
@@ -470,7 +470,7 @@ python tools\analyze_log.py --log "F:/Games/VERA20K/logs/ra2.log" --session all 
 
 ## 8. 源码位置速查
 
-路径前缀 `F:\Games\VERA20K\.workbuddy\work\src\`（抽取版，只读）。
+文件名即源码路径（例如 `src__sim__ai_team_creation.rs` 对应 `src/sim/ai_team_creation.rs`）。
 
 | 想看什么 | 文件 | 关键函数 |
 | --- | --- | --- |
@@ -584,8 +584,8 @@ AIRestrictReplaceTime=0     ; 0 = 不限制；零售 400（约 27 秒）
 建筑**丢失**没有日志，只能从「同一类型隔一段时间又在**别的格子**出现」反推：
 
 ```bash
-python tools/analyze_log.py --log "F:/Games/VERA20K/logs/ra2.log" --session last --rebuilds
-python tools/analyze_log.py --log "F:/Games/VERA20K/logs/ra2.log" --session last --rebuilds 60
+python tools/analyze_log.py --log "<游戏目录>/logs/ra2.log" --session last --rebuilds
+python tools/analyze_log.py --log "<游戏目录>/logs/ra2.log" --session last --rebuilds 60
 ```
 
 输出按户/类型给出「重建事件」数。它是**有噪声的代理指标**（慢速新建也会被算进去），
@@ -807,8 +807,8 @@ attacked  lightningstorm_inactive  dominator_inactive
 **判定方法（单变量）**：
 
 ```bash
-python tools/build_mod.py --rules-dir "F:/Games/red2" \
-    --out "F:/Games/VERA20K/Mods/SuperAI-assembly" --assembly-teams
+python tools/build_mod.py --rules-dir "<原版规则目录>" \
+    --out "<游戏目录>/Mods/SuperAI-assembly" --assembly-teams
 ```
 
 `--assembly-teams` 是**诊断开关**（默认关）：它只跳过"把队伍脚本换成不集结脚本"这一步，

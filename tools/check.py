@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Validate the mod and every map with VERA20k's headless probe.
 
-    python tools/check.py --game-dir "F:/Games/VERA20K"
+    python tools/check.py --game-dir "<游戏目录>"
 
 The probe loads the rules, the AI INI and the map, then prints JSON.  This
 script turns that into a pass/fail table, so a broken edit is caught before

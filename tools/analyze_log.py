@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Read VERA20k's ra2.log and judge what the AI actually built.
 
-    python tools/analyze_log.py --log F:/Games/VERA20K/logs/ra2.log
+    python tools/analyze_log.py --log "<游戏目录>/logs/ra2.log"
     python tools/analyze_log.py --log ... --session last --json
     python tools/analyze_log.py --log ... --match 2 --strict
 
@@ -345,7 +345,8 @@ def main():
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--log", default="F:/Games/VERA20K/logs/ra2.log")
+    parser.add_argument("--log", required=True,
+                        help="path to the game log, e.g. <game-dir>/logs/ra2.log")
     parser.add_argument("--session", default="last",
                         help="'last', 'all', or a 1-based session number")
     parser.add_argument("--match", default="all",

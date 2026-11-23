@@ -67,7 +67,7 @@ python tools/build_maps.py info --src maps/SuperAI-IceLake-1v7-NoOre.yrm
 先分清是「计划里没有」还是「计划里有但没落地」。用日志判，不要靠眼看：
 
 ```bash
-python tools/analyze_log.py --log "F:/Games/VERA20K/logs/ra2.log" --session last
+python tools/analyze_log.py --log "<游戏目录>/logs/ra2.log" --session last
 ```
 
 - **战车工厂/高科/维修厂首次出现的序号很靠后**（闸门是 ≤25%）：太多建筑被塞了
@@ -171,7 +171,7 @@ ForceShield 这类**不用选目标**的超武由 AI 自动使用；核弹/闪�
 5. 想量化验证，用重建事件报告：
 
 ```bash
-python tools/analyze_log.py --log "F:/Games/VERA20K/logs/ra2.log" --session last --rebuilds
+python tools/analyze_log.py --log "<游戏目录>/logs/ra2.log" --session last --rebuilds
 ```
 
 > 注意：建筑**丢失**本身不写日志，所以这个报告是「同一类型隔一段时间又在别的格子出现」

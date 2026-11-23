@@ -15,7 +15,7 @@
 ## 2. 自动安装
 
 ```bash
-python tools/install.py --game-dir "F:/Games/VERA20K" --enable
+python tools/install.py --game-dir "<游戏目录>" --enable
 ```
 
 脚本做三件事：
@@ -27,7 +27,7 @@ python tools/install.py --game-dir "F:/Games/VERA20K" --enable
 只装模组、不装地图：
 
 ```bash
-python tools/install.py --game-dir "F:/Games/VERA20K" --no-maps
+python tools/install.py --game-dir "<游戏目录>" --no-maps
 ```
 
 已经装过再运行是安全的：内容相同的文件会被跳过。
@@ -49,7 +49,7 @@ mod = "SuperAI"
 用无窗口探针检查规则、AI 与地图是否能加载：
 
 ```bash
-python tools/check.py --game-dir "F:/Games/VERA20K"
+python tools/check.py --game-dir "<游戏目录>"
 ```
 
 期望输出类似：
