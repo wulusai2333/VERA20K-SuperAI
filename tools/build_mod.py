@@ -609,7 +609,15 @@ SUPERWEAPON_SCRIPT_ACTIONS = ("55", "56", "57")
 #: its `Max=` caps how many such teams a house may have at once, and retail caps
 #: every one of them at 1, which is why an AI never fields an air force worth
 #: watching.  `SCHP` (Siege Chopper) is a vehicle and is deliberately absent.
-AIR_UNITS = {"ORCA", "BEAG", "ZEP", "BPLN", "HORNET", "ASW", "APACHE", "SPYP"}
+#:
+#: ``JUMPJET`` (the Allied Rocketeer) belongs here even though it is infantry:
+#: it flies, so it is exactly the unit the air boost exists for.  It is also in
+#: :data:`AA_UNITS` because it shoots aircraft, and the air/AA branch below
+#: checks air first -- before this was spelled out, the Rocketeers fell through
+#: to the AA branch and kept `Max=1`, five men and a decaying weight, which is
+#: why Allied rocketeers stayed rare while Kirovs became common.
+AIR_UNITS = {"ORCA", "BEAG", "ZEP", "BPLN", "HORNET", "ASW", "APACHE", "SPYP",
+             "JUMPJET"}
 
 #: Ground units that can shoot at aircraft.  Teams carrying one are "AA teams".
 AA_UNITS = {"FV", "FLAKT", "YTNK", "APOC", "TELE", "HIND", "AEGIS", "JUMPJET", "GGI"}
@@ -1284,6 +1292,19 @@ def assert_air_and_aa_boosted(aimd_lines):
                                 % (m.group(3), m.group(2)))
     if air_tfs < 5:
         problems.append("only %d air task-force entries" % air_tfs)
+
+    # The flying infantry must be classified as air, not as AA: it is in both
+    # sets, and a branch that checks AA first silently gives the Rocketeers
+    # Max=1 and a decaying weight.
+    flying_infantry = [line for line in aimd_lines
+                       if re.match(r"^\d+=\d+,JUMPJET\b", line.strip())]
+    if not flying_infantry:
+        problems.append("no JUMPJET task-force entry; the Rocketeers are not "
+                        "being treated as air units")
+    elif any(int(re.match(r"^\d+=(\d+),JUMPJET\b", line.strip()).group(1))
+             < AIR_UNIT_MIN * AIR_SIZE_FACTOR for line in flying_infantry):
+        problems.append("a JUMPJET task-force entry is below %d men"
+                        % (AIR_UNIT_MIN * AIR_SIZE_FACTOR))
 
     # The air triggers must stay pinned: `AiTriggerTrackRecord::record` clamps
     # the running weight to [weights[1], weights[2]] and takes

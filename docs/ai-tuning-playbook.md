@@ -1073,3 +1073,32 @@ PASS  AA defences 6 of 17 (35% of defences, gate 20%)
 
 > 副作用：空军压力变成**恒定**而不是自适应 —— 这正是要的效果；
 > 但如果你之后觉得地面进攻变慢，可以把 `DissolveUnfilledTeamDelay` 单独回调到 1500。
+
+### 15.6 飞行兵也是空军：`JUMPJET` 被错分到防空分支（3.5 修掉）
+
+`AIR_UNITS` 原来只列了**飞机**（`ORCA/BEAG/ZEP/...`），而火箭飞行兵 `JUMPJET`
+同时满足两件事：**会飞**、**能对空**。于是它落在了 `AA_UNITS` 里，
+3.2–3.4 的空军强化一条都没落到它身上：
+
+| 队伍 | 3.4 实际状态 |
+| --- | --- |
+| `Allied Rocketeer - H1` | `Max=1`、5 人、权重 `100/20/100`（**没钉死 → 失败会掉到 20**） |
+| `Allied Anit-Grand Cannon`（同用火箭兵编队） | `Max=1`、5 人、权重 `140/20/140` |
+| `Allied Grizzly Attack - H3`（6 灰熊 + 4 火箭兵） | `Max=1`、4 人、权重 `100/60/100` |
+
+基洛夫正常、火箭兵稀少，差别**不在原版数据**（零售两边都是 `Max=1`：
+基洛夫 3 支队伍 1–3 架，火箭兵 2 支队伍 4–5 人），而在**分类**：
+`ZEP` 在 `AIR_UNITS` 里，`JUMPJET` 不在。
+
+**修法**：把 `JUMPJET` 加进 `AIR_UNITS`。分支顺序是 `if air / elif aa`，
+所以飞行单位**优先按空军**处理，立刻拿到：`Max` → 6、人数 `max(n+1,3)×2`、权重 ×3 并钉死。
+
+| 队伍 | 3.5 结果 |
+| --- | --- |
+| `Allied Rocketeer - H1` | `Max=6`、**12 人**、权重 `150/150/150` |
+| `Allied Grizzly Attack - H3` | `Max=6`、**10 人** + 6 灰熊、权重 `150/150/150` |
+| `Allied Anit-Grand Cannon` | `Max=6`、**12 人**、权重 `210/210/210` |
+
+**防回归**：守卫新增两条 —— 必须存在 `JUMPJET` 编队条目，且每一条 ≥6 人。
+实测：把火箭兵改回 5 人会报 `air task force entry JUMPJET has only 5 aircraft`；
+整条删掉会报 `no JUMPJET task-force entry`。
