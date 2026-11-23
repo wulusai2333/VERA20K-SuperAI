@@ -2,6 +2,27 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## 3.11.0 — 两艘核弹飞艇：短程版 + 复用「核弹火箭飞行兵」武器版
+
+**边界（都已核对）**：两艘都是**全局、打包进 mod** 的新类型（`rulesmd.ini` 的
+`[VehicleTypes] 85/86` + `Image=ZEP`），**不涉及任何地图数据**；玩家侧靠
+`SW.AlwaysGranted=yes` + `SW.AllowAI=no` 的 `UnitDelivery` 超武拿到（电脑拿不到），
+同时保留战车工厂建造。
+
+| | `ZAINukeGunship` | `ZAINukeGunship2` |
+| --- | --- | --- |
+| 武器 | `ZAINukeMissile`（追踪弹、`Burst=8`、`Warhead=NUKE`） | `ZAINukeRifle`（**原核弹火箭飞行兵**武器） |
+| 射程 | **20**（`GuardRange` 同步 20） | 200（沿用飞行兵原值） |
+| 弹丸 | `ZAINukeMissileProj`（AA+AG 追踪） | `ZAINukeRifleProj`（弹道弹，`Arcing`+`Inaccurate`+`FlakScatter`） |
+| 弹头 | `[NUKE]`（未改） | `ZAINukeWH`（3 星无畏 `[DMISLEWH]` 克隆：`CellSpread=3`、`MININUKE`） |
+
+- 新增 `[VehicleTypes] 86=ZAINukeGunship2`、`[SuperWeaponTypes] 15=ZAINukeGunship2Drop`；
+- 飞行兵素材按 **3.10.6 最终版**原样恢复（`[ZAINukeRifle]`/`[ZAINukeRifleProj]`/`[ZAINukeWH]`），
+  但当时依赖的全局 `[CombatDamage] BallisticScatter=200` 仍保持撤回，散布只来自
+  弹丸与弹头级设置，因此会比当时小；
+- 守卫新增 `assert_nuke_gunship2`（武器/弹丸/弹头/血量/不进 TaskForce/不进超武注册表），
+  并把第一艘的断言改为 `Range==20` 且 `GuardRange==Range`。
+
 ## 3.10.12 — 飞艇隐形的原因：`Image=` 要写在 rules 里，不是 art 里
 
 3.10.11 在 `artmd.ini` 里新建了 `[ZAINukeGunship] Image=ZEP`，实测**仍然隐形** ——

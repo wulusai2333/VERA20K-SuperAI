@@ -672,7 +672,7 @@ GUNSHIP_UNIT_FIELDS = (
     ("Parasiteable", "no"),
     ("Size", "50"),
     ("Bunkerable", "no"),
-    ("GuardRange", "200"),
+    ("GuardRange", "20"),
     ("CanPassiveAquire", "yes"),
     ("OpportunityFire", "yes"),
     ("CanRetaliate", "yes"),
@@ -682,7 +682,7 @@ GUNSHIP_UNIT_FIELDS = (
 GUNSHIP_WEAPON_FIELDS = (
     ("Damage", "600"),
     ("ROF", "40"),
-    ("Range", "200"),
+    ("Range", "20"),
     ("Burst", "8"),
     ("Speed", "120"),
     ("Projectile", GUNSHIP_PROJECTILE),
@@ -781,6 +781,123 @@ DROP_SW_FIELDS = (
 )
 
 
+#: The second gunship reuses the deleted nuke trooper's weapon exactly as it was at
+#: 3.10.6: a [MammothTusk] clone firing the ballistic [ZAINukeRifleProj] with the
+#: 3-star Dreadnought warhead [ZAINukeWH].  Only per-unit sections are restored --
+#: the global [CombatDamage] scatter that version also relied on stays reverted, so
+#: this one has to get its spread from the projectile and the warhead alone.
+GUNSHIP2_UNIT = "ZAINukeGunship2"
+GUNSHIP2_WEAPON = "ZAINukeRifle"
+GUNSHIP2_PROJECTILE = "ZAINukeRifleProj"
+GUNSHIP2_WARHEAD = "ZAINukeWH"
+GUNSHIP2_UNIT_FIELDS = (
+    ("UIName", "Name:ZEP"),
+    ("Name", "Nuclear Gunship (missile)"),
+    ("Image", "ZEP"),
+    ("Prerequisite", "GAWEAP"),
+    ("TechLevel", "1"),
+    ("Cost", "2000"),
+    ("Strength", "100000"),
+    ("Category", "AirPower"),
+    ("Armor", "medium"),
+    ("Sight", "20"),
+    ("RadarInvisible", "no"),
+    ("MoveToShroud", "yes"),
+    ("BalloonHover", "yes"),
+    ("Speed", "8"),
+    ("JumpjetSpeed", "8"),
+    ("JumpjetClimb", "6"),
+    ("JumpjetCrash", "12"),
+    ("JumpJetAccel", "10"),
+    ("JumpJetTurnRate", "2"),
+    ("JumpjetHeight", "750"),
+    ("JumpjetNoWobbles", "yes"),
+    ("Crashable", "yes"),
+    ("PitchSpeed", ".9"),
+    ("PitchAngle", "0"),
+    ("Owner", "British,French,Germans,Americans,Alliance,Russians,Confederation,"
+              "Africans,Arabs,Yuri"),
+    ("Points", "100"),
+    ("ROT", "10"),
+    ("SpeedType", "Hover"),
+    ("Crewed", "no"),
+    ("ConsideredAircraft", "yes"),
+    ("Insignificant", "yes"),
+    ("Explosion", "TWLT070,S_BANG48,S_BRNL58,S_CLSN58,S_TUMU60"),
+    ("MaxDebris", "14"),
+    ("IsSelectableCombatant", "yes"),
+    ("Locomotor", "{92612C46-F71F-11d1-AC9F-006008055BB5}"),
+    ("MovementZone", "Fly"),
+    ("ThreatPosed", "0"),
+    ("DamageParticleSystems", "SparkSys,SmallGreySSys"),
+    ("SelfHealing", "yes"),
+    ("Parasiteable", "no"),
+    ("Size", "50"),
+    ("Bunkerable", "no"),
+    ("GuardRange", "200"),
+    ("CanPassiveAquire", "yes"),
+    ("OpportunityFire", "yes"),
+    ("CanRetaliate", "yes"),
+    ("Primary", GUNSHIP2_WEAPON),
+    ("Ammo", "200"),
+)
+GUNSHIP2_WEAPON_FIELDS = (
+    ("Damage", "600"),
+    ("ROF", "9"),
+    ("Range", "200"),
+    ("Burst", "1"),
+    ("Speed", "20"),
+    ("Projectile", GUNSHIP2_PROJECTILE),
+    ("Warhead", GUNSHIP2_WARHEAD),
+    ("OmniFire", "yes"),
+    ("Report", "ApocalypseAttackAir"),
+)
+GUNSHIP2_PROJECTILE_FIELDS = (
+    ("Image", "DRAGON"),
+    ("Arcing", "true"),
+    ("Inviso", "no"),
+    ("AA", "yes"),
+    ("AG", "yes"),
+    ("Shadow", "no"),
+    ("Ranged", "yes"),
+    ("Inaccurate", "yes"),
+    ("FlakScatter", "yes"),
+    ("SubjectToCliffs", "no"),
+    ("SubjectToElevation", "yes"),
+    ("SubjectToWalls", "no"),
+)
+GUNSHIP2_WARHEAD_FIELDS = (
+    ("CellSpread", "3"),
+    ("PercentAtMax", ".5"),
+    ("Wall", "yes"),
+    ("Wood", "yes"),
+    ("Verses", "100%,90%,80%,100%,80%,80%,85%,65%,28%,80%,0%"),
+    ("Conventional", "yes"),
+    ("Rocker", "no"),
+    ("InfDeath", "2"),
+    ("AnimList", "MININUKE"),
+    ("Tiberium", "yes"),
+    ("Sparky", "no"),
+    ("Bright", "yes"),
+    ("ProneDamage", "70%"),
+    ("BallisticScatter", "200"),
+)
+
+
+def apply_nuke_gunship2(lines):
+    """Write the missile-armed gunship plus the trooper's weapon set."""
+    for name, fields in ((GUNSHIP2_UNIT, GUNSHIP2_UNIT_FIELDS),
+                         (GUNSHIP2_WEAPON, GUNSHIP2_WEAPON_FIELDS),
+                         (GUNSHIP2_PROJECTILE, GUNSHIP2_PROJECTILE_FIELDS),
+                         (GUNSHIP2_WARHEAD, GUNSHIP2_WARHEAD_FIELDS)):
+        body = ["[%s]\r\n" % name,
+                ";SuperAI: second gunship, reusing the nuke trooper's weapon.\r\n"]
+        body += ["%s=%s\r\n" % pair for pair in fields]
+        _replace_section(lines, name, body)
+    _append_registry(lines, "VehicleTypes", GUNSHIP2_UNIT)
+    return True
+
+
 #: The engine's own code calls this feature "UnitDelivery payload (Ares
 #: PlaceUnits)", so both Type values are shipped as two buttons: whichever one the
 #: engine recognises is the real name, and the other does nothing.
@@ -790,18 +907,108 @@ DROP_SW_TYPES = ("UnitDelivery",)
 #: New units need an artmd.ini section as well; without one the engine has no model
 #: to draw and the unit is simply invisible until it fires.  Image=ZEP reuses the
 #: Kirov's voxel and cameo, so no new art is needed.
+DROP_SW2 = "ZAINukeGunship2Drop"
+
+
 def apply_unit_delivery(lines):
-    """Register the delivery superweapon(s) and point them at the gunship."""
-    for index, kind in enumerate(DROP_SW_TYPES):
-        name = DROP_SW if index == 0 else DROP_SW + "2"
+    """Register the delivery superweapons and point them at the two gunships."""
+    for name, unit in ((DROP_SW, GUNSHIP_UNIT), (DROP_SW2, GUNSHIP2_UNIT)):
         body = ["[%s]\r\n" % name,
                 ";SuperAI: click to have the gunship delivered. Player only.\r\n"]
         for key, value in DROP_SW_FIELDS:
             if key == "Type":
-                value = kind
+                value = DROP_SW_TYPES[0]
+            elif key == "Deliver.Types":
+                value = unit
             body.append("%s=%s\r\n" % (key, value))
         _replace_section(lines, name, body)
         _append_registry(lines, "SuperWeaponTypes", name)
+    return True
+
+
+def assert_nuke_gunship2(rules_lines, aimd_lines):
+    """The missile gunship must build on the trooper's weapon, and stay AI-free."""
+    sections, current = {}, None
+    for line in rules_lines:
+        header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
+        if header:
+            current = header.group(1).strip()
+            sections.setdefault(current, [])
+            continue
+        if current is not None:
+            sections[current].append(line)
+
+    def values(name):
+        out = {}
+        for line in sections.get(name, []):
+            m = re.match(r"^([A-Za-z.]+)=(.*?)(\s*;.*)?$", line.rstrip("\r\n"))
+            if m:
+                out[m.group(1).strip().lower()] = m.group(2).strip()
+        return out
+
+    problems = []
+    unit = values(GUNSHIP2_UNIT)
+    if not unit:
+        problems.append("no [%s] section" % GUNSHIP2_UNIT)
+    else:
+        if unit.get("primary", "").strip() != GUNSHIP2_WEAPON:
+            problems.append("%s Primary=%r (want %s, the trooper's weapon)"
+                            % (GUNSHIP2_UNIT, unit.get("primary"), GUNSHIP2_WEAPON))
+        if unit.get("image", "").strip().upper() != "ZEP":
+            problems.append("%s Image=%r (want ZEP or it is invisible)"
+                            % (GUNSHIP2_UNIT, unit.get("image")))
+        if unit.get("balloonhover", "").lower() != "yes":
+            problems.append("%s must stay BalloonHover=yes" % GUNSHIP2_UNIT)
+        if unit.get("insignificant", "").lower() != "yes":
+            problems.append("%s must stay Insignificant=yes" % GUNSHIP2_UNIT)
+        try:
+            hp = int(float(unit.get("strength", "0")))
+        except ValueError:
+            hp = 0
+        if hp < 10000:
+            problems.append("%s Strength=%r; anti-air would kill it"
+                            % (GUNSHIP2_UNIT, unit.get("strength")))
+    weapon = values(GUNSHIP2_WEAPON)
+    if weapon.get("projectile", "").strip() != GUNSHIP2_PROJECTILE:
+        problems.append("%s Projectile=%r" % (GUNSHIP2_WEAPON, weapon.get("projectile")))
+    if weapon.get("warhead", "").strip() != GUNSHIP2_WARHEAD:
+        problems.append("%s Warhead=%r" % (GUNSHIP2_WEAPON, weapon.get("warhead")))
+    proj = values(GUNSHIP2_PROJECTILE)
+    if proj.get("ag", "").lower() != "yes":
+        problems.append("%s AG=%r; it could not hit the ground"
+                        % (GUNSHIP2_PROJECTILE, proj.get("ag")))
+    for homing in ("arm", "rot"):
+        if proj.get(homing):
+            problems.append("%s has %s=; a homing projectile never scatters"
+                            % (GUNSHIP2_PROJECTILE, homing.upper()))
+    if proj.get("flakscatter", "").lower() != "yes":
+        problems.append("%s must keep FlakScatter=yes" % GUNSHIP2_PROJECTILE)
+    wh = values(GUNSHIP2_WARHEAD)
+    if "mininuke" not in wh.get("animlist", "").lower():
+        problems.append("%s AnimList=%r (want MININUKE)"
+                        % (GUNSHIP2_WARHEAD, wh.get("animlist")))
+    try:
+        spread = float(wh.get("cellspread", "0"))
+    except ValueError:
+        spread = 0.0
+    if spread < 2.5 or spread > 4:
+        problems.append("%s CellSpread=%r (want 2.5..4)" % (GUNSHIP2_WARHEAD, spread))
+    if GUNSHIP2_UNIT not in " ".join(sections.get("VehicleTypes", [])):
+        problems.append("%s is not in [VehicleTypes]" % GUNSHIP2_UNIT)
+    registry = set()
+    for line in sections.get("SuperWeaponTypes", []):
+        m = re.match(r"^\s*\d+\s*=\s*([^;\r\n]+)", line)
+        if m:
+            registry.add(m.group(1).strip())
+    if GUNSHIP2_UNIT in registry:
+        problems.append("%s leaked into [SuperWeaponTypes]" % GUNSHIP2_UNIT)
+    in_teams = [line.strip() for line in aimd_lines
+                if re.match(r"^\d+=\d+,%s\b" % GUNSHIP2_UNIT, line.strip())]
+    if in_teams:
+        problems.append("a TaskForce names %s" % GUNSHIP2_UNIT)
+
+    if problems:
+        raise SystemExit("gunship2 check failed: " + "; ".join(problems[:4]))
     return True
 
 
@@ -956,13 +1163,6 @@ def assert_nuke_gunship(rules_lines, aimd_lines):
         if unit.get("balloonhover", "").lower() != "yes":
             problems.append("BalloonHover=%r; it must never need a landing pad"
                             % unit.get("balloonhover"))
-        try:
-            guard = int(float(unit.get("guardrange", "0")))
-        except ValueError:
-            guard = 0
-        if guard < 100:
-            problems.append("GuardRange=%r (want >=100: this is the radius it "
-                            "auto-acquires in)" % unit.get("guardrange"))
         if unit.get("canpassiveaquire", "").lower() != "yes":
             problems.append("CanPassiveAquire=%r; it must fire on its own"
                             % unit.get("canpassiveaquire"))
@@ -977,8 +1177,18 @@ def assert_nuke_gunship(rules_lines, aimd_lines):
         reach = int(float(weapon.get("range", "0")))
     except ValueError:
         reach = 0
-    if reach < 100:
-        problems.append("%s Range=%r (want >=100)" % (GUNSHIP_WEAPON, weapon.get("range")))
+    if reach != 20:
+        problems.append("%s Range=%r (want 20: this gunship is the short-range one)"
+                        % (GUNSHIP_WEAPON, weapon.get("range")))
+    if unit:
+        try:
+            guard = int(float(unit.get("guardrange", "0")))
+        except ValueError:
+            guard = 0
+        if guard != reach:
+            problems.append("GuardRange=%r (want %r: it must match the weapon range "
+                            "or the ship locks on to targets it cannot reach)"
+                            % (unit.get("guardrange"), reach))
     if weapon.get("projectile", "").strip() != GUNSHIP_PROJECTILE:
         problems.append("%s Projectile=%r" % (GUNSHIP_WEAPON, weapon.get("projectile")))
     proj = values(GUNSHIP_PROJECTILE)
@@ -1502,6 +1712,7 @@ def build_rules(source_dir, out_dir):
     apply_superweapon_edits(lines)
     player_nuke_index = apply_player_nuke(lines)
     apply_nuke_gunship(lines)
+    apply_nuke_gunship2(lines)
     apply_unit_delivery(lines)
 
     # Ares AIBuildCounts: planned copies of the production buildings that must
@@ -2476,6 +2687,7 @@ def main():
     assert_superweapon_teams_intact(aimd_lines)
     assert_player_nuke_section(rules_lines)
     assert_nuke_gunship(rules_lines, aimd_lines)
+    assert_nuke_gunship2(rules_lines, aimd_lines)
     assert_unit_delivery(rules_lines, aimd_lines)
     assert_air_and_aa_boosted(aimd_lines)
     counts = assert_build_counts(rules_lines)

@@ -1224,6 +1224,29 @@ INFO vera20k_core::rules::ruleset::loading] SuperWeaponTypes: 12 loaded
      但触发器只能按**国家**定位房子（`resolve_trigger_house` 用 `CountryIdx`），
      所以需要固定玩家用哪个国家。
 
+### 18.1 两艘核弹飞艇的边界（3.11.0）
+
+| 项目 | 适用范围 | 依据 |
+| --- | --- | --- |
+| `ZAINukeGunship` / `ZAINukeGunship2` 类型 | **全局，打包进 mod** | 写在 `rulesmd.ini`（`[VehicleTypes]` 85/86）+ `Image=ZEP`，所有地图生效 |
+| 战车工厂建造 | 任意人类玩家 | `Owner=` 全阵营、`Prerequisite=GAWEAP`、`TechLevel=1`；AI 不造（不在任何 `TaskForce`） |
+| `ZAINukeGunshipDrop` / `2Drop` | **只给人类玩家**，全局可用 | `SW.AlwaysGranted=yes` + `SW.AllowAI=no` |
+| 地图 `.yrm` | **不参与** | 没有任何地图侧数据 |
+
+两艘的区别：
+
+| | 第一艘 `ZAINukeGunship` | 第二艘 `ZAINukeGunship2` |
+| --- | --- | --- |
+| 武器 | `ZAINukeMissile`（追踪弹，`Warhead=NUKE`，`Burst=8`） | `ZAINukeRifle`（**原核弹火箭飞行兵**的武器：天启导弹克隆、`ROF=9`、`Burst=1`） |
+| 射程 | **20**（`GuardRange` 同步 20） | 200（沿用飞行兵原值） |
+| 弹丸 | `ZAINukeMissileProj`（AA+AG 追踪弹） | `ZAINukeRifleProj`（弹道弹：`Arcing`+`Ranged`+`Inaccurate`+`FlakScatter`，无 `Arm`/`ROT`） |
+| 弹头 | `[NUKE]`（零售，未改） | `ZAINukeWH`（3 星无畏 `[DMISLEWH]` 克隆：`CellSpread=3`、`MININUKE`、弹头级 `BallisticScatter=200`） |
+
+**素材版本来源**：飞行兵那套武器取的是它**最后可用的一版（3.10.6）**。
+注意当时"满地乱飞"还有一半来自全局 `[CombatDamage] BallisticScatter=200`（已按边界要求撤回），
+所以第二艘只能靠弹丸的 `Inaccurate`/`FlakScatter` + 弹头级 `BallisticScatter=200` 来散，
+散布会比当时小一些。
+
 ### 18. `UnitDelivery` 超武：把自建单位投给玩家（3.10.9）
 
 之前排除了 `ParaDrop`/`DropPod`，但**漏查了一个真实存在的实现**：
