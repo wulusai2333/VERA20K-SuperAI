@@ -917,3 +917,62 @@ python tools/build_mod.py --rules-dir "<原版规则目录>" \
    - 去掉 `SW.RequiresTarget`（某些实现里它会让找不到目标的超武一直等待）；
    - 把 `SW.AITargeting` 换成 `attacked`；
    - 暂时把 `RechargeTime` 从 `10` 改小，确认「是不是根本没充满」这个前提。
+
+---
+
+## 14. 防御选型：为什么 AI 防空造得少（3.1 修掉）
+
+### 14.1 机制：**先选类别，再选建筑**
+
+`ai_base_defense.rs`（`AI_ChooseNextProduction` 的移植，逐行可查）对每个 `-1` 节点这样选：
+
+1. 把本户每栋建筑的 `AntiAirValue` / `AntiArmorValue` / `AntiInfantryValue`
+   按**象限**累加，取总量最小的象限（"最弱象限"）的**占比**；
+2. 取**指定敌人**的兵力构成（air / vehicles / infantry），按 `AIForcePredictionFudge=` 加噪声；
+3. **类别 =（敌人占比 − 我方占比）最大的那一项**；
+4. 候选 = `[AI] Allied/Soviet/ThirdBaseDefenses=` 里**该类别值 > 0** 的建筑；
+5. 在候选里按该类别的值加权随机；该类别没有候选才回退 armor → infantry → air。
+
+**关键**：一栋建筑能不能被造，先看它**是不是这个类别的候选**。
+所以"某种防御造得少"往往不是概率问题，而是**它压根不在多数类别里**。
+
+### 14.2 零售数值的坑
+
+| 建筑 | Inf | Armor | Air | 后果 |
+| --- | --- | --- | --- | --- |
+| `NASAM` 盟军爱国者 | **0** | **0** | 25 | **只在 air 类别出现** |
+| `NAFLAK` 苏军防空炮 | **0** | **0** | 25 | **只在 air 类别出现** |
+| `YAGGUN` 尤里盖特机炮 | 25 | 10 | 25 | **三个类别都是候选** |
+
+air 类别要胜出，得让**敌人的空中占比**超过我方防空覆盖 —— AI 之间几乎没有空军，
+所以 air 很少赢，盟/苏的防空炮也就很少被选。日志实测（同一份 log）：
+`YAGGUN` 62 次 > `NASAM` 41 次 > `NAFLAK` 29 次；盟军防空约占其防御 17%、苏军约 12%。
+
+> **和"打掉才重建"无关**：重建只管"节点空了要不要再建一栋"，
+> "建哪一种"完全由上面的类别逻辑决定。防空少是**选型**问题，不是产量问题。
+
+### 14.3 修法：给盟/苏防空炮尤里那个形状
+
+```ini
+[NASAM]  AntiInfantryValue=25   AntiArmorValue=10     ; 零售 0 / 0
+[NAFLAK] AntiInfantryValue=25   AntiArmorValue=10     ; 零售 0 / 0
+```
+
+- **防御节点数一个没动**（`*BaseDefenseCounts` 仍是零售 `25/20/6`），
+  建造强度不变，只是同样这些节点里防空被选中的概率从"几乎 0"提到和盖特机炮同级；
+- 权重分布：infantry 25/100、armor 10/55、air 100%（唯一候选）；
+- 想更激进就调大这两个数（如 30/15），想收一点就 15/5 —— 一个旋钮。
+
+`assert_aa_defenses_competitive` 守住这一点：三个防空建筑的三类值必须**都非零**，
+否则构建失败 —— 因为 `0/0/25` 这种"看起来正常、实际被架空"的数值最容易在换数据时静默回归。
+
+### 14.4 怎么量
+
+`tools/analyze_log.py` 现在会报防空占比，并带一条 `AA_MIN=20%` 的闸门：
+
+```
+AA: 6 of 17 defences (35%)
+PASS  AA defences 6 of 17 (35% of defences, gate 20%)
+```
+
+改动前的基线：`NASAM` 41 / `NAFLAK` 29 / `YAGGUN` 62（占各自防御 12–17%）。

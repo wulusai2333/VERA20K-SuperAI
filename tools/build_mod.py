@@ -132,6 +132,25 @@ SECTION_KEY_EDITS = {
     "GADEPT": {"AIBuildThis": "yes"},
     "NADEPT": {"AIBuildThis": "yes"},
     "YADEPT": {"AIBuildThis": "yes"},
+    # --- anti-air defences -------------------------------------------------
+    # The defence picker chooses a CATEGORY first (air / armor / infantry) and
+    # only then picks among that category's candidates; a building is a
+    # candidate for a category when its value for that category is above zero
+    # (`DefenseChoice::candidates`).  Retail gives the Allied and Soviet AA
+    # buildings zero armor and zero infantry value, so they exist ONLY in the
+    # air category -- which wins only when the enemy's air share beats the
+    # house's own air coverage.  Between computer houses there is almost no air
+    # force, so that category almost never wins and the AA guns are almost never
+    # picked.  Yuri's Gattling Cannon has 25/10/25 and is therefore a candidate
+    # in all three categories, which is why it is the AA building that actually
+    # shows up (log counts: YAGGUN 62, NASAM 41, NAFLAK 29).
+    #
+    # Giving the two guns the same shape as Yuri's makes them compete in every
+    # draw.  The number of defence nodes is untouched (*BaseDefenseCounts stays
+    # at retail 25/20/6), so the build intensity the user asked to keep does not
+    # change -- only which building gets chosen inside those nodes.
+    "NASAM": {"AntiInfantryValue": "25", "AntiArmorValue": "10"},
+    "NAFLAK": {"AntiInfantryValue": "25", "AntiArmorValue": "10"},
 }
 
 #: Comment written beside a rewritten key, replacing the retail one.  Retail's
@@ -140,6 +159,8 @@ SECTION_KEY_EDITS = {
 #: next reader think the value is still ``no``.
 SECTION_KEY_COMMENTS = {
     "AIBuildThis": ";SuperAI: enabled so the AI can build its MCV (see docs/ai-tuning-playbook.md)",
+    "AntiInfantryValue": ";SuperAI: retail 0 made the AA gun air-only in the defence picker",
+    "AntiArmorValue": ";SuperAI: retail 0 made the AA gun air-only in the defence picker",
 }
 
 #: Ares ``SW.*`` keys for the superweapons a computer can actually build.
@@ -1071,6 +1092,50 @@ def assert_superweapon_teams_intact(aimd_lines):
     return len(iron & used), len(chrono & used)
 
 
+def assert_aa_defenses_competitive(rules_lines):
+    """Every anti-air defence must be a candidate in all three categories.
+
+    ``DefenseChoice::candidates`` only offers a building for a category when its
+    value for that category is above zero, and the category is chosen before the
+    building.  Retail's ``0/0/25`` shape therefore leaves the Allied and Soviet
+    AA guns reachable only through the air category -- which almost never wins
+    between computer houses.  The build would look perfectly healthy while the
+    AI quietly stopped building AA, so check the shape explicitly.
+    """
+    aa = ("NASAM", "NAFLAK", "YAGGUN")
+    keys = ("AntiInfantryValue", "AntiArmorValue", "AntiAirValue")
+    section = None
+    found = {}
+    for line in rules_lines:
+        header = re.match(r"^\[([^\]]+)\]\s*$", line)
+        if header:
+            section = header.group(1).strip()
+            continue
+        if section not in aa:
+            continue
+        m = re.match(r"^(%s)=(.*?)(\s*;.*)?$" % "|".join(keys), line.rstrip("\r\n"))
+        if m:
+            try:
+                found.setdefault(section, {})[m.group(1)] = int(m.group(2).strip())
+            except ValueError:
+                raise SystemExit("[%s] %s is not an integer" % (section, m.group(1)))
+    for name in aa:
+        values = found.get(name)
+        if values is None:
+            raise SystemExit("anti-air defence [%s] not found" % name)
+        missing = [key for key in keys if key not in values]
+        if missing:
+            raise SystemExit("[%s] has no %s" % (name, ", ".join(missing)))
+        zero = [key for key in keys if values[key] <= 0]
+        if zero:
+            raise SystemExit(
+                "[%s] has %s at zero; the defence picker only offers a building "
+                "for a category whose value is above zero, so this AA gun would "
+                "be reachable only through the categories it scores in"
+                % (name, ", ".join(zero)))
+    return found
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rules-dir", required=True,
@@ -1106,6 +1171,7 @@ def main():
     assert_superweapon_teams_intact(aimd_lines)
     counts = assert_build_counts(rules_lines)
     assert_no_walls(rules_lines)
+    aa_defences = assert_aa_defenses_competitive(rules_lines)
     superweapons = assert_superweapon_autofire(rules_lines)
 
     if not args.no_art:

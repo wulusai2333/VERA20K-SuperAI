@@ -51,6 +51,11 @@ DEFENCES = {
     "YAGGUN", "NATBNK",                    # Yuri
 }
 WALLS = {"GAWALL", "NAWALL", "GAFWLL"}
+#: Anti-air defences.  The picker chooses a category (air/armor/infantry) before
+#: the building, so these only appear when the air category wins -- see
+#: docs/ai-tuning-playbook.md.  Tracked separately because "too little AA" is
+#: invisible in the per-family shares.
+AA_DEFENCES = {"NASAM", "NAFLAK", "YAGGUN"}
 POWER = {"GAPOWR", "NAPOWR", "YAPOWR"}
 REFINERIES = {"GAREFN", "NAREFN", "YAREFN"}
 BARRACKS = {"GAPILE", "NAHAND", "YABRCK"}
@@ -86,6 +91,10 @@ WALL_MAX = 0.15
 TYPE_MAX = 0.30
 #: Placements of the same type on one cell.
 SAME_CELL_MAX = 3
+#: Anti-air share of one house's defences.  Retail's ``0/0/25`` shape kept the
+#: Allied and Soviet AA guns air-only, which measured 12-17% of defences; the
+#: mod gives them Yuri's ``25/10/25`` shape so they compete in every category.
+AA_MIN = 0.20
 
 
 def read_sessions(path):
@@ -163,6 +172,7 @@ def house_report(placements):
         families[name] = {"count": count, "first_index": earliest}
 
     defence = sum(types[t] for t in DEFENCES if t in types)
+    aa = sum(types[t] for t in AA_DEFENCES if t in types)
     walls = sum(types[t] for t in WALLS if t in types)
     return {
         "total": total,
@@ -171,6 +181,8 @@ def house_report(placements):
         "families": families,
         "defence": defence,
         "defence_share": defence / total if total else 0.0,
+        "aa": aa,
+        "aa_share": aa / defence if defence else 0.0,
         "walls": walls,
         "wall_share": walls / total if total else 0.0,
         "depots": sum(types[t] for t in DEPOTS if t in types),
@@ -211,6 +223,12 @@ def judge(house, report):
         report["wall_share"] <= WALL_MAX,
         "walls %d (%.0f%%, gate <=%.0f%%)"
         % (report["walls"], report["wall_share"] * 100, WALL_MAX * 100),
+    ))
+    checks.append((
+        report["aa_share"] >= AA_MIN,
+        "AA defences %d of %d (%.0f%% of defences, gate %.0f%%)"
+        % (report["aa"], report["defence"], report["aa_share"] * 100,
+           AA_MIN * 100),
     ))
 
     # Power plants are exempt: a big base genuinely needs a lot of them and
@@ -300,6 +318,8 @@ def report_text(matches, strict):
             print("  families: " + "  ".join(order))
             print("  top types: " + "  ".join(
                 "%s x%d" % pair for pair in list(report["types"].items())[:6]))
+            print("  AA: %d of %d defences (%.0f%%)"
+                  % (report["aa"], report["defence"], report["aa_share"] * 100))
             for ok, text in judge(house, report):
                 if ok is None:
                     print("  SKIP  " + text)
