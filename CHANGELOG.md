@@ -2,6 +2,26 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## 3.9.1 — 新核弹冷却太长：`RechargeTime=0` 被引擎当成"没写"
+
+症状：独立类型的核弹能放，但**冷却还是很久**。
+
+原因：`src__rules__ini_value.rs` 的 `read_double_with` 文档写明这类读取器的语义是
+"**a zero that keeps the field**" —— **读到 0 就保留字段原值**（等于没写），
+所以 `RechargeTime=0` 回落到默认的 10 分钟。`RechargeTime` 是浮点（零售有 `8.5`），
+最短可用的正数是 **`0.01` 分钟 ≈ 0.6 秒**（约 9 个逻辑帧）。
+
+改动：
+
+```ini
+RechargeTime=0.01     ; 最短正数，0 会被忽略
+SW.Shots=1000         ; 双保险：一次充能 1000 发
+IsPowered=true        ; 补回零售 [NukeSpecial] 就有的这一行
+```
+
+守卫同步收紧：`0 < RechargeTime <= 0.05`、`SW.Shots >= 100`，
+实测 `RechargeTime=0`（旧 bug）、`RechargeTime=1`、`SW.Shots=1` 三种都会被拦。
+
 ## 3.9 — 换实现：玩家的无限核弹改成独立超武类型，电脑的核弹不动
 
 3.8 直接改 `[NukeSpecial]`（`RechargeTime=0` + `SW.AllowAI=no`）是错的：

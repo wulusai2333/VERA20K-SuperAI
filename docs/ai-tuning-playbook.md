@@ -1190,7 +1190,8 @@ SidebarImage=NukeIcon
 Range=7
 LineMultiplier=2
 ShowTimer=no
-RechargeTime=0              ; 零冷却
+RechargeTime=0.01           ; 最短正数（≈0.6 秒）；写 0 等于没写，见 §17.6
+SW.Shots=1000               ; 一次充能 1000 发（双保险）
 SW.AllowPlayer=yes
 SW.AllowAI=no               ; 电脑有它也不能发射
 SW.AlwaysGranted=yes        ; 不需要发射井
@@ -1223,11 +1224,25 @@ INFO vera20k_core::rules::ruleset::loading] SuperWeaponTypes: 12 loaded
      但触发器只能按**国家**定位房子（`resolve_trigger_house` 用 `CountryIdx`），
      所以需要固定玩家用哪个国家。
 
+### 17.6 为什么不能写 `RechargeTime=0`
+
+`src__rules__ini_value.rs` 的 `read_double_with` 文档写着这类原生读取器的语义：
+
+> "the shape of native readers that test or scale the result before storing it
+> (**a zero that keeps the field**, a minutes-to-frames scale)"
+
+即：**读到 0 就保留字段原值**（= 当作没写），于是 `RechargeTime=0` 会回落到默认的 10 分钟 ——
+这正是"新核弹冷却还是那么长"的原因。`RechargeTime` 是浮点（零售有 `8.5`），
+所以最短可用的正数是 `0.01` 分钟 ≈ 0.6 秒（约 9 个逻辑帧）。
+
+再往下：`0.001` ≈ 0.06 秒；写更小没有意义（引擎至少走一帧）。
+
 ### 17.5 防回归
 
 `assert_player_nuke_section` 双向检查：
 
-- 玩家类型：`RechargeTime=0`、`SW.AlwaysGranted=yes`、`SW.AllowAI=no`、`SW.AllowPlayer=yes`、已注册；
+- 玩家类型：`0 < RechargeTime <= 0.05`（**写 0 必须被拒绝**，因为引擎会把 0 当成"保留默认值"）、
+  `SW.Shots >= 100`、`SW.AlwaysGranted=yes`、`SW.AllowAI=no`、`SW.AllowPlayer=yes`、已注册；
 - **反向**：`[NukeSpecial]` 必须仍是 `RechargeTime=10`、`SW.AllowAI=yes`、且**没有** `AlwaysGranted`
   —— 防止以后又有人为了"给玩家"去改电脑那一份。
 

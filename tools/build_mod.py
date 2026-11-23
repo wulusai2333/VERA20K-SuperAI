@@ -473,8 +473,17 @@ PLAYER_NUKE_FIELDS = (
     ("SidebarImage", "NukeIcon"),
     ("Range", "7"),
     ("LineMultiplier", "2"),
+    ("IsPowered", "true"),
     ("ShowTimer", "no"),
-    ("RechargeTime", "0"),
+    # NOT 0: the engine's ReadDouble-shaped readers treat a zero as "keep the
+    # current value" (see `read_double_with` in src/rules/ini_value.rs: "a zero
+    # that keeps the field"), so RechargeTime=0 silently fell back to the ten
+    # minute default.  RechargeTime is a float in minutes (retail uses 8.5 too),
+    # so the shortest useful value is 0.01 = about 0.6 s.
+    ("RechargeTime", "0.01"),
+    # Belt and braces: one charge carries a thousand shots, so even a slow
+    # recharge cannot gate the player.
+    ("SW.Shots", "1000"),
     ("SW.AllowPlayer", "yes"),
     ("SW.AllowAI", "no"),
     ("SW.AlwaysGranted", "yes"),
@@ -573,13 +582,27 @@ def assert_player_nuke_section(rules_lines):
     if not player:
         raise SystemExit("no [%s] section" % PLAYER_NUKE_SECTION)
     wanted = {
-        "rechargetime": "0",
         "sw.alwaysgranted": "yes",
         "sw.allowai": "no",
         "sw.allowplayer": "yes",
     }
     bad = ["%s=%s (want %s)" % (k, player.get(k, "<missing>"), v)
            for k, v in wanted.items() if player.get(k, "").lower() != v]
+    # A zero here is not "no cooldown": the reader keeps the field's current
+    # value when it sees 0, so 0 means the ten minute default.
+    try:
+        recharge = float(player.get("rechargetime", "nan"))
+    except ValueError:
+        recharge = float("nan")
+    if not (0.0 < recharge <= 0.05):
+        bad.append("RechargeTime=%s (want >0 and <=0.05; 0 is read as 'keep "
+                   "the default')" % player.get("rechargetime", "<missing>"))
+    try:
+        shots = int(float(player.get("sw.shots", "0")))
+    except ValueError:
+        shots = 0
+    if shots < 100:
+        bad.append("SW.Shots=%s (want >=100)" % player.get("sw.shots", "<missing>"))
     if bad:
         raise SystemExit("[%s] is not the player's unlimited nuke: %s"
                          % (PLAYER_NUKE_SECTION, "; ".join(bad)))
