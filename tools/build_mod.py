@@ -516,6 +516,21 @@ WORLD_NUKE_FIELDS = (
     ("SW.RequiresTarget", "yes"),
     ("SW.FireIntoShroud", "yes"),
 )
+#: Two more candidate shapes for the same idea, shipped so one match can answer
+#: which one the engine actually scatters with:
+#:
+#: * ``Battery`` is one of the superweapon Type values the binary lists next to
+#:   ``MultiMissile``/``DropPod``/``HunterSeeker``, and ``SW.MaxCount`` sits in
+#:   the same key list -- a battery that fires SW.MaxCount shots is the most
+#:   likely "many warheads at once" implementation;
+#: * ``SW.MaxCount`` on plain MultiMissile, in case the count is what was missing.
+#:
+#: Whichever one scatters becomes the real world nuke; the others get deleted.
+WORLD_NUKE_CANDIDATES = (
+    ("ZAIWorldNukeB", "Battery", "40"),
+    ("ZAIWorldNukeC", "MultiMissile", "40"),
+)
+
 WORLD_NUKE_COMMENT = (
     ";SuperAI: player-only whole-map nuke: Type=MultiMissile scatters Range/"
     "LineMultiplier warheads over the map. The AI keeps [NukeSpecial].")
@@ -771,6 +786,17 @@ def build_rules(source_dir, out_dir):
     player_nuke_index = apply_player_nuke(lines)
     world_nuke_index = apply_player_nuke(
         lines, WORLD_NUKE_SECTION, WORLD_NUKE_FIELDS)
+    for name, kind, count in WORLD_NUKE_CANDIDATES:
+        fields = []
+        for key, value in WORLD_NUKE_FIELDS:
+            if key == "Type":
+                value = kind
+            elif key == "LineMultiplier":
+                value = "40"
+            fields.append((key, value))
+            if key == "LineMultiplier":
+                fields.append(("SW.MaxCount", count))
+        apply_player_nuke(lines, name, tuple(fields))
 
     # Ares AIBuildCounts: planned copies of the production buildings that must
     # exist in numbers, keyed by difficulty (hard, normal, easy).
