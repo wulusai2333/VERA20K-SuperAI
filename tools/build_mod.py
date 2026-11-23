@@ -605,6 +605,28 @@ class Aimd:
 #: 56/57 are the chronoshift variants (see team_script_vm/actions.rs).
 SUPERWEAPON_SCRIPT_ACTIONS = ("55", "56", "57")
 
+#: Units that fly.  A team whose task force holds one of these is an "air team":
+#: its `Max=` caps how many such teams a house may have at once, and retail caps
+#: every one of them at 1, which is why an AI never fields an air force worth
+#: watching.  `SCHP` (Siege Chopper) is a vehicle and is deliberately absent.
+AIR_UNITS = {"ORCA", "BEAG", "ZEP", "BPLN", "HORNET", "ASW", "APACHE", "SPYP"}
+
+#: Ground units that can shoot at aircraft.  Teams carrying one are "AA teams".
+AA_UNITS = {"FV", "FLAKT", "YTNK", "APOC", "TELE", "HIND", "AEGIS", "JUMPJET", "GGI"}
+
+#: How many of a team type a house may have at once after the boost.
+AIR_TEAM_MAX = 3
+#: Weight multiplier for the triggers that form air / AA teams.  Weights are per
+#: difficulty and stay proportional to each other.
+AIR_WEIGHT_FACTOR = 3
+AA_WEIGHT_FACTOR = 2
+#: Ceiling for a rewritten weight, and the aircraft count per air task force:
+#: at least AIR_UNIT_MIN (a one-Kirov team is not an air force), never more than
+#: AIR_UNIT_CAP.
+WEIGHT_CAP = 1500
+AIR_UNIT_MIN = 3
+AIR_UNIT_CAP = 8
+
 
 def teams_using_superweapon_scripts(doc):
     """Team ids whose script contains an Iron Curtain / chronoshift action.
@@ -825,8 +847,9 @@ def build_aimd(source_dir, out_dir, assembly_teams=False):
     doc.reindex()
     recovered += added
 
+    boost = boost_air_and_aa(doc)
     open(os.path.join(out_dir, "aimd.ini"), "wb").write(doc.text().encode("latin-1"))
-    return switched, recovered, preserved
+    return switched, recovered, preserved, boost
 
 
 def assert_mcv_recovery_fillable(rules_lines, aimd_lines):
@@ -1136,6 +1159,117 @@ def assert_aa_defenses_competitive(rules_lines):
     return found
 
 
+def boost_air_and_aa(doc):
+    """Give the AI an air force and a bigger AA share, without new team types.
+
+    Two structural reasons the computer never looks like it owns either:
+
+    * only 7 of retail's 132 task forces carry an aircraft, and every one of the
+      11 team types that uses them is capped at ``Max=1`` -- a house may have
+      exactly one air team alive at a time;
+    * the triggers that form air and AA teams sit at ordinary weights (40-70),
+      so they are drawn as rarely as any other attack team.
+
+    So: raise the air team cap, add one aircraft per air task force, and scale
+    the weights of the triggers that form air (x3) and AA (x2) teams.  Weights
+    are per difficulty and are scaled together, so the difficulty mix is kept;
+    a ceiling keeps them from swamping the 5000-weight takeover triggers.
+    """
+    team_air = set()
+    team_aa = set()
+    team_tf = {}
+    for tid in doc.team_ids():
+        fields = doc.values(tid)
+        tf = fields.get("taskforce", ("", 0))[0].strip()
+        team_tf[tid] = tf
+        if not tf or tf not in doc.starts:
+            continue
+        units = {unit for _i, _idx, _count, unit, _rest, _eol in doc.members(tf)}
+        if units & AIR_UNITS:
+            team_air.add(tid)
+        elif units & AA_UNITS:
+            team_aa.add(tid)
+
+    # 1. A house may keep AIR_TEAM_MAX air teams alive at once.
+    capped = 0
+    for tid in sorted(team_air):
+        fields = doc.values(tid)
+        if "max" not in fields:
+            continue
+        current = fields["max"][0].strip()
+        try:
+            value = int(current)
+        except ValueError:
+            continue
+        if value < AIR_TEAM_MAX:
+            doc.replace_value(fields["max"][1], "Max", str(AIR_TEAM_MAX))
+            capped += 1
+
+    # 2. One more aircraft per air task force.
+    grown = 0
+    for tf in {team_tf[tid] for tid in team_air if team_tf.get(tid) in doc.starts}:
+        for index, slot, count, unit, rest, eol in doc.members(tf):
+            if unit not in AIR_UNITS or count >= AIR_UNIT_CAP:
+                continue
+            wanted = min(max(count + 1, AIR_UNIT_MIN), AIR_UNIT_CAP)
+            doc.lines[index] = "%d=%d,%s%s%s" % (slot, wanted, unit, rest, eol)
+            grown += 1
+
+    # 3. Weight the triggers that form those teams.
+    air_triggers = aa_triggers = 0
+    start, end = doc.bounds("AITriggerTypes")
+    for i in range(start, end):
+        line = doc.lines[i]
+        if "=" not in line or line.lstrip().startswith(";"):
+            continue
+        key, value = line.split("=", 1)
+        tokens = value.rstrip("\r\n").split(",")
+        if len(tokens) != 18:
+            continue
+        team = tokens[1].strip()
+        factor = AIR_WEIGHT_FACTOR if team in team_air else (
+            AA_WEIGHT_FACTOR if team in team_aa else 0)
+        if not factor:
+            continue
+        eol = line[len(line.rstrip("\r\n")):]
+        for slot in (7, 8, 9):
+            try:
+                weight = float(tokens[slot])
+            except ValueError:
+                continue
+            tokens[slot] = "%.6f" % min(weight * factor, WEIGHT_CAP)
+        doc.lines[i] = key + "=" + ",".join(tokens) + eol
+        if factor == AIR_WEIGHT_FACTOR:
+            air_triggers += 1
+        else:
+            aa_triggers += 1
+
+    return {"air_teams": len(team_air), "aa_teams": len(team_aa),
+            "max_raised": capped, "aircraft_added": grown,
+            "air_triggers": air_triggers, "aa_triggers": aa_triggers}
+
+
+def assert_air_and_aa_boosted(aimd_lines):
+    """The air / AA boost must actually be present in the built aimd."""
+    text = "".join(aimd_lines)
+    if not AIR_UNITS or not AA_UNITS:
+        raise SystemExit("air/AA unit sets are empty")
+    problems = []
+    air_tfs = 0
+    for line in aimd_lines:
+        m = re.match(r"^(\d+)=(\d+),([A-Za-z][\w]*)", line)
+        if m and m.group(3) in AIR_UNITS:
+            air_tfs += 1
+            if int(m.group(2)) < AIR_UNIT_MIN:
+                problems.append("air task force entry %s has only %s aircraft"
+                                % (m.group(3), m.group(2)))
+    if air_tfs < 5:
+        problems.append("only %d air task-force entries" % air_tfs)
+    if problems:
+        raise SystemExit("air/AA boost missing: " + "; ".join(problems[:4]))
+    return air_tfs
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rules-dir", required=True,
@@ -1155,7 +1289,7 @@ def main():
 
     os.makedirs(args.out, exist_ok=True)
     buildings = build_rules(args.rules_dir, args.out)
-    switched, recovered, preserved = build_aimd(
+    switched, recovered, preserved, boost = build_aimd(
         args.rules_dir, args.out, args.assembly_teams)
 
     # Refuse to ship the "base builds, AI never moves" combination.
@@ -1169,6 +1303,7 @@ def main():
     assert_mcv_recovery_fillable(rules_lines, aimd_lines)
     mcv_triggers = assert_mcv_triggers_well_formed(aimd_lines)
     assert_superweapon_teams_intact(aimd_lines)
+    assert_air_and_aa_boosted(aimd_lines)
     counts = assert_build_counts(rules_lines)
     assert_no_walls(rules_lines)
     aa_defences = assert_aa_defenses_competitive(rules_lines)
@@ -1184,6 +1319,12 @@ def main():
           % buildings)
     print("aimd : %d team types charging, %d kept their superweapon script, "
           "%d MCV triggers re-armed" % (switched, preserved, recovered))
+    print("air  : %d air teams (Max<=%d, %d raised), +%d aircraft, "
+          "%d air triggers weighted x%d"
+          % (boost["air_teams"], AIR_TEAM_MAX, boost["max_raised"],
+             boost["aircraft_added"], boost["air_triggers"], AIR_WEIGHT_FACTOR))
+    print("aa   : %d AA teams, %d AA triggers weighted x%d"
+          % (boost["aa_teams"], boost["aa_triggers"], AA_WEIGHT_FACTOR))
     print("output:", os.path.abspath(args.out))
 
 
