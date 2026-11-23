@@ -1224,6 +1224,46 @@ INFO vera20k_core::rules::ruleset::loading] SuperWeaponTypes: 12 loaded
      但触发器只能按**国家**定位房子（`resolve_trigger_house` 用 `CountryIdx`），
      所以需要固定玩家用哪个国家。
 
+### 17.10 核弹飞艇：基洛夫机体 + 神盾式追踪导弹（3.9.6）
+
+飞机版（3.9.5）虽然能造能飞，但还是"普通飞机"：依赖空指部、要停机位、被防空打。
+改成**基洛夫机体**后这些问题全部消失：
+
+```ini
+[VehicleTypes]
+85=ZAINukeGunship
+
+[ZAINukeGunship]                 ; 克隆 [ZEP]
+Prerequisite=GAWEAP   TechLevel=1   Cost=2000
+Strength=100000       ; 打不死
+Insignificant=yes     ; AI 的防空不瞄它
+BalloonHover=yes      ; 永不落地 → 不需要停机位
+Locomotor={92612C46-F71F-11d1-AC9F-006008055BB5}   ; 基洛夫的 jumpjet
+MovementZone=Fly      ConsideredAircraft=yes
+Primary=ZAINukeMissile
+Ammo=50
+
+[ZAINukeMissile]
+Damage=600  ROF=40  Range=20  Speed=120
+Projectile=ZAINukeMissileProj
+Warhead=NUKE          ; 核弹头，[NUKE] 本身不改
+OmniFire=yes          ; 360° 发射，像神盾
+TurboBoost=yes
+
+[ZAINukeMissileProj]             ; 关键：不能用神盾的弹丸
+Arm=2  AA=yes  AG=yes            ; ← 必须 AG=yes 才能打地面
+Image=DRAGON  ROT=60  Ranged=yes
+```
+
+**神盾弹丸的坑**：`[MedusaProjectile]` 是 `AA=yes / AG=no` —— **只能打空中**，
+直接拿来打地面完全不会命中。所以追踪弹要克隆 `[AAHeatSeeker2]`（多功能车那枚，`AG=yes`），
+外观 `Image=DRAGON` 就是那种追踪导弹。
+
+**为什么不做"传送事件"**：触发器里能生成单位的动作只有 4（创建队伍）、7/80（空投队伍）、
+107（超时空传送队伍），而房子取自**触发器所属国家**（`resolve_trigger_house` 用 `CountryIdx`），
+玩家在国家选择界面自己选，地图无法预先指定 —— 地图侧做不到"把单位送到玩家名下"。
+因此投送方式退回**战车工厂建造**（玩家必然会造的建筑，依赖最少）。
+
 ### 17.9 核弹炮艇改成玩家可造（3.9.5）——`Type=SpyPlane` 这条路走不通
 
 3.9.4 用 `Type=SpyPlane` + `SpyPlane.Type/Count/Mission` 让飞机横穿地图，实测三个问题：

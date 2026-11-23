@@ -2,6 +2,27 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## 3.9.6 — 核弹飞艇：基洛夫机体 + 神盾式追踪导弹 + 核弹头
+
+飞机版还是"普通飞机"（依赖空指部、要停机位、会被防空打掉）。改成**基洛夫机体**：
+
+- `[VehicleTypes] 85=ZAINukeGunship`，克隆 `[ZEP]`：`BalloonHover=yes` 永不落地、
+  `MovementZone=Fly`、`Strength=100000`（打不死）、`Insignificant=yes`（防空不瞄）、
+  `Prerequisite=GAWEAP` + `TechLevel=1` + `Cost=2000`（战车工厂可造）；
+- `[ZAINukeMissile]`：`Damage=600 / ROF=40 / Range=20 / Speed=120 / OmniFire=yes`，
+  `Warhead=NUKE`（零售弹头，不改）；
+- `[ZAINukeMissileProj]`：克隆 `[AAHeatSeeker2]`（`AA=yes` + **`AG=yes`**，`Image=DRAGON`，`ROT=60`）。
+  **神盾的 `[MedusaProjectile]` 是 `AG=no`，只能打空中**，直接拿来打地面不会命中；
+- 旧的飞机 `[ZAINukePlane]` / `[ZAINukeBomb]` 与 `[AircraftTypes]` 条目全部删除。
+
+**为什么不做"传送事件"**：能生成单位的触发器动作（4 创建队伍、7/80 空投、107 超时空传送）
+房子都取自**触发器所属国家**，而玩家在国家界面自选，地图无法预知 → 地图侧无法把单位送给玩家；
+因此投送方式用战车工厂建造（依赖最少）。
+
+`assert_nuke_gunship` 检查：可造、打不死、不被瞄、`BalloonHover=yes`、`Warhead=NUKE`、
+**弹丸 `AG=yes`**、`[VehicleTypes]` 已注册、旧飞机段已删除、不进任何 TaskForce。
+实测 `AG=no`、`Warhead=SAMWH`、`Strength=2000`、`TechLevel=-1`、`Insignificant=no` 全部被拦。
+
 ## 3.9.5 — 核弹炮艇改成玩家可造（`Type=SpyPlane` 走不通）
 
 3.9.4 的 spy-plane 方案实测三个问题：**被防空打掉**（`Strength=800`）、**不投弹**

@@ -621,67 +621,92 @@ def assert_player_nuke_section(rules_lines):
     return True
 
 
-#: The nuclear gunship: a player-built aircraft carrying a nuke bomb.
+#: The nuclear gunship: a Kirov-class airship firing homing missiles with nuke
+#: warheads.
 #:
-#: The spy-plane superweapon was tried first and failed for three reasons that
-#: are all engine behaviour, not configuration: `Mission_SpyplaneApproach` /
-#: `Overfly` never use the aircraft's weapon (so it dropped nothing), the flight
-#: path is hard-coded (so it went where the engine wanted), and an ordinary
-#: Strength let anti-air shoot it down.  A normal buildable unit fixes all three:
-#: the player chooses the route, the weapon fires, and a huge Strength plus
-#: Insignificant=yes keeps it alive and untargeted.
-GUNSHIP_PLANE = "ZAINukePlane"
-GUNSHIP_BOMB = "ZAINukeBomb"
-GUNSHIP_PLANE_FIELDS = (
-    ("UIName", "Name:BPLN"),
+#: Three earlier shapes failed for engine reasons, all recorded in the playbook:
+#: a nuke superweapon cannot scatter its warheads (the payload is the global
+#: `[General] Nuke.Payload`), the spy-plane superweapon never uses its aircraft's
+#: weapon and flies a hard-coded route, and a normal aircraft dies to anti-air.
+#: A Kirov clone avoids all of it: `BalloonHover=yes` never lands (no pads), it is
+#: a plain buildable vehicle (war factory only), and Strength plus Insignificant
+#: keep it alive and untargeted.
+#:
+#: The missile is cloned from `[AAHeatSeeker2]` (the IFV's) rather than the
+#: Aegis's `[MedusaProjectile]`, because the Aegis projectile is `AA=yes AG=no`:
+#: it cannot hit the ground at all.
+GUNSHIP_UNIT = "ZAINukeGunship"
+GUNSHIP_WEAPON = "ZAINukeMissile"
+GUNSHIP_PROJECTILE = "ZAINukeMissileProj"
+GUNSHIP_UNIT_FIELDS = (
+    ("UIName", "Name:ZEP"),
     ("Name", "Nuclear Gunship"),
-    ("Strength", "100000"),
-    ("Category", "AirLift"),
-    ("Armor", "heavy"),
+    ("Prerequisite", "GAWEAP"),
     ("TechLevel", "1"),
-    ("Prerequisite", "GAAIRC"),
-    ("Cost", "1500"),
-    ("Primary", GUNSHIP_BOMB),
-    ("Spawned", "no"),
-    ("Selectable", "yes"),
-    ("Insignificant", "yes"),
-    ("LeadershipRating", "10"),
-    ("RadarInvisible", "no"),
+    ("Cost", "2000"),
+    ("Strength", "100000"),
+    ("Category", "AirPower"),
+    ("Armor", "medium"),
     ("Sight", "12"),
-    ("Landable", "no"),
+    ("RadarInvisible", "no"),
     ("MoveToShroud", "yes"),
+    ("BalloonHover", "yes"),
+    ("Speed", "8"),
+    ("JumpjetSpeed", "8"),
+    ("JumpjetClimb", "6"),
+    ("JumpjetCrash", "12"),
+    ("JumpJetAccel", "10"),
+    ("JumpJetTurnRate", "2"),
+    ("JumpjetHeight", "750"),
+    ("JumpjetNoWobbles", "yes"),
+    ("Crashable", "yes"),
+    ("PitchSpeed", ".9"),
     ("PitchAngle", "0"),
-    ("Speed", "10"),
     ("Owner", "British,French,Germans,Americans,Alliance,Russians,Confederation,"
               "Africans,Arabs,Yuri"),
-    ("Points", "30"),
-    ("ROT", "2"),
+    ("Points", "100"),
+    ("ROT", "10"),
+    ("SpeedType", "Hover"),
     ("Crewed", "no"),
-    ("Ammo", "100"),
+    ("ConsideredAircraft", "yes"),
+    ("Insignificant", "yes"),
     ("Explosion", "TWLT070,S_BANG48,S_BRNL58,S_CLSN58,S_TUMU60"),
-    ("MaxDebris", "2"),
-    ("Locomotor", "{4A582746-9839-11d1-B709-00A024DDAFD1}"),
+    ("MaxDebris", "14"),
+    ("IsSelectableCombatant", "yes"),
+    ("Locomotor", "{92612C46-F71F-11d1-AC9F-006008055BB5}"),
     ("MovementZone", "Fly"),
     ("ThreatPosed", "0"),
     ("DamageParticleSystems", "SparkSys,SmallGreySSys"),
-    ("ImmuneToPsionics", "yes"),
-    ("CanPassiveAquire", "yes"),
-    ("CanRetaliate", "no"),
-    ("Fighter", "no"),
-    ("AirportBound", "no"),
-    ("Trainable", "no"),
-    ("DeathWeapon", "BlimpBomb"),
-    ("DeathWeaponDamageModifier", ".1"),
-    ("FlyBy", "true"),
+    ("SelfHealing", "yes"),
+    ("Parasiteable", "no"),
+    ("Size", "50"),
+    ("Bunkerable", "no"),
+    ("Primary", GUNSHIP_WEAPON),
+    ("Ammo", "50"),
 )
-GUNSHIP_BOMB_FIELDS = (
+GUNSHIP_WEAPON_FIELDS = (
     ("Damage", "600"),
-    ("ROF", "45"),
-    ("Range", "25"),
-    ("Speed", "100"),
-    ("Projectile", "InvisibleHigh"),
+    ("ROF", "40"),
+    ("Range", "20"),
+    ("Speed", "120"),
+    ("Projectile", GUNSHIP_PROJECTILE),
     ("Warhead", "NUKE"),
-    ("Report", "NukeSiren"),
+    ("OmniFire", "yes"),
+    ("TurboBoost", "yes"),
+    ("Report", "AegisAttack"),
+)
+GUNSHIP_PROJECTILE_FIELDS = (
+    ("Arm", "2"),
+    ("AA", "yes"),
+    ("AG", "yes"),
+    ("Image", "DRAGON"),
+    ("ROT", "60"),
+    ("Ranged", "yes"),
+    ("Shadow", "no"),
+    ("Proximity", "no"),
+    ("SubjectToCliffs", "no"),
+    ("SubjectToElevation", "no"),
+    ("SubjectToWalls", "no"),
 )
 
 
@@ -733,23 +758,52 @@ def _append_registry(lines, section, name):
 
 
 def apply_nuke_gunship(lines):
-    """Write the gunship aircraft and its nuke bomb."""
-    plane = ["[%s]\r\n" % GUNSHIP_PLANE,
-             ";SuperAI: player-built nuclear gunship. The AI never gets it.\r\n"]
-    plane += ["%s=%s\r\n" % pair for pair in GUNSHIP_PLANE_FIELDS]
-    _replace_section(lines, GUNSHIP_PLANE, plane)
+    """Write the gunship, its missile and its projectile; drop the old plane."""
+    for stale in ("ZAINukePlane", "ZAINukeBomb"):
+        out, skip = [], False
+        for line in lines:
+            header = re.match(r"^\[([^\]]+)\]\s*$", line)
+            if header:
+                skip = header.group(1).strip() == stale
+            if not skip:
+                out.append(line)
+        lines[:] = out
+    # and its registry entry
+    reg = None
+    for i, line in enumerate(lines):
+        if re.match(r"^\[AircraftTypes\]\s*$", line):
+            reg = i
+            break
+    if reg is not None:
+        end = len(lines)
+        for i in range(reg + 1, len(lines)):
+            if re.match(r"^\[[^\]]+\]\s*$", lines[i]):
+                end = i
+                break
+        lines[reg + 1:end] = [l for l in lines[reg + 1:end]
+                              if not re.match(r"^\d+\s*=\s*ZAINukePlane\b", l)]
 
-    bomb = ["[%s]\r\n" % GUNSHIP_BOMB,
-            ";SuperAI: nuke warhead on a plane. [NUKE] itself is untouched.\r\n"]
-    bomb += ["%s=%s\r\n" % pair for pair in GUNSHIP_BOMB_FIELDS]
-    _replace_section(lines, GUNSHIP_BOMB, bomb)
+    unit = ["[%s]\r\n" % GUNSHIP_UNIT,
+            ";SuperAI: player-built nuclear gunship (Kirov hull). The AI never gets it.\r\n"]
+    unit += ["%s=%s\r\n" % pair for pair in GUNSHIP_UNIT_FIELDS]
+    _replace_section(lines, GUNSHIP_UNIT, unit)
 
-    _append_registry(lines, "AircraftTypes", GUNSHIP_PLANE)
+    weapon = ["[%s]\r\n" % GUNSHIP_WEAPON,
+              ";SuperAI: Aegis-style homing missile with a nuke warhead.\r\n"]
+    weapon += ["%s=%s\r\n" % pair for pair in GUNSHIP_WEAPON_FIELDS]
+    _replace_section(lines, GUNSHIP_WEAPON, weapon)
+
+    proj = ["[%s]\r\n" % GUNSHIP_PROJECTILE,
+            ";SuperAI: AA+AG homing missile; the Aegis one is AG=no and cannot hit ground.\r\n"]
+    proj += ["%s=%s\r\n" % pair for pair in GUNSHIP_PROJECTILE_FIELDS]
+    _replace_section(lines, GUNSHIP_PROJECTILE, proj)
+
+    _append_registry(lines, "VehicleTypes", GUNSHIP_UNIT)
     return True
 
 
 def assert_nuke_gunship(rules_lines, aimd_lines):
-    """The gunship must be player-buildable, unkillable and unknown to the AI."""
+    """The gunship must be buildable, unkillable, ground-capable and AI-free."""
     sections, current = {}, None
     for line in rules_lines:
         header = re.match(r"^\[([^\]]+)\]\s*$", line)
@@ -769,51 +823,54 @@ def assert_nuke_gunship(rules_lines, aimd_lines):
         return out
 
     problems = []
-    plane = values(GUNSHIP_PLANE)
-    if not plane:
-        problems.append("no [%s] section" % GUNSHIP_PLANE)
+    unit = values(GUNSHIP_UNIT)
+    if not unit:
+        problems.append("no [%s] section" % GUNSHIP_UNIT)
     else:
-        if plane.get("spawned", "").lower() != "no":
-            problems.append("Spawned=%r; it must be player-buildable"
-                            % plane.get("spawned"))
-        if plane.get("selectable", "").lower() != "yes":
-            problems.append("Selectable=%r; the player must be able to command it"
-                            % plane.get("selectable"))
         try:
-            tech = int(float(plane.get("techlevel", "-1")))
+            tech = int(float(unit.get("techlevel", "-1")))
         except ValueError:
             tech = -1
         if tech < 1:
-            problems.append("TechLevel=%r; it must be buildable" % plane.get("techlevel"))
-        if not plane.get("prerequisite", "").strip():
+            problems.append("TechLevel=%r; it must be buildable" % unit.get("techlevel"))
+        if not unit.get("prerequisite", "").strip():
             problems.append("no Prerequisite; nothing could build it")
         try:
-            strength = int(float(plane.get("strength", "0")))
+            strength = int(float(unit.get("strength", "0")))
         except ValueError:
             strength = 0
         if strength < 10000:
             problems.append("Strength=%r; anti-air would shoot it down"
-                            % plane.get("strength"))
-        if plane.get("insignificant", "").lower() != "yes":
+                            % unit.get("strength"))
+        if unit.get("insignificant", "").lower() != "yes":
             problems.append("must stay Insignificant=yes so AI defences ignore it")
-        if plane.get("primary", "").strip() != GUNSHIP_BOMB:
-            problems.append("Primary=%r" % plane.get("primary"))
-    bomb = values(GUNSHIP_BOMB)
-    if bomb.get("warhead", "").strip() != "NUKE":
+        if unit.get("primary", "").strip() != GUNSHIP_WEAPON:
+            problems.append("Primary=%r" % unit.get("primary"))
+        if unit.get("balloonhover", "").lower() != "yes":
+            problems.append("BalloonHover=%r; it must never need a landing pad"
+                            % unit.get("balloonhover"))
+    weapon = values(GUNSHIP_WEAPON)
+    if weapon.get("warhead", "").strip() != "NUKE":
         problems.append("%s Warhead=%r (want NUKE)"
-                        % (GUNSHIP_BOMB, bomb.get("warhead")))
-    if GUNSHIP_PLANE not in " ".join(sections.get("AircraftTypes", [])):
-        problems.append("%s is not in [AircraftTypes]" % GUNSHIP_PLANE)
+                        % (GUNSHIP_WEAPON, weapon.get("warhead")))
+    if weapon.get("projectile", "").strip() != GUNSHIP_PROJECTILE:
+        problems.append("%s Projectile=%r" % (GUNSHIP_WEAPON, weapon.get("projectile")))
+    proj = values(GUNSHIP_PROJECTILE)
+    if proj.get("ag", "").lower() != "yes":
+        problems.append("%s AG=%r; without AG it cannot hit the ground (that is why "
+                        "the Aegis projectile is unusable)"
+                        % (GUNSHIP_PROJECTILE, proj.get("ag")))
+    if GUNSHIP_UNIT not in " ".join(sections.get("VehicleTypes", [])):
+        problems.append("%s is not in [VehicleTypes]" % GUNSHIP_UNIT)
 
-    general = values("General")
-    leftovers = [key for key in general if key.startswith("spyplane.")]
+    leftovers = [name for name in ("ZAINukePlane", "ZAINukeBomb") if values(name)]
     if leftovers:
-        problems.append("[General] still overrides " + ", ".join(leftovers))
+        problems.append("old sections survived: " + ", ".join(leftovers))
 
     in_teams = [line.strip() for line in aimd_lines
-                if re.match(r"^\d+=\d+,%s\b" % GUNSHIP_PLANE, line.strip())]
+                if re.match(r"^\d+=\d+,%s\b" % GUNSHIP_UNIT, line.strip())]
     if in_teams:
-        problems.append("a TaskForce names %s: %s" % (GUNSHIP_PLANE, in_teams[0]))
+        problems.append("a TaskForce names %s: %s" % (GUNSHIP_UNIT, in_teams[0]))
 
     if problems:
         raise SystemExit("nuke gunship check failed: " + "; ".join(problems[:4]))
