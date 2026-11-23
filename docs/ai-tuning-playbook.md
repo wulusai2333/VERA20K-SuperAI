@@ -1257,7 +1257,21 @@ UnitDelivery.Num=1
 
 **`Type=PlaceUnits` 无效**（引擎注释里说的 "Ares PlaceUnits" 只是内部叫法，不是 Type 值）。
 
-**新增单位必须同时补 `artmd.ini` 段**，否则单位存在但**完全隐形**（图形是按 ID 去 art 里查的）：
+**新增单位必须让它拿到一份 art**，否则单位存在但**完全隐形**。两种给法，
+实测**只有第二种有效**：
+
+| 给法 | 结果 |
+| --- | --- |
+| 在 `artmd.ini` 里新建 `[ZAINukeGunship] Image=ZEP` | ✗ 仍然隐形 —— 引擎按**对象 ID** 找 `ZAINukeGunship.vxl`，找不到就不画，art 段里的 `Image=` 不救场 |
+| 在 **`rulesmd.ini`** 的对象段写 `Image=ZEP` | ✓ 直接借用 `[ZEP]` 的 art（零售同款用法：`[JUMPJET] Image=ROCK`） |
+
+```ini
+; rulesmd.ini
+[ZAINukeGunship]
+Image=ZEP          ; ← 这一行才是让它有模型的关键
+```
+
+（原先的 art 段写法：
 
 ```ini
 [ZAINukeGunship] ; SuperAI nuclear gunship

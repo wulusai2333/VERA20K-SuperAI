@@ -629,6 +629,9 @@ GUNSHIP_PROJECTILE = "ZAINukeMissileProj"
 GUNSHIP_UNIT_FIELDS = (
     ("UIName", "Name:ZEP"),
     ("Name", "Nuclear Gunship"),
+    # Rules-level Image= points the object at another art section; without it the
+    # engine looks for a ZAINukeGunship.vxl that does not exist and draws nothing.
+    ("Image", "ZEP"),
     ("Prerequisite", "GAWEAP"),
     ("TechLevel", "1"),
     ("Cost", "2000"),
@@ -787,59 +790,6 @@ DROP_SW_TYPES = ("UnitDelivery",)
 #: New units need an artmd.ini section as well; without one the engine has no model
 #: to draw and the unit is simply invisible until it fires.  Image=ZEP reuses the
 #: Kirov's voxel and cameo, so no new art is needed.
-GUNSHIP_ART_FIELDS = (
-    ("Image", "ZEP"),
-    ("Cameo", "ZEPICON"),
-    ("AltCameo", "ZEPUICO"),
-    ("Voxel", "yes"),
-    ("PrimaryFireFLH", "-50,0,-140"),
-)
-
-
-def apply_unit_art(path):
-    """Append the gunship's art section to the copied artmd.ini."""
-    with open(path, "rb") as handle:
-        text = handle.read().decode("latin-1")
-    lines = text.splitlines(keepends=True)
-    out, skip = [], False
-    for line in lines:
-        header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
-        if header:
-            skip = header.group(1).strip() == GUNSHIP_UNIT
-        if not skip:
-            out.append(line)
-    if out and not out[-1].endswith("\n"):
-        out[-1] += "\r\n"
-    out.append("\r\n[%s] ; SuperAI: nuclear gunship, reuses the Kirov art\r\n"
-               % GUNSHIP_UNIT)
-    out += ["%s=%s\r\n" % pair for pair in GUNSHIP_ART_FIELDS]
-    with open(path, "wb") as handle:
-        handle.write("".join(out).encode("latin-1"))
-    return True
-
-
-def assert_unit_art(path):
-    with open(path, "rb") as handle:
-        text = handle.read().decode("latin-1")
-    found, inside = {}, False
-    for line in text.splitlines():
-        header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
-        if header:
-            inside = header.group(1).strip() == GUNSHIP_UNIT
-            continue
-        if inside:
-            m = re.match(r"^([A-Za-z.]+)=(.*?)(\s*;.*)?$", line.strip())
-            if m:
-                found[m.group(1).lower()] = m.group(2).strip()
-    if not found:
-        raise SystemExit("art: no [%s] section; the unit would be invisible"
-                         % GUNSHIP_UNIT)
-    if found.get("image", "").upper() != "ZEP":
-        raise SystemExit("art: [%s] Image=%r (want ZEP)"
-                         % (GUNSHIP_UNIT, found.get("image")))
-    return True
-
-
 def apply_unit_delivery(lines):
     """Register the delivery superweapon(s) and point them at the gunship."""
     for index, kind in enumerate(DROP_SW_TYPES):
@@ -997,6 +947,10 @@ def assert_nuke_gunship(rules_lines, aimd_lines):
                             % unit.get("strength"))
         if unit.get("insignificant", "").lower() != "yes":
             problems.append("must stay Insignificant=yes so AI defences ignore it")
+        if unit.get("image", "").strip().upper() != "ZEP":
+            problems.append("Image=%r (want ZEP so it borrows the Kirov art; with "
+                            "no art of its own the unit is invisible)"
+                            % unit.get("image"))
         if unit.get("primary", "").strip() != GUNSHIP_WEAPON:
             problems.append("Primary=%r" % unit.get("primary"))
         if unit.get("balloonhover", "").lower() != "yes":
@@ -2535,8 +2489,6 @@ def main():
             raise SystemExit("missing artmd.ini in %s" % args.rules_dir)
         art_out = os.path.join(args.out, "artmd.ini")
     shutil.copyfile(source, art_out)
-    apply_unit_art(art_out)
-    assert_unit_art(art_out)
 
     print("rules: AIBuildCounts on %d building types (empty table = retail rhythm)"
           % buildings)

@@ -2,6 +2,22 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## 3.10.12 — 飞艇隐形的原因：`Image=` 要写在 rules 里，不是 art 里
+
+3.10.11 在 `artmd.ini` 里新建了 `[ZAINukeGunship] Image=ZEP`，实测**仍然隐形** ——
+引擎是按**对象 ID** 去找 `ZAINukeGunship.vxl` 的，art 段里的 `Image=` 不参与这个查找。
+
+正确做法是把 `Image=ZEP` 写在 **`rulesmd.ini`** 的对象段（零售同款用法：
+`[JUMPJET] Image=ROCK`）：
+
+```ini
+[ZAINukeGunship]
+Image=ZEP      ; 借用 [ZEP] 的 art/voxel
+```
+
+- 删掉 `build_mod.py` 里写 art 段的那套逻辑（含 `assert_unit_art`）；
+- `assert_nuke_gunship` 改为断言 rules 段里 `Image=ZEP`（缺了会隐形，必须拦）。
+
 ## 3.10.11 — 投放定案 + 给飞艇补模型（之前是隐形的）
 
 - **确认**：`Type=UnitDelivery` + **`Deliver.Types`** 生效（点地面即投下飞艇）；
