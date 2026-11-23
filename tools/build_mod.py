@@ -490,22 +490,56 @@ PLAYER_NUKE_FIELDS = (
     ("SW.RequiresTarget", "yes"),
     ("SW.FireIntoShroud", "yes"),
 )
+#: The player's second nuke: `Type=MultiMissile` scatters its warheads over a
+#: ring of `Range` cells, `LineMultiplier` per line, so one launch blankets the
+#: map instead of hitting one cell.  Both keys are real superweapon fields -- the
+#: binary carries the validation strings "positive LineMultiplier" and "finite
+#: superweapon ring radius" -- and retail `[NukeSpecial]` is itself
+#: `Type=MultiMissile` with `Range=7` / `LineMultiplier=2`.
+WORLD_NUKE_SECTION = "ZAIWorldNuke"
+WORLD_NUKE_FIELDS = (
+    ("UIName", "Name:Nuke"),
+    ("Name", "N U K E !!! (world)"),
+    ("Type", "MultiMissile"),
+    ("WeaponType", "NukeCarrier"),
+    ("Action", "Nuke"),
+    ("SidebarImage", "NukeIcon"),
+    ("Range", "200"),
+    ("LineMultiplier", "40"),
+    ("IsPowered", "true"),
+    ("ShowTimer", "no"),
+    ("RechargeTime", "0.01"),
+    ("SW.Shots", "1000"),
+    ("SW.AllowPlayer", "yes"),
+    ("SW.AllowAI", "no"),
+    ("SW.AlwaysGranted", "yes"),
+    ("SW.RequiresTarget", "yes"),
+    ("SW.FireIntoShroud", "yes"),
+)
+WORLD_NUKE_COMMENT = (
+    ";SuperAI: player-only whole-map nuke: Type=MultiMissile scatters Range/"
+    "LineMultiplier warheads over the map. The AI keeps [NukeSpecial].")
+
 PLAYER_NUKE_COMMENT = (
     ";SuperAI: player-only unlimited nuke (zero cooldown, no silo needed). "
     "The AI keeps [NukeSpecial].")
 
 
-def apply_player_nuke(lines):
-    """Append :data:`PLAYER_NUKE_SECTION` and register it last.
+def apply_player_nuke(lines, name=PLAYER_NUKE_SECTION, fields=None):
+    """Append a player-only superweapon section and register it last.
 
     Idempotent: an existing section and an existing registry entry are replaced,
     not duplicated.  The registry entry is appended at the end on purpose --
     trigger actions index into ``[SuperWeaponTypes]``, so inserting in the middle
     would renumber every later superweapon.
     """
-    name = PLAYER_NUKE_SECTION
-    body = ["[%s]\r\n" % name, "%s\r\n" % PLAYER_NUKE_COMMENT]
-    body += ["%s=%s\r\n" % pair for pair in PLAYER_NUKE_FIELDS]
+    if fields is None:
+        fields = PLAYER_NUKE_FIELDS
+        comment = PLAYER_NUKE_COMMENT
+    else:
+        comment = WORLD_NUKE_COMMENT
+    body = ["[%s]\r\n" % name, "%s\r\n" % comment]
+    body += ["%s=%s\r\n" % pair for pair in fields]
 
     # Drop an old copy of the section.
     out, skip = [], False
@@ -578,9 +612,48 @@ def assert_player_nuke_section(rules_lines):
                 out[m.group(1).strip().lower()] = m.group(2).strip()
         return out
 
+    for name in (PLAYER_NUKE_SECTION, WORLD_NUKE_SECTION):
+        if not values(name):
+            raise SystemExit("no [%s] section" % name)
+        if name not in " ".join(sections.get("SuperWeaponTypes", [])):
+            raise SystemExit("[%s] is not registered in [SuperWeaponTypes]" % name)
+    world = values(WORLD_NUKE_SECTION)
+    if world.get("type", "").strip() != "MultiMissile":
+        raise SystemExit("[%s] Type=%r; the whole-map nuke needs MultiMissile"
+                         % (WORLD_NUKE_SECTION, world.get("type", "<missing>")))
+    try:
+        ring = float(world.get("range", "0"))
+        lines_per = int(float(world.get("linemultiplier", "0")))
+    except ValueError:
+        ring, lines_per = 0.0, 0
+    if ring < 100:
+        raise SystemExit("[%s] Range=%s; the ring must span the map (>=100)"
+                         % (WORLD_NUKE_SECTION, world.get("range", "<missing>")))
+    if lines_per < 10:
+        raise SystemExit("[%s] LineMultiplier=%s; the engine requires it to be "
+                         "positive and it needs to be large to blanket the map"
+                         % (WORLD_NUKE_SECTION, world.get("linemultiplier", "<missing>")))
+    for name in (PLAYER_NUKE_SECTION, WORLD_NUKE_SECTION):
+        fields = values(name)
+        wanted = {"sw.alwaysgranted": "yes", "sw.allowai": "no", "sw.allowplayer": "yes"}
+        bad = ["%s=%s (want %s)" % (k, fields.get(k, "<missing>"), v)
+               for k, v in wanted.items() if fields.get(k, "").lower() != v]
+        try:
+            recharge = float(fields.get("rechargetime", "nan"))
+        except ValueError:
+            recharge = float("nan")
+        if not (0.0 < recharge <= 0.05):
+            bad.append("RechargeTime=%s (want >0 and <=0.05)" % fields.get("rechargetime"))
+        try:
+            shots = int(float(fields.get("sw.shots", "0")))
+        except ValueError:
+            shots = 0
+        if shots < 100:
+            bad.append("SW.Shots=%s (want >=100)" % fields.get("sw.shots"))
+        if bad:
+            raise SystemExit("[%s] is not a player nuke: %s" % (name, "; ".join(bad)))
+
     player = values(PLAYER_NUKE_SECTION)
-    if not player:
-        raise SystemExit("no [%s] section" % PLAYER_NUKE_SECTION)
     wanted = {
         "sw.alwaysgranted": "yes",
         "sw.allowai": "no",
@@ -696,6 +769,8 @@ def build_rules(source_dir, out_dir):
     # Ares SW.* : make a charged superweapon actually get launched by the AI.
     apply_superweapon_edits(lines)
     player_nuke_index = apply_player_nuke(lines)
+    world_nuke_index = apply_player_nuke(
+        lines, WORLD_NUKE_SECTION, WORLD_NUKE_FIELDS)
 
     # Ares AIBuildCounts: planned copies of the production buildings that must
     # exist in numbers, keyed by difficulty (hard, normal, easy).

@@ -2,6 +2,28 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## 3.9.2 — 新增「全图核弹」玩家超武
+
+第 14 个超武类型 `ZAIWorldNuke`，一次发射把核弹撒满全图：
+
+```ini
+Type=MultiMissile          ; 一次发射多枚，环形散布
+Range=200                  ; 散布环半径（本图 300×300，200 覆盖全图）
+LineMultiplier=40          ; 每行 40 发
+WeaponType=NukeCarrier     ; 复用零售核弹武器链
+RechargeTime=0.01  SW.Shots=1000
+SW.AllowPlayer=yes  SW.AllowAI=no  SW.AlwaysGranted=yes  SW.RequiresTarget=yes
+```
+
+**依据（二进制，非推测）**：`LineMultiplier` 在超武字段名表里，引擎带校验字符串
+`positive LineMultiplier` 与 `finite superweapon ring radius`；`Type` 合法值含 `MultiMissile`；
+零售 `[NukeSpecial]` 本身即 `Type=MultiMissile` + `Range=7` + `LineMultiplier=2`。
+
+守卫扩展为同时校验两个玩家类型（注册、`0<RechargeTime<=0.05`、`SW.Shots>=100`、
+`AlwaysGranted/AllowAI/AllowPlayer`），并额外要求全图核弹 `Type=MultiMissile`、
+`Range>=100`、`LineMultiplier>=10`；反向仍检查 `[NukeSpecial]` 未被改动。
+实测四种退化（`Range=7`、`LineMultiplier=1`、`Type=Nuke`、`AllowAI=yes`）全部被拦。
+
 ## 3.9.1 — 新核弹冷却太长：`RechargeTime=0` 被引擎当成"没写"
 
 症状：独立类型的核弹能放，但**冷却还是很久**。

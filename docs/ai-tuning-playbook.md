@@ -1224,6 +1224,33 @@ INFO vera20k_core::rules::ruleset::loading] SuperWeaponTypes: 12 loaded
      但触发器只能按**国家**定位房子（`resolve_trigger_house` 用 `CountryIdx`），
      所以需要固定玩家用哪个国家。
 
+### 17.7 全图核弹：`Type=MultiMissile` 的 `Range` / `LineMultiplier`（3.9.2）
+
+第二个玩家超武 `ZAIWorldNuke`，一次发射把核弹撒满全图：
+
+```ini
+[ZAIWorldNuke]
+Type=MultiMissile          ; 一次发射多枚，按环形散布
+WeaponType=NukeCarrier     ; 复用零售核弹武器链，落地就是真核弹
+Range=200                  ; 散布环半径（本图 300×300 菱形，200 覆盖全图）
+LineMultiplier=40          ; 每行 40 发
+RechargeTime=0.01
+SW.Shots=1000
+SW.AllowPlayer=yes  SW.AllowAI=no  SW.AlwaysGranted=yes  SW.RequiresTarget=yes
+```
+
+**这两个键确实是"多发散布"参数的证据**（都来自二进制，不是推测）：
+
+- `LineMultiplier` 出现在**超武字段名表**里（同表有 `RechargeTime`、`IsPowered`、`SidebarImage`）；
+- 引擎带校验字符串 **`positive LineMultiplier`** 与 **`finite superweapon ring radius`**
+  —— 前者说明它必须为正，后者说明 `Range` 是"环形半径"；
+- `Type` 的合法值列表里有 `MultiMissile`（同表：`SW.MaxCount`、`HunterSeeker.RandomOnlyBattery`、`DropPod`）；
+- 零售 `[NukeSpecial]` 自己就是 `Type=MultiMissile` + `Range=7` + `LineMultiplier=2`。
+
+**调参**：`LineMultiplier` 40 → 60/100 更密；`Range` 200 → 250 更大。
+若一次发射只有一发，先加大这两个数；仍无效则改用地图侧动作 95
+（`nuke strike at waypoint`，不需要房子上下文，可对全部 120 个 waypoint 同时打击）。
+
 ### 17.6 为什么不能写 `RechargeTime=0`
 
 `src__rules__ini_value.rs` 的 `read_double_with` 文档写着这类原生读取器的语义：
