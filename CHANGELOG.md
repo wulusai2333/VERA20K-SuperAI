@@ -2,6 +2,49 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## 3.10.9 — 用 `UnitDelivery` 超武投放核弹飞艇（玩家专属）
+
+查二进制发现 VERA **真的实现了** `UnitDelivery`（`src/sim/superweapon/unit_delivery.rs`、
+`UnitDeliveryRules`、`DeliveryOwner`），这是之前漏掉的一条正路。
+
+```ini
+[SuperWeaponTypes] 14=ZAINukeGunshipDrop
+[ZAINukeGunshipDrop]
+Type=UnitDelivery   Action=Nuke
+RechargeTime=0.01   SW.Shots=1000
+SW.AllowPlayer=yes  SW.AllowAI=no  SW.AlwaysGranted=yes
+SW.InitialReady=yes SW.RequiresTarget=yes SW.FireIntoShroud=yes
+UnitDelivery.Types=ZAINukeGunship   UnitDelivery.Num=1
+```
+
+- 投的是**我们自建的** `ZAINukeGunship`，不碰 `[General] *ParaDropInf` 等公共表；
+- `SW.AllowAI=no` + 该机型不在任何 `TaskForce` → 电脑拿不到；
+- 顺带发现 `SW.InitialReady`、`SW.RequiredHouses`/`SW.ForbiddenHouses` 三个可用键。
+
+新增 `assert_unit_delivery`，并含"公共表零改动"抽查；实测 `AllowAI=yes`、
+`Type=ParaDrop`、`UnitDelivery.Types=E1` 均被拦。
+另修构建脚本真 bug：`build_rules` 被重复定义两份（前一份死代码），已删除。
+
+## 3.10.8 — 撤回所有公共表改动（空投方案作废）
+
+做"专属核弹兵空投"时改了 `[General]` 的四张阵营空投表，导致**电脑也开始投核弹兵** ——
+这四张表玩家与电脑共用。按要求整体撤回：
+
+- `AmerParaDropInf/AllyParaDropInf/SovParaDropInf/YuriParaDropInf` 及 `*ParaDropNum`
+  回到零售值（`E1/8`、`E1/6`、`E2/9`、`INIT/6`）；
+- `[ParaDropSpecial]` / `[AmericanParaDropSpecial]` 去掉 `SW.AllowAI=no`；
+- `[CombatDamage] BallisticScatter/HomingScatter` 回到 `1.0` / `2.0`；
+- `[FlakProj]` / `[FlakTProj]` 恢复 `FlakScatter=yes`、`Inaccurate=yes`；
+- 删除 `ZAIWorldNuke`/`ZAINukeTrooper`/`ZAINukeRifle`/`ZAINukeRifleProj`/`ZAINukeWH`。
+
+保留：`ZAIUnlimitedNuke`（玩家无限核弹）、`ZAINukeGunship`（核弹飞艇）。
+另附 `docs/prompt-for-gemini.md`。
+
+## 3.10.7 — 曾试图用 SW.AllowAI=no 关掉电脑空投（已被 3.10.8 撤回）
+
+那一版给 `[ParaDropSpecial]`/`[AmericanParaDropSpecial]` 加了 `SW.AllowAI=no`，
+等于改动了 AI 的空投能力，属于越权，3.10.8 已整体回滚。
+
 ## 3.10.6 — 更正：3 星无畏用的是 `[DMISLEWH]`（3 格 + `MININUKE` 小蘑菇云）
 
 3.10.5 我拿错了弹头 —— 无畏导弹在零售里有**两个**：
