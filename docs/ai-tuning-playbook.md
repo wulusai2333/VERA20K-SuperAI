@@ -1224,6 +1224,42 @@ INFO vera20k_core::rules::ruleset::loading] SuperWeaponTypes: 12 loaded
      但触发器只能按**国家**定位房子（`resolve_trigger_house` 用 `CountryIdx`），
      所以需要固定玩家用哪个国家。
 
+### 18. `UnitDelivery` 超武：把自建单位投给玩家（3.10.9）
+
+之前排除了 `ParaDrop`/`DropPod`，但**漏查了一个真实存在的实现**：
+
+```
+src\sim\superweapon\unit_delivery.rs     ← 模块真实存在
+UnitDeliveryRules { base, normal }         ← 结构体
+DeliveryOwner                              ← 结构体
+```
+
+所以 `Type=UnitDelivery` 是可用的，而且它投的是**我们自己的类型**，天然不碰公共表：
+
+```ini
+[SuperWeaponTypes]
+14=ZAINukeGunshipDrop
+
+[ZAINukeGunshipDrop]
+Type=UnitDelivery
+Action=Nuke
+RechargeTime=0.01
+SW.Shots=1000
+SW.AllowPlayer=yes   SW.AllowAI=no   SW.AlwaysGranted=yes
+SW.InitialReady=yes  SW.RequiresTarget=yes  SW.FireIntoShroud=yes
+UnitDelivery.Types=ZAINukeGunship
+UnitDelivery.Num=1
+```
+
+顺带查到两个以后有用的键：**`SW.InitialReady`**（开局即就绪）、
+**`SW.RequiredHouses` / `SW.ForbiddenHouses`**（超武级房子限制）。
+
+若点击无反应，按顺序换键名再试（每次只改一处）：`UnitDelivery.Types` 放 `[General]` →
+`UnitDelivery.Count` → `Type=DropPod` + `UnitDelivery.Types` → 最后退回"战车工厂建造"。
+
+> 另外修掉一个构建脚本的真 bug：`build_rules` 之前**被定义了两遍**（前一份是死代码，
+> Python 只用后一份），已删除重复定义。
+
 ### 17.14 教训：VERA 的空投表是**公共**的，不要拿它做"玩家专属"（3.10.8 已全部撤回）
 
 做"专属核弹兵空投"时我把 `[General] AmerParaDropInf / AllyParaDropInf / SovParaDropInf /

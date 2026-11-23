@@ -750,6 +750,120 @@ def _append_registry(lines, section, name):
     return highest + 1
 
 
+#: Delivering the gunship itself.  The binary carries
+#: src/sim/superweapon/unit_delivery.rs plus the UnitDeliveryRules and
+#: DeliveryOwner structs, so `Type=UnitDelivery` is a real implementation and not
+#: just an Ares key name.  It drops OUR OWN type, so no shared table is involved.
+DROP_SW = "ZAINukeGunshipDrop"
+DROP_SW_FIELDS = (
+    ("UIName", "Name:Nuke"),
+    ("Name", "N U K E !!! (drop)"),
+    ("Type", "UnitDelivery"),
+    ("Action", "Nuke"),
+    ("SidebarImage", "NukeIcon"),
+    ("ShowTimer", "no"),
+    ("RechargeTime", "0.01"),
+    ("SW.Shots", "1000"),
+    ("SW.AllowPlayer", "yes"),
+    ("SW.AllowAI", "no"),
+    ("SW.AlwaysGranted", "yes"),
+    ("SW.InitialReady", "yes"),
+    ("SW.RequiresTarget", "yes"),
+    ("SW.FireIntoShroud", "yes"),
+    ("UnitDelivery.Types", "ZAINukeGunship"),
+    ("UnitDelivery.Num", "1"),
+)
+
+
+def apply_unit_delivery(lines):
+    """Register the delivery superweapon and point it at the gunship."""
+    body = ["[%s]\r\n" % DROP_SW,
+            ";SuperAI: click to have the gunship delivered. Player only.\r\n"]
+    body += ["%s=%s\r\n" % pair for pair in DROP_SW_FIELDS]
+    _replace_section(lines, DROP_SW, body)
+    _append_registry(lines, "SuperWeaponTypes", DROP_SW)
+    return True
+
+
+def assert_unit_delivery(rules_lines, aimd_lines):
+    """The delivery superweapon must be player-only and name our own unit."""
+    sections, current = {}, None
+    for line in rules_lines:
+        header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
+        if header:
+            current = header.group(1).strip()
+            sections.setdefault(current, [])
+            continue
+        if current is not None:
+            sections[current].append(line)
+
+    def values(name):
+        out = {}
+        for line in sections.get(name, []):
+            m = re.match(r"^([A-Za-z.]+)=(.*?)(\s*;.*)?$", line.rstrip("\r\n"))
+            if m:
+                out[m.group(1).strip().lower()] = m.group(2).strip()
+        return out
+
+    problems = []
+    sw = values(DROP_SW)
+    if not sw:
+        problems.append("no [%s] section" % DROP_SW)
+    else:
+        if sw.get("type", "").strip() != "UnitDelivery":
+            problems.append("[%s] Type=%r (want UnitDelivery)"
+                            % (DROP_SW, sw.get("type")))
+        types = [p.strip() for p in sw.get("unitdelivery.types", "").split(",") if p.strip()]
+        if GUNSHIP_UNIT not in types:
+            problems.append("[%s] UnitDelivery.Types=%r does not name %s"
+                            % (DROP_SW, sw.get("unitdelivery.types"), GUNSHIP_UNIT))
+        try:
+            num = int(float(sw.get("unitdelivery.num", "0")))
+        except ValueError:
+            num = 0
+        if num < 1:
+            problems.append("[%s] UnitDelivery.Num=%r (want >=1)"
+                            % (DROP_SW, sw.get("unitdelivery.num")))
+        if sw.get("sw.allowai", "").lower() != "no":
+            problems.append("[%s] SW.AllowAI=%r (the computer must not deliver it)"
+                            % (DROP_SW, sw.get("sw.allowai")))
+        if sw.get("sw.alwaysgranted", "").lower() != "yes":
+            problems.append("[%s] must stay SW.AlwaysGranted=yes" % DROP_SW)
+        try:
+            recharge = float(sw.get("rechargetime", "nan"))
+        except ValueError:
+            recharge = float("nan")
+        if not (0.0 < recharge <= 0.05):
+            problems.append("[%s] RechargeTime=%r (want >0 and <=0.05; 0 means "
+                            "'keep the default')" % (DROP_SW, sw.get("rechargetime")))
+    if DROP_SW not in " ".join(sections.get("SuperWeaponTypes", [])):
+        problems.append("[%s] is not in [SuperWeaponTypes]" % DROP_SW)
+
+    # No shared table may be touched: these are the ones an earlier attempt broke.
+    general = values("General")
+    if general.get("amerparadropinf", "").strip() != "E1":
+        problems.append("[General] AmerParaDropInf=%r; the shared drop table must "
+                        "stay at retail" % general.get("amerparadropinf", "<missing>"))
+    combat = values("CombatDamage")
+    if combat.get("ballisticscatter", "").strip() != "1.0":
+        problems.append("[CombatDamage] BallisticScatter=%r; it must stay at retail"
+                        % combat.get("ballisticscatter", "<missing>"))
+    for name in ("ParaDropSpecial", "AmericanParaDropSpecial"):
+        extra = [k for k in values(name) if k.startswith("sw.")]
+        if extra:
+            problems.append("[%s] carries %s; the AI's paradrop must be untouched"
+                            % (name, ", ".join(extra)))
+
+    in_teams = [line.strip() for line in aimd_lines
+                if re.match(r"^\d+=\d+,%s\b" % GUNSHIP_UNIT, line.strip())]
+    if in_teams:
+        problems.append("a TaskForce names %s: %s" % (GUNSHIP_UNIT, in_teams[0]))
+
+    if problems:
+        raise SystemExit("unit delivery check failed: " + "; ".join(problems[:4]))
+    return True
+
+
 def apply_nuke_gunship(lines):
     """Write the gunship, its missile and its projectile.  Our types only."""
     unit = ["[%s]\r\n" % GUNSHIP_UNIT,
@@ -898,173 +1012,6 @@ def apply_superweapon_edits(lines):
         new_lines = ["%s=%s\r\n" % (key, value) for key, value in wanted.items()]
         lines[start + 1:end] = new_lines + kept
     return len(SUPERWEAPON_EDITS)
-
-
-def build_rules(source_dir, out_dir):
-    text = open(os.path.join(source_dir, "rulesmd.ini"), "rb").read().decode("latin-1")
-    lines = text.splitlines(keepends=True)
-
-    apply_rules_edits(lines)
-    apply_section_key_edits(lines)
-
-    # Deployed construction yards reveal the map: no power, no radar needed.
-    for yard in CONSTRUCTION_YARDS:
-        insert_after_section_header(lines, yard, "SpySat=yes\r\n")
-
-    # VERA extension: computers target the nearest enemy, so FFA games fight.
-    if not any(l.startswith("AINearestEnemy=") for l in lines):
-        for i, line in enumerate(lines):
-            if line.startswith("AISafeDistance="):
-                lines.insert(i + 1, "AINearestEnemy=yes\r\n")
-                break
-        else:
-            raise SystemExit("AISafeDistance= not found")
-
-    # Ore-free maps still fund the AI: refineries pay a trickle (oil derrick key).
-    for refn in REFINERIES:
-        insert_after_section_header(lines, refn, "ProduceCashDelay=60\r\n")
-        insert_after_section_header(lines, refn, "ProduceCashAmount=100\r\n")
-
-    # Ares SW.* : make a charged superweapon actually get launched by the AI.
-    apply_superweapon_edits(lines)
-    player_nuke_index = apply_player_nuke(lines)
-    apply_nuke_gunship(lines)
-
-    # Ares AIBuildCounts: planned copies of the production buildings that must
-    # exist in numbers, keyed by difficulty (hard, normal, easy).
-    out = []
-    inserted = set()
-    for line in lines:
-        out.append(line)
-        m = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
-        if m and m.group(1).strip() in BUILD_COUNTS and m.group(1).strip() not in inserted:
-            name = m.group(1).strip()
-            count = BUILD_COUNTS[name]
-            vector = count if isinstance(count, tuple) else (count, count, count)
-            out.append("AIBuildCounts=%d,%d,%d\r\n" % vector)
-            inserted.add(name)
-    missing = set(BUILD_COUNTS) - inserted
-    if missing:
-        raise SystemExit(
-            "AIBuildCounts targets not found as sections: %r (a typo here is "
-            "silently ignored by the engine)" % sorted(missing))
-    lines = out
-
-    open(os.path.join(out_dir, "rulesmd.ini"), "wb").write("".join(lines).encode("latin-1"))
-    return len(inserted)
-
-
-class Aimd:
-    """Small section-aware editor for aimd.ini."""
-
-    def __init__(self, text):
-        self.lines = text.splitlines(keepends=True)
-        self.starts = {}
-        self.reindex()
-
-    def reindex(self):
-        self.starts = {}
-        for i, line in enumerate(self.lines):
-            m = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
-            if m:
-                self.starts[m.group(1).strip()] = i
-
-    def bounds(self, name):
-        start = self.starts[name]
-        end = len(self.lines)
-        for index in self.starts.values():
-            if start < index < end:
-                end = index
-        return start + 1, end
-
-    def values(self, name):
-        out = {}
-        start, end = self.bounds(name)
-        for i in range(start, end):
-            line = self.lines[i]
-            if "=" in line and not line.lstrip().startswith(";"):
-                key, value = line.split("=", 1)
-                out[key.strip().lower()] = (value.strip(), i)
-        return out
-
-    def members(self, name):
-        out = []
-        start, end = self.bounds(name)
-        for i in range(start, end):
-            m = re.match(r"^(\d+)\s*=\s*(\d+)\s*,\s*([^,\r\n]+)(.*?)(\r?\n)?$", self.lines[i])
-            if m:
-                out.append((i, int(m.group(1)), int(m.group(2)), m.group(3).strip(),
-                            m.group(4), m.group(5) or ""))
-        return out
-
-    def team_ids(self):
-        start, end = self.bounds("TeamTypes")
-        return [l.split("=", 1)[1].strip() for l in self.lines[start:end] if "=" in l]
-
-    def replace_value(self, index, key, value):
-        line = self.lines[index]
-        eol = "\r\n" if line.endswith("\r\n") else "\n"
-        self.lines[index] = "%s=%s%s" % (key, value, eol)
-
-    def insert_value(self, section, key, value):
-        index = self.bounds(section)[0]
-        self.lines.insert(index, "%s=%s\r\n" % (key, value))
-        self.reindex()
-
-    def text(self):
-        return "".join(self.lines)
-
-
-#: Team-script actions that cast a superweapon on the team itself.
-#: 53/54 are gather-at-enemy-base / regroup-at-base, 55 is the Iron Curtain,
-#: 56/57 are the chronoshift variants (see team_script_vm/actions.rs).
-SUPERWEAPON_SCRIPT_ACTIONS = ("55", "56", "57")
-
-#: Units that fly.  A team whose task force holds one of these is an "air team":
-#: its `Max=` caps how many such teams a house may have at once, and retail caps
-#: every one of them at 1, which is why an AI never fields an air force worth
-#: watching.  `SCHP` (Siege Chopper) is a vehicle and is deliberately absent.
-#:
-#: ``JUMPJET`` (the Allied Rocketeer) belongs here even though it is infantry:
-#: it flies, so it is exactly the unit the air boost exists for.  It is also in
-#: :data:`AA_UNITS` because it shoots aircraft, and the air/AA branch below
-#: checks air first -- before this was spelled out, the Rocketeers fell through
-#: to the AA branch and kept `Max=1`, five men and a decaying weight, which is
-#: why Allied rocketeers stayed rare while Kirovs became common.
-AIR_UNITS = {"ORCA", "BEAG", "ZEP", "BPLN", "HORNET", "ASW", "APACHE", "SPYP",
-             "JUMPJET"}
-
-#: Ground units that can shoot at aircraft.  Teams carrying one are "AA teams".
-AA_UNITS = {"FV", "FLAKT", "YTNK", "APOC", "TELE", "HIND", "AEGIS", "JUMPJET", "GGI"}
-
-#: Aircraft that must land on an airfield pad: ``AirportBound=yes`` and
-#: ``Dock=GAAIRC`` in rulesmd.ini, with ``Ammo=1`` so every shot means a landing.
-#: A house can only keep as many of these alive as it has pads --
-#: ``[GAAIRC] NumberOfDocks=4`` -- and retail's own comment says it crashes when
-#: it has nowhere to land.  These teams get a small size and a low cap instead of
-#: the big numbers the free-flying units get.
-AIRPORT_AIRCRAFT = {"ORCA", "BEAG"}
-#: Aircraft per airport-bound team, and how many such teams may exist: 3 x 3 = 9
-#: aircraft against 4 pads per airfield, so two extra airfields are already enough.
-AIRPORT_TEAM_SIZE = 3
-AIRPORT_TEAM_MAX = 3
-#: The flying infantry fills slowly (one barracks, expensive men), so a team that
-#: is too big is dissolved before it can form.  Six fits in one dissolve window.
-AIR_INFANTRY_SIZE = 6
-
-#: How many of a team type a house may have at once after the boost.
-AIR_TEAM_MAX = 6
-#: Weight multiplier for the triggers that form air / AA teams.  Weights are per
-#: difficulty and stay proportional to each other.
-AIR_WEIGHT_FACTOR = 3
-AA_WEIGHT_FACTOR = 2
-#: Ceiling for a rewritten weight, and the aircraft count per air task force:
-#: at least AIR_UNIT_MIN (a one-Kirov team is not an air force), then scaled by
-#: AIR_SIZE_FACTOR, never more than AIR_UNIT_CAP.
-WEIGHT_CAP = 1500
-AIR_UNIT_MIN = 3
-AIR_SIZE_FACTOR = 2
-AIR_UNIT_CAP = 16
 
 
 def teams_using_superweapon_scripts(doc):
@@ -1531,6 +1478,7 @@ def build_rules(source_dir, out_dir):
     apply_superweapon_edits(lines)
     player_nuke_index = apply_player_nuke(lines)
     apply_nuke_gunship(lines)
+    apply_unit_delivery(lines)
 
     # Ares AIBuildCounts: planned copies of the production buildings that must
     # exist in numbers, keyed by difficulty (hard, normal, easy).
@@ -2504,6 +2452,7 @@ def main():
     assert_superweapon_teams_intact(aimd_lines)
     assert_player_nuke_section(rules_lines)
     assert_nuke_gunship(rules_lines, aimd_lines)
+    assert_unit_delivery(rules_lines, aimd_lines)
     assert_air_and_aa_boosted(aimd_lines)
     counts = assert_build_counts(rules_lines)
     assert_no_walls(rules_lines)

@@ -46,7 +46,7 @@
 | **防空比例** | 盟/苏防空炮只在「air 类别」被选中（`AntiInfantryValue=0`/`AntiArmorValue=0`） | **和尤里盖特机炮同形状（25/10/25）**：三类都是候选，防御总数不变、防空占比 12–17% → 20%+ |
 | **被打掉就重建** | `AIRestrictReplaceTime=400`（约 27 秒内只补墙/防御/电厂） | **`0`**：任何建筑丢失后立刻重建，扩建由此被动发生 |
 | **基地数量** | 1 座建造厂 | **稳定 3 座**：建造厂 < 3 时立刻补基地车去展开（`… MCV - Expand` 触发器，权重 5000；MCV 队伍 `Max=2`），被打掉会补回 |
-| **核弹兵空投** | 无 | 玩家超武 `ZAIWorldNuke`（`Type=ParaDrop`）：点地图任意位置，运输机投下 `ZAINukeTrooper` —— 会飞的核弹兵（`JumpJet=yes`），`Primary=ZAINukeRifle`（天启导弹克隆：`ROF=9`（3 星神盾间隔 = `Medusa ROF=15` × `VeteranROF=0.6`）、`Burst=1` 单发、`Range=200`）、`GuardRange=200` 自动索敌、`Strength=100000`，弹丸改成**高炮式弹道弹**（`Arcing=true`、非追踪、`FlakScatter=yes`+`Inaccurate=yes`，`AG=yes`）、`[CombatDamage] BallisticScatter=200`（格）→ 落点最多 200 格随机；弹头用 `[ZAINukeWH]`（3 星无畏导弹 `[DMISLEWH]`：`CellSpread=3`、`AnimList=MININUKE` 小蘑菇云、600 伤害） |
+| **核弹飞艇投放** | 无 | 玩家专属超武 `ZAINukeGunshipDrop`（`Type=UnitDelivery`）：点地面即把 `ZAINukeGunship` 投下来（`UnitDelivery.Types`、`SW.AllowAI=no`、`SW.AlwaysGranted=yes`、`SW.InitialReady=yes`）；不碰任何公共表 |
 | **玩家核弹** | 要造发射井、每 10 分钟一发 | **0 号位玩家无限核弹**：新增独立超武类型 `ZAIUnlimitedNuke`（`SW.AlwaysGranted=yes` 免发射井、`RechargeTime=0` 零冷却、`SW.AllowAI=no`）；**电脑的 `NukeSpecial` 原封不动**，照旧 10 分钟一发 |
 | **超级武器** | 充满后 AI 不放 | **充满即自动发射**：给 AI 可造的 6 个带目标超武写 `SW.AutoFire=yes` / `SW.UseAITargeting=yes`（Ares 超武扩展） |
 | 围墙占防御 | 50 / 25 / 10 | **`AIPickWallDefensePercent=0,0,0`**：AI **完全不造围墙**（墙会占防御名额又堵路），防御抽签全部落到真枪 |
