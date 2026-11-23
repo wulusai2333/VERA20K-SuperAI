@@ -579,6 +579,49 @@ class Aimd:
         return "".join(self.lines)
 
 
+#: Team-script actions that cast a superweapon on the team itself.
+#: 53/54 are gather-at-enemy-base / regroup-at-base, 55 is the Iron Curtain,
+#: 56/57 are the chronoshift variants (see team_script_vm/actions.rs).
+SUPERWEAPON_SCRIPT_ACTIONS = ("55", "56", "57")
+
+
+def teams_using_superweapon_scripts(doc):
+    """Team ids whose script contains an Iron Curtain / chronoshift action.
+
+    ``[ScriptTypes]`` only lists script ids; the actions live in each script's
+    own section (``[0C31EA4C-G]`` holds ``2=55,0``), so every section is scanned.
+    """
+    bodies = {}
+    section = None
+    for line in doc.lines:
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            section = stripped[1:-1].strip()
+            bodies.setdefault(section, [])
+            continue
+        if section is not None and stripped and not stripped.startswith(";"):
+            bodies[section].append(stripped)
+
+    scripts = set()
+    for name, body in bodies.items():
+        for entry in body:
+            if "=" not in entry:
+                continue
+            value = entry.split("=", 1)[1]
+            if value.split(",")[0].strip() in SUPERWEAPON_SCRIPT_ACTIONS:
+                scripts.add(name)
+                break
+    if not scripts:
+        return set()
+
+    teams = set()
+    for tid in doc.team_ids():
+        fields = doc.values(tid)
+        if "script" in fields and fields["script"][0].strip() in scripts:
+            teams.add(tid)
+    return teams
+
+
 def build_aimd(source_dir, out_dir, assembly_teams=False):
     """Rewrite the AI teams for mechanism 1: charge, and nobody stays home.
 
@@ -609,6 +652,26 @@ def build_aimd(source_dir, out_dir, assembly_teams=False):
 
     team_ids = doc.team_ids()
 
+    # Scripts that cast a superweapon on the team itself.  Retail uses them to
+    # make the AI actually fire the Iron Curtain and the Chrono Sphere:
+    #
+    #   0C31EA4C-G = 0=53,0  gather at the enemy base
+    #                1=5,10  wait
+    #                2=55,0  Iron Curtain on this team      <- action 55
+    #                3=49,0  attack
+    #   0CAC55CC-G = 0=54,0  regroup at base
+    #                1=57,9  chronoshift this team          <- action 57
+    #                2=5,10  wait, 3=49,0 attack
+    #
+    # and the matching AITriggerTypes use condition 5 (Iron Curtain nearly ready)
+    # and 6 (Chrono Sphere nearly ready) at weight 5000.  Teams using these
+    # scripts must keep them: replacing the script with the charge script throws
+    # the superweapon action away, which is exactly what the 2.4 "one script for
+    # every team" rewrite did -- the AI kept building the silos (the log has 912
+    # `placed NAIRON`) and never cast anything, because the only code path that
+    # casts them is this script action.
+    super_script_teams = teams_using_superweapon_scripts(doc)
+
     # Register and append the no-assembly attack script.
     start, end = doc.bounds("ScriptTypes")
     next_index = 0
@@ -620,8 +683,10 @@ def build_aimd(source_dir, out_dir, assembly_teams=False):
     doc.lines.extend(line + "\r\n" for line in ATTACK_SCRIPT_BODY)
     doc.reindex()
 
-    # Every team charges except the three MCV teams, which deploy expansions.
+    # Every team charges except the three MCV teams, which deploy expansions,
+    # and the teams whose retail script casts a superweapon.
     switched = 0
+    preserved = 0
     for tid in team_ids:
         fields = doc.values(tid)
         name = fields.get("name", ("", 0))[0]
@@ -637,7 +702,9 @@ def build_aimd(source_dir, out_dir, assembly_teams=False):
             if "max" in fields:
                 doc.replace_value(fields["max"][1], "Max", "2")
             continue
-        if "script" in fields and not assembly_teams:
+        if tid in super_script_teams:
+            preserved += 1
+        elif "script" in fields and not assembly_teams:
             doc.replace_value(fields["script"][1], "Script", ATTACK_SCRIPT)
             switched += 1
         for key, wanted in (("Aggressive", "yes"), ("IsBaseDefense", "no")):
@@ -738,7 +805,7 @@ def build_aimd(source_dir, out_dir, assembly_teams=False):
     recovered += added
 
     open(os.path.join(out_dir, "aimd.ini"), "wb").write(doc.text().encode("latin-1"))
-    return switched, recovered
+    return switched, recovered, preserved
 
 
 def assert_mcv_recovery_fillable(rules_lines, aimd_lines):
@@ -951,6 +1018,59 @@ def assert_superweapon_autofire(rules_lines):
     return len(SUPERWEAPON_EDITS)
 
 
+def assert_superweapon_teams_intact(aimd_lines):
+    """At least one team must still cast the Iron Curtain, and one the chrono.
+
+    The AI has exactly one code path that fires these two superweapons: a team
+    script action (55 = Iron Curtain, 56/57 = chronoshift).  Retail wires it up
+    with `AITriggerTypes` condition 5/6 at weight 5000 -- "superweapon nearly
+    ready" -- which draws a team that gathers at the enemy base and then casts.
+    Rewriting those teams' scripts (as the 2.4 "one script for every team"
+    change did) removes the whole mechanism in silence: the AI keeps building
+    the silos and never casts anything, and nothing is logged.
+    """
+    bodies = {}
+    section = None
+    for line in aimd_lines:
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            section = stripped[1:-1].strip()
+            bodies.setdefault(section, [])
+            continue
+        if section is not None and stripped and not stripped.startswith(";"):
+            bodies[section].append(stripped)
+
+    def casts(actions):
+        names = set()
+        for name, body in bodies.items():
+            for entry in body:
+                if "=" in entry and entry.split("=", 1)[1].split(",")[0].strip() in actions:
+                    names.add(name)
+                    break
+        return names
+
+    iron = casts({"55"})
+    chrono = casts({"56", "57"})
+    if not iron or not chrono:
+        raise SystemExit(
+            "no team script casts a superweapon (%s); the AI's only path to the "
+            "Iron Curtain and the Chrono Sphere is team-script action 55/56/57, "
+            "so the build must keep the retail scripts that use them"
+            % ", ".join(filter(None, ["IronCurtain" if not iron else "",
+                                      "chrono" if not chrono else ""])))
+
+    used = set()
+    for line in aimd_lines:
+        stripped = line.strip()
+        if stripped.lower().startswith("script="):
+            used.add(stripped.split("=", 1)[1].strip())
+    if not (iron & used) or not (chrono & used):
+        raise SystemExit(
+            "the superweapon scripts exist but no TeamType uses them; the "
+            "script rewrite must skip those teams (retail: 9 of them)")
+    return len(iron & used), len(chrono & used)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rules-dir", required=True,
@@ -970,7 +1090,8 @@ def main():
 
     os.makedirs(args.out, exist_ok=True)
     buildings = build_rules(args.rules_dir, args.out)
-    switched, recovered = build_aimd(args.rules_dir, args.out, args.assembly_teams)
+    switched, recovered, preserved = build_aimd(
+        args.rules_dir, args.out, args.assembly_teams)
 
     # Refuse to ship the "base builds, AI never moves" combination.
     with open(os.path.join(args.out, "rulesmd.ini"), "r",
@@ -982,6 +1103,7 @@ def main():
     assert_defense_gate_consistent(rules_lines, aimd_lines)
     assert_mcv_recovery_fillable(rules_lines, aimd_lines)
     mcv_triggers = assert_mcv_triggers_well_formed(aimd_lines)
+    assert_superweapon_teams_intact(aimd_lines)
     counts = assert_build_counts(rules_lines)
     assert_no_walls(rules_lines)
     superweapons = assert_superweapon_autofire(rules_lines)
@@ -994,8 +1116,8 @@ def main():
 
     print("rules: AIBuildCounts on %d building types (empty table = retail rhythm)"
           % buildings)
-    print("aimd : %d team types charging, %d MCV triggers re-armed"
-          % (switched, recovered))
+    print("aimd : %d team types charging, %d kept their superweapon script, "
+          "%d MCV triggers re-armed" % (switched, preserved, recovered))
     print("output:", os.path.abspath(args.out))
 
 

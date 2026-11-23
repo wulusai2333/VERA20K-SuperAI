@@ -160,8 +160,16 @@ Name=SuperAI Charge
 
 - `0` 是 `team_action_attack_quarry`，参数是 threat quarry 选择器，不需要预先集结。
 - `49` 是「直接推进」动作，用来把攻击步骤串起来。
-- **160 支队伍**改成这个脚本，`Aggressive=yes`、`IsBaseDefense=no`。
-- 只有 **3 支 MCV 队伍**保留原版 `043F23CC-G` 部署脚本，否则 AI 永远不会展开分基地。
+- **151 支队伍**改成这个脚本，`Aggressive=yes`、`IsBaseDefense=no`。
+- **3 支 MCV 队伍**保留原版 `043F23CC-G` 部署脚本，否则 AI 永远不会展开分基地。
+- **9 支带超武动作的队伍保留零售脚本**（3.0 起）：这些脚本里有
+  `53`（集结到敌方基地）、`55`（放铁幕）、`57`（超时空传送），
+  是 AI 使用铁幕/超时空的**唯一**代码路径。2.4 曾把它们一并覆盖掉，
+  结果是 AI 造了铁幕/超时空却永远不放，且日志里毫无痕迹。
+  详见 [playbook §13.1.4](ai-tuning-playbook.md#1314-根因24-把放超武的队伍脚本一起覆盖掉了)。
+
+> 这三类例外现在都有构建期断言守着：MCV 队伍必须仍用部署脚本（`assert_mcv_triggers_well_formed`
+> 一带），超武队伍必须仍用含 55/56/57 的脚本（`assert_superweapon_teams_intact`）。
 
 ### 3.3 触发器权重
 

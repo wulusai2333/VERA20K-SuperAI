@@ -1,6 +1,43 @@
 # Changelog
 
-本项目在 2026-11-22 从零迭代到 2.0，同日继续到 2.9；以下是可复现的功能节点。
+本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.0；以下是可复现的功能节点。
+
+## 3.0 — 铁幕/超时空：根因是 2.4 把「放超武的队伍脚本」覆盖掉了
+
+**AI 放铁幕/超时空靠的不是超武 AI，而是队伍脚本动作**（抽取源码可直接读到）：
+
+| 脚本动作 | 含义 |
+| --- | --- |
+| 53 | `team_action_gather_at_enemy_base` —— 集结到敌方基地 |
+| 5 | 等待 |
+| **55** | `team_action_iron_curtain` —— **对本队放铁幕** |
+| **56 / 57** | `team_action_chronoshift` —— **超时空传送本队** |
+| 49 | 进攻 |
+
+零售早就写好了这条链：
+
+```
+[Soviet Iron Curtain Team]  0C31EA4C-G = 0=53,0 → 1=5,10 → 2=55,0 放铁幕 → 3=49,0 进攻
+[Allied Chrono-Sphere Unit] 0CAC55CC-G = 0=54,0 → 1=57,9 超时空 → 2=5,10 → 3=49,0 进攻
+```
+
+配套触发器也在，条件是**「超武快好了」、权重 5000**：
+`Soviet Iron Curtain`（条件 5）、`Soviet Iron Curtain Easy`（5）、
+`Allied C-Sphere Easy/Medium/Hard`（条件 6）。
+
+**2.4 的「所有非 MCV 队伍统一换成 `ZAIATK01-G`」把这 4 个脚本一起覆盖了**，
+引用它们的 **9 支队伍**（`Soviet Iron Curtain Team`、`Allied Chrono-Sphere Unit`、
+`Soviet Apoc Hard/Medium`、`Soviet Armor Hard`、`Russian Tesla Tank`、`Libyan Boom`、
+`Soviet Iron Curtain Unit Easy`）于是只会冲锋、不再放超武。
+表现就是：AI 照常造铁幕/超时空建筑（`placed NAIRON` 912 次），**永远不放，日志毫无痕迹**。
+核弹/闪电不受影响 —— 它们由引擎自己的超武 AI 发射，不走队伍脚本。
+
+- `build_aimd` 现在会扫描源 aimd 的每个脚本段，**含 55/56/57 动作的脚本所对应的队伍保留零售脚本**；
+  产物里"保留超武脚本的队伍数" **0 → 9**（与零售一致）。
+- 新增 `assert_superweapon_teams_intact`：产物里必须至少各有一支队伍使用含铁幕 / 含超时空动作的
+  脚本，否则**构建失败**。这正是 2.4 该有却没有的守卫。
+- 顺带纠正前两轮的判断：`SW.*` 那批键**不是**这两个超武的关键（对核弹/闪电有效，保留不动），
+  真正的原因是队伍脚本，与 `SW.AITargeting` 取值无关。
 
 ## 诊断 — 铁幕/超时空：是不是我们的进攻逻辑消灭了触发条件
 

@@ -168,7 +168,7 @@ python tools/build_mod.py --rules-dir "F:/Games/red2" \
     --out "F:/Games/VERA20K/Mods/SuperAI-assembly" --assembly-teams
 ```
 
-**默认关闭，只用于诊断。** 它跳过"把 160 支队伍的脚本换成不集结脚本"这一步，
+**默认关闭，只用于诊断。** 它跳过"把 151 支队伍的脚本换成不集结脚本"这一步，
 让 AI 恢复原版"先回基地集结、再成队出击"。产出的模组与正式版**只差这 160 行 `Script=`**，
 其余（`rulesmd.ini`、`artmd.ini`、`aimd.ini` 的其它行）逐字节相同。
 
