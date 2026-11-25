@@ -84,7 +84,7 @@
 
 | 段 | 改动内容 | 性质 |
 | --- | --- | --- |
-| `[General]` | 14 个键（`BuildSpeed`、`TeamDelays`、`MultiplayerAICM`、`AISlaveMinerNumber`、`AIRestrictReplaceTime`、`DissolveUnfilledTeamDelay`、`TargetDistanceCoefficientDefault`、`AISafeDistance` 等） | AI 调优 |
+| `[General]` | 14 个值 + 新增 `AIFriendlyDistance`（Ares 键）（`BuildSpeed`、`TeamDelays`、`MultiplayerAICM`、`AISlaveMinerNumber`、`AIRestrictReplaceTime`、`DissolveUnfilledTeamDelay`、`TargetDistanceCoefficientDefault`、`AISafeDistance` 等） | AI 调优 |
 | `[AI]` | 4 个键（`AirstripRatio`、`AirstripLimit`、`ComputerBaseDefenseResponse`、`Paranoid`） | AI 调优 |
 | `[GADEPT]` / `[NADEPT]` / `[YADEPT]` | 各 1 键（`AIBuildThis`） | **改原版单位数值**（保留，用户确认需要） |
 
@@ -102,19 +102,26 @@
 - 回滚：删掉 `RULES_EDITS` 里这一条（或把新值改回 `-10`）并重建，同时删掉
   `tools/check_retail.py` 的对应白名单项；`[ZAIATK01-G]` 的 `0=53,0` 也是单行回滚。
 
-**`AISafeDistance` 的影响面（13→14 键）**：
+**`AISafeDistance=12` 与 `AIFriendlyDistance=20` 的影响面**：
 
 - 作用范围：动作 `53`（`team_action_gather_at_enemy_base`）的集结点，值是「离**敌方**
   基地中心多少格」。所有用 `53` 的队伍都读它：`[ZAIATK01-G]`（151 支进攻队）与
   9 支保留零售脚本的超武队伍。
+- 动作 `54`（`team_action_gather_at_friendly_base`）回**自家**基地中心；本模组 Ares=yes，
+  54 读 `AIFriendlyDistance=`，未设时**回落**读 `AISafeDistance=`（`ares_rules_ext.rs:243-248`）。
+  扩张 MCV 的脚本 `043F23CC-G` 正是 `0=54,0`，所以只改 53 会连带改 MCV 展开点。
 - 原值 `20` 的问题：量的是**敌方**基地中心，而本模组每户铺 3 座基地、双方基地常常
   只隔十几格，20 格会落回**自家基地内部**，出征队伍等于在家门口集结 → 新基地堵车。
-- 新值 `8`：仍在敌方基地墙外，队伍会真正开出去，而不是在自家基地里绕。
+- `8` 的问题：三座厂的敌方基地半径常大于 8 格，8 格会落进**敌墙内**，队伍在敌基地里
+  集结；`12` 是墙外折中。
+- `AIFriendlyDistance=20`：把 54 单独拉回零售 20 格，扩张 MCV 不会因为 53=12 而把新
+  基地种在旧基地旁边；53 仍为 12。
 - 不改的东西：单位/武器/建筑数值、触发器、脚本步骤；无随机数，同状态同选择。
-- 验证：`tools/build_mod.py` 的 `assert_attack_script` 钉住 `[General] AISafeDistance=8`
-  与 `[ZAIATK01-G]` 六步；`docs/ai-design.md` §3.2 写明机制与局限。
-- 回滚：删掉 `RULES_EDITS` 里这一条（或把新值改回 `20`）并重建，同时删掉
-  `tools/check_retail.py` 的 `aisafedistance` 白名单项。
+- 验证：`tools/build_mod.py` 的 `assert_attack_script` 钉住 `[General] AISafeDistance=12`、
+  `AIFriendlyDistance=20` 与 `[ZAIATK01-G]` 六步；`docs/ai-design.md` §3.2 写明机制与局限。
+- 回滚：删掉 `RULES_EDITS` 里 `AISafeDistance` 这一条（或改回 `20`）并重建，同时删掉
+  `check_retail.py` 的 `aisafedistance` 白名单项；删掉插入 `AIFriendlyDistance` 的代码并
+  移除 `check_retail.py` 的 `aifriendlydistance` 新增键项。
 
 **`ComputerBaseDefenseResponse` 的影响面（[AI] 3→4 键）**：
 

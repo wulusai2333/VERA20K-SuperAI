@@ -2,6 +2,19 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## Unreleased — 53 集结点 8→12；54 展开点用 AIFriendlyDistance=20
+
+- **动作 53**（到敌方基地外集结）的 `[General] AISafeDistance` 由 `8` 改为 **`12`**：
+  8 会落进三座厂敌基地的墙内，12 在敌墙外，同时不像 20 那样在敌我基地靠近时落回自家。
+- **动作 54**（回自家基地/扩张 MCV 展开点）新增 **`[General] AIFriendlyDistance=20`**
+  （Ares 键）：Ares 下 54 读它，未设时回落 `AISafeDistance`；这样 53=12 不再把 MCV
+  展开点一起拖到 12，扩张基地仍按零售 20 格展开。
+- 落盘：`build_mod.py` 的 `RULES_EDITS` 改 12，并在 `AISafeDistance=` 后插入
+  `AIFriendlyDistance=20`；`assert_attack_script` 同时钉 12/20/六步；`check_retail.py`
+  的 `[General]` 新增键白名单加 `aifriendlydistance`；文档同步。
+- 残余“向新基地聚集”的主因仍是引擎 `MoveGroundForcesToBase`（每次建造厂展开把全户
+  地面部队发到新基地旁同一个格），数据层无关闭键；本次只把新基地拉回 20 格，不承诺消除。
+
 ## Unreleased — 关闭基地防御响应：MCV 扩张不再拉护卫
 
 - `[AI] ComputerBaseDefenseResponse` 由 `3` 改为 **`0`**：`RespondToBaseAttack` 的预算

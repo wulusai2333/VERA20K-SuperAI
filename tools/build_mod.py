@@ -149,9 +149,11 @@ RULES_EDITS = {
     # crowded maps this mod ships -- three yards per house, bases a few cells
     # apart -- that "staging point" lands inside our own base and the column
     # mills around at home instead of forming up outside the enemy (the
-    # new-base congestion this build fixes).  8 stays outside the enemy base
-    # wall and still leaves a drive to it.  `assert_attack_script` pins it.
-    "AISafeDistance": ("20", "8"),
+    # new-base congestion this build fixes).  8 then moved it too close: an
+    # enemy with three yards has a base radius larger than 8 cells, so the team
+    # staged inside the enemy wall; 12 sits outside that wall and still leaves
+    # a drive.  `assert_attack_script` pins it.
+    "AISafeDistance": ("20", "12"),
 }
 
 #: Per-section key rewrites, applied inside the named section only.
@@ -357,10 +359,11 @@ MCV_DEPLOY_SCRIPT = "043F23CC-G"
 #: Our no-assembly attack script.
 #:
 #: The first action is 53, gather at the enemy base: it walks the team to the
-#: passable cell ``AISafeDistance=`` (8) cells from the enemy base centre, on
+#: passable cell ``AISafeDistance=`` (12) cells from the enemy base centre, on
 #: the side facing the team's own base.  Retail's 20 put that point inside our
 #: own base whenever the two bases are close (three yards per house), so the
-#: column staged at home; 8 is outside the enemy wall.  That leg is on
+#: column staged at home; 8 staged inside an enemy three-yard base, so 12 is
+#: the outside-wall compromise.  That leg is on
 #: ``MissionType::Move``, the only mission on which an AI team with
 #: ``Aggressive=yes`` / ``Suicide=no`` gets the passive target scan at all
 #: (``target_scan.rs``), so the column fires at what it meets on the way in.
@@ -2061,6 +2064,19 @@ def build_rules(source_dir, out_dir):
     for yard in CONSTRUCTION_YARDS:
         insert_after_section_header(lines, yard, "SpySat=yes\r\n")
 
+    # Action 54 (`team_action_gather_at_friendly_base`) is what the expansion
+    # MCV runs (`043F23CC-G` 0=54,0): it returns to OUR base centre.  Ares reads
+    # `AIFriendlyDistance=` for it and falls back to `AISafeDistance=` when the
+    # key is absent, so without this line the 53 edit would also drag the MCV
+    # deploy point down to 12 cells.  Keep 54 at retail 20.
+    if not any(l.startswith("AIFriendlyDistance=") for l in lines):
+        for i, line in enumerate(lines):
+            if line.startswith("AISafeDistance="):
+                lines.insert(i + 1, "AIFriendlyDistance=20\r\n")
+                break
+        else:
+            raise SystemExit("AISafeDistance= not found")
+
     # VERA extension: computers target the nearest enemy, so FFA games fight.
     if not any(l.startswith("AINearestEnemy=") for l in lines):
         for i, line in enumerate(lines):
@@ -2653,8 +2669,11 @@ def assert_attack_script(rules_lines, aimd_lines):
     * **the gather distance** -- step 0 stages the team ``AISafeDistance``
       cells from the ENEMY base centre.  Retail 20 puts that point inside our
       own base whenever the two bases are close (three yards per house), so
-      the column piles up at home; 8 is outside the enemy wall.  Pinned
-      literally for the same reason as the coefficient;
+      the column piles up at home; 8 then staged inside an enemy three-yard
+      base, so 12 is the outside-the-wall compromise.  Action 54 (the
+      expansion MCV's ``0=54,0``) reads ``AIFriendlyDistance=20`` instead, so
+      the 53 distance no longer drags the deploy point in.  Pinned literally
+      for the same reason as the coefficient;
     * **the script shape** -- dropping the opening ``53`` removes the only
       Move leg (and with it the passive scan that lets the column engage on
       the way in); adding or reordering a step changes how many quarries a
@@ -2677,13 +2696,21 @@ def assert_attack_script(rules_lines, aimd_lines):
             % (coefficient,))
 
     gather = read_ini_value(rules_lines, "General", "AISafeDistance")
-    if gather != "8":
+    if gather != "12":
         raise SystemExit(
-            "[General] AISafeDistance=%r, expected '8'.  Step 0 of [%s] "
+            "[General] AISafeDistance=%r, expected '12'.  Step 0 of [%s] "
             "gathers at this distance from the ENEMY base centre; retail 20 "
-            "lands inside our own base when the two bases are close, so the "
-            "team stages at home (the new-base congestion this fixes)."
-            % (gather, ATTACK_SCRIPT))
+            "lands inside our own base when the two bases are close, and 8 "
+            "stages inside an enemy three-yard base.  12 is the outside-wall "
+            "compromise." % (gather, ATTACK_SCRIPT))
+    friendly = read_ini_value(rules_lines, "General", "AIFriendlyDistance")
+    if friendly != "20":
+        raise SystemExit(
+            "[General] AIFriendlyDistance=%r, expected '20'.  Action 54 "
+            "(the expansion MCV's 0=54,0) returns to OUR base centre; Ares "
+            "falls back to AISafeDistance when this key is missing, which "
+            "would plant the new yard 12 cells out instead of retail 20."
+            % (friendly,))
 
     expected = ["0=53,0", "1=0,6", "2=49,0", "3=0,2", "4=0,1", "5=0,5"]
     actual = []

@@ -160,7 +160,7 @@ PCV  Prerequisite=YAWEAP,YAGRND    ; YADEPT 在原版被注释掉
 ```ini
 [ZAIATK01-G]
 Name=SuperAI Charge
-0=53,0      ; 到敌方基地外 AISafeDistance=8 格（Move，途中可被动索敌）
+0=53,0      ; 到敌方基地外 AISafeDistance=12 格（Move，途中可被动索敌）
 1=0,6      ; 用 quarry 6 选目标并进攻
 2=49,0     ; 立即推进到下一步
 3=0,2
@@ -169,11 +169,13 @@ Name=SuperAI Charge
 ```
 
 - `53` 是 `team_action_gather_at_enemy_base`：把队伍移动到「敌方基地中心朝向我方
-  8 格（`AISafeDistance`）」的可通行格；这一段是 `Mission::Move`。电脑队伍只要
+  12 格（`AISafeDistance`）」的可通行格；这一段是 `Mission::Move`。电脑队伍只要
   `Aggressive=yes` 且 `Suicide=no`，就会在 Move 上运行被动索敌（引擎
   `target_scan.rs`），所以行军途中会向进入射程的敌人开火并继续前进。
   原版 `20` 是从**敌方**基地中心量的，双方基地靠近时这个点会落进自家基地，
-  队伍等于在家门口集结 → 新基地堵车；`8` 仍在敌方基地墙外。
+  队伍等于在家门口集结 → 新基地堵车；`8` 又太贴，三座厂的敌方基地半径常大于
+  8 格，会落进敌墙；`12` 是墙外的折中。扩张 MCV 的 `54`（回自家基地）单独用
+  `[General] AIFriendlyDistance=20`，不再被 `53` 的键带走。
 - `0` 是 `team_action_attack_quarry`，参数是 threat quarry 选择器；它用**队长当前
   位置**重新选点（`direct_greatest_threat` 的距离基准 D0 = 队长坐标），不需要预先集结。
 - `49` 是「直接推进」动作，用来把攻击步骤串起来。
@@ -186,7 +188,7 @@ Name=SuperAI Charge
 少 1024 分，距离项上最近者严格胜出；最终评分仍会叠加 A–D 四项，所以不是「绝对最近
 优先」，但不会再退化成「最老工厂」。
 
-**局限（数据层近似的边界）**：`53` 的目的地是敌方**基地中心**外 8 格，不是最近的
+**局限（数据层近似的边界）**：`53` 的目的地是敌方**基地中心**外 12 格，不是最近的
 工厂；途中索敌半径仍由 `GuardRange=` / 武器射程决定（犀牛没有 `GuardRange`，只有约
 5.75 格），所以是「打到枪口上的敌人」而不是全图追敌；没有交战后回到原路径的
 attack-move 语义（那需要引擎改动，本次不做）；被动索敌会多抽 `RandomRanged(0,2)`，
@@ -200,6 +202,8 @@ attack-move 语义（那需要引擎改动，本次不做）；被动索敌会�
 
 - **151 支队伍**改成这个脚本，`Aggressive=yes`、`IsBaseDefense=no`。
 - **3 支 MCV 队伍**保留原版 `043F23CC-G` 部署脚本，否则 AI 永远不会展开分基地。
+  该脚本的 `0=54,0` 回**自家**基地中心展开；Ares 下用 `[General] AIFriendlyDistance=20`
+  单独控制，避免被 `53` 的 `AISafeDistance=12` 一起拖近。
 - **9 支带超武动作的队伍保留零售脚本**（3.0 起）：这些脚本里有
   `53`（集结到敌方基地）、`55`（放铁幕）、`57`（超时空传送），
   是 AI 使用铁幕/超时空的**唯一**代码路径。2.4 曾把它们一并覆盖掉，
@@ -209,8 +213,8 @@ attack-move 语义（那需要引擎改动，本次不做）；被动索敌会�
 > 这三类例外现在都有构建期断言守着：MCV 队伍必须 `Max=1` 且仍用部署脚本
 > （`assert_mcv_team_max`），超武队伍必须仍用含 55/56/57 的脚本
 > （`assert_superweapon_teams_intact`）；另 `assert_attack_script` 钉住
-> `[General] TargetDistanceCoefficientDefault=-0.4`、`AISafeDistance=8`
-> 与 `ZAIATK01-G` 的六步（含 `0=53,0`）。
+> `[General] TargetDistanceCoefficientDefault=-0.4`、`AISafeDistance=12`、
+> `AIFriendlyDistance=20` 与 `ZAIATK01-G` 的六步（含 `0=53,0`）。
 
 ### 3.3 触发器权重
 
