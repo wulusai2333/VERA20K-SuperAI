@@ -2,6 +2,25 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## Unreleased — AITrigger 积极发展：修死条 + 抬下限 + 3 条保底进攻
+
+- **修死数据**：7 条零售触发器三难度位全关（`d000`，永不可命中），按名字声明的
+  难度恢复：`Allied Bombard - E1` / `Soviet Bombard Easy` → `100`；
+  `Allied Spy vs Allied Tech` / `Allied IFV Rush ×2` / `Soviet Siege Bunker ×2` → `011`。
+- **抬权重下限**：46 条 condition 4 攻击触发器的 `下限` 抬到 `起始值`（44 条实际变化），
+  上限与 `AITriggerSuccess/FailureWeightDelta`（+20/−50）保留 —— 失败最多掉回起始值，
+  不再掉到 10，修「面对强玩家越打越软」。
+- **3 条保底进攻**：盟/苏/尤各 1 条 `condition=-1`、`d111`、权重 `30/30/30`
+  （`ZAIALW01-G…03-G`），复用 `Max≥2` 的现有队伍；低于 5000 接管与 1000 防空，
+  只是一个「无论如何都会出点兵」的地板。
+- **与 2.4 的差异**：2.4 曾把「250 权重 + 三难度全开」整批撤回；本次**没有**恢复那套，
+  没有解耦 42 条反制/任务条件，反渗透/MCV/超武的 5000 未动。可命中数
+  Easy/Normal/Hard `30/103/122 → 35/111/130`。
+- **守卫**：新增 `assert_attack_triggers_boosted`（171 条 / 18 token / 64 hex /
+  无 `d000` / 46 条下限=起始 / 新条形状与队伍 `Max≥2` / condition 直方图与关键反制
+  条目）；重建仍走 `tools/build_mod.py`，`docs/ai-design.md` §3.3 与
+  `docs/ai-tuning-playbook.md` §10.4 同步。
+
 ## Unreleased — All to Hunt 60 秒、机场编队 4 架
 
 7 张 SuperAI 地图的 `AIHunt*` 事件从 20 秒改为 60 秒；`tools/veramap.py` 的默认值同步。

@@ -2212,6 +2212,55 @@ AIR_UNIT_MIN = 3
 AIR_SIZE_FACTOR = 2
 AIR_UNIT_CAP = 16
 
+#: The seven retail attack triggers that ship with every difficulty bit off
+#: (`0,0,0` in tokens 15-17).  They can never be drawn on any difficulty, so
+#: the unit composition and the team are pure dead data:
+#:
+#:   0C0C7AEC-G  Allied Bombard - E1           easy
+#:   0C0D251C-G  Soviet Bombard Easy           easy
+#:   0C9565AC-G  Allied Spy vs Allied Tech     normal + hard
+#:   0AA846FC-G  Allied IFV Rush vs Ally Con   normal + hard
+#:   0AA845AC-G  Allied IFV Rush vs Sov Con    normal + hard
+#:   0616004C-G  Soviet Siege Bunker_1         normal + hard
+#:   07C330CC-G  Soviet Siege Bunker_2         normal + hard
+#:
+#: Each is restored to the difficulty its own name advertises -- nothing is
+#: opened on a difficulty it did not target.
+DEAD_TRIGGER_DIFFICULTY = {
+    "0C0C7AEC-G": "100",
+    "0C0D251C-G": "100",
+    "0C9565AC-G": "011",
+    "0AA846FC-G": "011",
+    "0AA845AC-G": "011",
+    "0616004C-G": "011",
+    "07C330CC-G": "011",
+}
+
+#: The condition-4 attack triggers are "the enemy's available money compares"
+#: with amount 0 / `>=`, i.e. always true once an enemy exists; their problem
+#: was never the condition but the decaying weight floor.
+ATTACK_FLOOR_CONDITION = "4"
+#: How many condition-4 triggers retail ships with `floor < ceiling` (and
+#: therefore with a floor that sinks when teams die).  Asserted exactly.
+ATTACK_FLOOR_EXPECTED = 46
+
+#: Weight for the three "always eligible" attack triggers: the floor under the
+#: three difficulties, not a replacement for them.  Far below the 5000 takeover
+#: triggers (MCV/superweapon/anti-spy) and the 1000 AA triggers, so counter
+#: teams are still drawn first.
+ALWAYS_TRIGGER_WEIGHTS = ("30.000000", "30.000000", "30.000000")
+#: 32-byte comparison mask.  `condition=-1` never reads it, but the reader
+#: still needs exactly 64 hex characters or it drops the whole trigger.
+ALWAYS_TRIGGER_MASK = "0000000003000000" + "0" * 48
+#: (trigger id, display name, primary TeamType, side token).  The teams are
+#: retail attack teams with `Max>=2` -- `at_max_teams` would otherwise keep the
+#: trigger from ever firing while the first team is alive.
+ALWAYS_TRIGGER_SPEC = (
+    ("ZAIALW01-G", "ZAI Always Attack - Allied", "0CA0486C-G", "1"),
+    ("ZAIALW02-G", "ZAI Always Attack - Soviet", "09B58D0C-G", "2"),
+    ("ZAIALW03-G", "ZAI Always Attack - Yuri", "08B9108C-G", "3"),
+)
+
 
 def teams_using_superweapon_scripts(doc):
     """Team ids whose script contains an Iron Curtain / chronoshift action.
@@ -2275,6 +2324,17 @@ def build_aimd(source_dir, out_dir, assembly_teams=False):
     of units (the Iron Curtain covers a 3x3 cell patch, so it needs one)?  Build
     it into a separate mod folder and compare in game; the shipped mod keeps
     charging.
+
+    A final pass, :func:`boost_attack_triggers`, deliberately departs from the
+    2.4 "leave the trigger weights to the difficulties" decision by three
+    narrow amounts: it revives the seven triggers retail ships on no
+    difficulty at all, raises the weight floor of the 46 decaying condition-4
+    attack triggers to their start weight (so losing teams no longer sink the
+    attack rate), and appends three weight-30 always-eligible attack triggers.
+    Nothing else in the trigger table is touched -- no difficulty bit is opened
+    beyond the difficulty a trigger's own name declares, the 42 counter/task
+    conditions stay as they are, and the 5000 takeover triggers keep their
+    weights.  See ``docs/ai-design.md`` 3.3.1.
     """
     text = open(os.path.join(source_dir, "aimd.ini"), "rb").read().decode("latin-1")
     doc = Aimd(text)
@@ -2436,8 +2496,9 @@ def build_aimd(source_dir, out_dir, assembly_teams=False):
     recovered += added
 
     boost = boost_air_and_aa(doc)
+    attack = boost_attack_triggers(doc)
     open(os.path.join(out_dir, "aimd.ini"), "wb").write(doc.text().encode("latin-1"))
-    return switched, recovered, preserved, boost
+    return switched, recovered, preserved, boost, attack
 
 
 def assert_mcv_recovery_fillable(rules_lines, aimd_lines):
@@ -3014,6 +3075,116 @@ def boost_air_and_aa(doc):
             "air_triggers": air_triggers, "aa_triggers": aa_triggers}
 
 
+def boost_attack_triggers(doc):
+    """Make the attack triggers reachable, and stop them sinking when they die.
+
+    Three data problems press on the attack rate, and none of them is "the
+    difficulty is too low":
+
+    * **seven triggers can never be drawn** -- every difficulty bit is off
+      (``d000``), so the team, its units and its name are dead data;
+    * **46 condition-4 triggers decay to a floor of 10-60** -- condition 4 is
+      "the enemy's money compares" with amount 0 / ``>=``, so it is always
+      true; the weight is what limits the team, and
+      ``AITriggerFailureWeightDelta`` (-50) walks it down to the floor every
+      time a team dies before script action 49.  Against a player who kills the
+      first wave, the AI's whole hand of attack triggers ends up at its floor:
+      the longer the game runs, the softer it gets;
+    * **no attack trigger is guaranteed to be drawable** -- each one waits on
+      an owned building (condition 1) or on the enemy owning something
+      (condition 0), so a house can be left with an empty draw.
+
+    So: restore the seven to the difficulty their own name declares, raise the
+    46 floors to their start weight (the ceiling and the +20 success feedback
+    stay, so a trigger can still learn upwards), and append one weight-30
+    ``condition=-1`` trigger per side as a floor under the whole table.
+
+    Deliberately **not** done: decoupling the 42 counter/task conditions to
+    ``-1`` (an AA team built with no enemy aircraft is wasted units), opening
+    every difficulty bit (the 2.0-2.3 experiment 2.4 reverted), touching the
+    5000 takeover triggers, or raising ordinary attack weights to 250.
+    """
+    dead_fixed = 0
+    floors_matched = 0
+    floors_raised = 0
+    start, end = doc.bounds("AITriggerTypes")
+    for i in range(start, end):
+        line = doc.lines[i]
+        if "=" not in line or line.lstrip().startswith(";"):
+            continue
+        key, value = line.split("=", 1)
+        tokens = value.rstrip("\r\n").split(",")
+        if len(tokens) != 18:
+            continue
+        eol = line[len(line.rstrip("\r\n")):]
+        changed = False
+        trigger_id = key.strip()
+
+        bits = DEAD_TRIGGER_DIFFICULTY.get(trigger_id)
+        if bits is not None:
+            tokens[15], tokens[16], tokens[17] = bits[0], bits[1], bits[2]
+            dead_fixed += 1
+            changed = True
+
+        if tokens[4].strip() == ATTACK_FLOOR_CONDITION:
+            try:
+                floor_weight = float(tokens[8])
+                top_weight = float(tokens[9])
+                start_weight = float(tokens[7])
+            except ValueError:
+                raise SystemExit(
+                    "trigger %s has a non-numeric weight (%r/%r/%r)"
+                    % (trigger_id, tokens[7], tokens[8], tokens[9]))
+            if floor_weight < top_weight:
+                floors_matched += 1
+                if floor_weight != start_weight:
+                    # `AiTriggerTrackRecord::record` clamps the running weight
+                    # to [weights[1], weights[2]] and subtracts
+                    # AITriggerFailureWeightDelta for each team that dies
+                    # before script action 49.  With floor == start the clamp
+                    # still allows a climb to the ceiling but can no longer
+                    # push the weight below the retail starting weight.
+                    tokens[8] = tokens[7]
+                    floors_raised += 1
+                changed = True
+
+        if changed:
+            doc.lines[i] = key + "=" + ",".join(tokens) + eol
+
+    if dead_fixed != len(DEAD_TRIGGER_DIFFICULTY):
+        raise SystemExit(
+            "expected %d dead (d000) AITriggers, matched %d: the retail aimd "
+            "does not match the ids in DEAD_TRIGGER_DIFFICULTY"
+            % (len(DEAD_TRIGGER_DIFFICULTY), dead_fixed))
+    if floors_matched != ATTACK_FLOOR_EXPECTED:
+        raise SystemExit(
+            "expected %d condition-4 attack triggers with a decaying floor, "
+            "matched %d: the retail aimd changed shape"
+            % (ATTACK_FLOOR_EXPECTED, floors_matched))
+
+    # Append the always-eligible triggers before [Digest] -- the reader is
+    # line-based, so the blank line before the existing ZAIEXP rows does not
+    # end the section.
+    start, end = doc.bounds("AITriggerTypes")
+    for offset, spec in enumerate(ALWAYS_TRIGGER_SPEC):
+        trigger_id, name, team, side = spec
+        tokens = [name, team, "<all>", "1", "-1", "<none>",
+                  ALWAYS_TRIGGER_MASK,
+                  ALWAYS_TRIGGER_WEIGHTS[0], ALWAYS_TRIGGER_WEIGHTS[1],
+                  ALWAYS_TRIGGER_WEIGHTS[2], "1", "0", side, "0", "<none>",
+                  "1", "1", "1"]
+        if len(tokens) != 18:
+            raise SystemExit(
+                "always-trigger %s would have %d tokens, not 18"
+                % (trigger_id, len(tokens)))
+        doc.lines.insert(end + offset,
+                         "%s=%s\r\n" % (trigger_id, ",".join(tokens)))
+    doc.reindex()
+
+    return {"dead_fixed": dead_fixed, "floors_matched": floors_matched,
+            "floors_raised": floors_raised, "added": len(ALWAYS_TRIGGER_SPEC)}
+
+
 def assert_air_and_aa_boosted(aimd_lines):
     """The air / AA boost must actually be present in the built aimd."""
     text = "".join(aimd_lines)
@@ -3148,6 +3319,255 @@ def assert_air_and_aa_boosted(aimd_lines):
     return air_tfs
 
 
+#: 168 retail triggers + the 3 always-eligible ones.
+EXPECTED_ATTACK_TRIGGER_COUNT = 171
+
+#: The 46 condition-4 attack triggers whose retail weight floor sits below the
+#: start weight, pinned by id (the 46 that used to decay).  Pinned literally
+#: rather than derived from the transformation, so a different 46 -- a retail
+#: change, or a bug that raises/skips the wrong rows -- fails the build.
+ATTACK_FLOOR_TRIGGER_IDS = (
+    "0CA6621C-G", "0CE26CAC-G", "0CE26B5C-G", "0CAD145C-G", "0CE2395C-G",
+    "0D08461C-G", "0D0873DC-G", "0C8E2C3C-G", "0CAD25AC-G", "0D087D8C-G",
+    "0CE44D0C-G", "0CA5945C-G", "0CAD2C3C-G", "0D535EDC-G", "0AD2BAEC-G",
+    "0D2C448C-G", "0C8C56FC-G", "0D2C41EC-G", "0CA6AEDC-G", "0C8C51BC-G",
+    "0C0D184C-G", "0ECCF68C-G", "0C8C430C-G", "0C87B99C-G", "0ECCF29C-G",
+    "0ECCF14C-G", "0ECCB55C-G", "0ECCB40C-G", "0ECCB2BC-G", "0C87E5AC-G",
+    "0612B11C-G", "06C551AC-G", "0612CD8C-G", "0ABC484C-G", "05FFB18C-G",
+    "06002BFC-G", "07C04C7C-G", "05FC1A8C-G", "05FC50EC-G", "05FC3C9C-G",
+    "05FC088C-G", "08B9154C-G", "08B911BC-G", "08B9213C-G", "08B9586C-G",
+    "0612F46C-G",
+)
+
+#: Retail counter/task triggers that must keep their condition, object and
+#: (where pinned) weight.  Turning any of these into `condition=-1` makes the
+#: AI build counters with no threat on the map -- an AA team against no
+#: aircraft, a refinery guard against no spy.  The four SPY rows also pin the
+#: 5000 takeover weights: 5000 clears every other trigger out of that draw, so
+#: it must stay exactly where retail put it.
+COUNTER_TRIGGER_PINS = (
+    # (id, display name, condition, object, weights or None)
+    ("0CAD0DCC-G", "Allied Anti-Nuke 1", "0", "NAMISL", None),
+    ("0CAD0C7C-G", "Allied Anti-Weather", "0", "GAWEAT", None),
+    ("0CA2A04C-G", "Soviet Anti-Harrier Defense", "0", "ORCA", None),
+    ("0C1246FC-G", "Allied Refinery Guard", "0", "SPY",
+     ("5000.000000", "10.000000", "5000.000000")),
+    ("0C1245AC-G", "Soviet Refinery Guard", "0", "SPY",
+     ("5000.000000", "5000.000000", "5000.000000")),
+    ("0A44F2CC-G", "Allied Dog Refinery Guards", "0", "SPY",
+     ("5000.000000", "5000.000000", "5000.000000")),
+    ("0A44F17C-G", "Soviet Dog Refinery Guards", "0", "SPY",
+     ("5000.000000", "5000.000000", "5000.000000")),
+)
+
+#: Retail condition distribution plus the three new `-1` rows.  Any trigger
+#: silently decoupled from 0/1 to -1 shows up here.
+EXPECTED_TRIGGER_CONDITIONS = {-1: 3, 0: 50, 1: 52, 4: 53, 5: 2, 6: 3, 7: 8}
+
+
+def assert_attack_triggers_boosted(aimd_lines):
+    """The attack-trigger boost must be present, and only it must be present.
+
+    Checks the shape the INI reader demands (18 tokens, 64-hex mask -- a
+    malformed row is dropped **silently**, which looks like "the AI stopped
+    attacking"), the three intended edits (7 dead rows revived, 46 floors at
+    their start weight, 3 always-eligible rows), and the things that must NOT
+    have moved: the condition histogram and the pinned counter rows.
+    """
+    sections, current = {}, None
+    for line in aimd_lines:
+        header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
+        if header:
+            current = header.group(1).strip()
+            sections.setdefault(current, [])
+            continue
+        if current is not None:
+            sections[current].append(line)
+
+    entries = []
+    for line in sections.get("AITriggerTypes", []):
+        stripped = line.strip()
+        if not stripped or stripped.startswith(";") or "=" not in stripped:
+            continue
+        key, value = stripped.split("=", 1)
+        entries.append((key.strip(), value.split(",")))
+
+    problems = []
+    if len(entries) != EXPECTED_ATTACK_TRIGGER_COUNT:
+        problems.append("%d AITriggers, expected %d"
+                        % (len(entries), EXPECTED_ATTACK_TRIGGER_COUNT))
+    if len({key for key, _tokens in entries}) != len(entries):
+        problems.append("duplicate AITriggerTypes id")
+    for key, tokens in entries:
+        if len(tokens) != 18:
+            problems.append("%s has %d tokens, not 18" % (key, len(tokens)))
+            continue
+        mask = tokens[6].strip()
+        if len(mask) != 64 or any(c not in "0123456789abcdefABCDEF"
+                                  for c in mask):
+            problems.append("%s comparison mask is not 64 hex chars" % key)
+
+    table = {key: tokens for key, tokens in entries}
+
+    # 1. No trigger may ship with every difficulty bit off any more.
+    d000 = [key for key, tokens in entries
+            if len(tokens) == 18 and tokens[15:18] == ["0", "0", "0"]]
+    if d000:
+        problems.append("still d000: " + ", ".join(d000[:4]))
+    for trigger_id, bits in DEAD_TRIGGER_DIFFICULTY.items():
+        tokens = table.get(trigger_id)
+        if tokens is None or len(tokens) != 18:
+            problems.append("dead trigger %s is missing" % trigger_id)
+            continue
+        if "".join(tokens[15:18]) != bits:
+            problems.append("%s difficulty %s, expected %s"
+                            % (trigger_id, "".join(tokens[15:18]), bits))
+
+    # 2. The 46 floors sit at the start weight; no condition-4 trigger may
+    #    still decay below its start value.
+    if len(ATTACK_FLOOR_TRIGGER_IDS) != ATTACK_FLOOR_EXPECTED:
+        problems.append("%d pinned floor triggers, expected %d"
+                        % (len(ATTACK_FLOOR_TRIGGER_IDS),
+                           ATTACK_FLOOR_EXPECTED))
+    for trigger_id in ATTACK_FLOOR_TRIGGER_IDS:
+        tokens = table.get(trigger_id)
+        if tokens is None or len(tokens) != 18:
+            problems.append("floor trigger %s is missing" % trigger_id)
+            continue
+        try:
+            condition = int(tokens[4])
+            floor_weight = float(tokens[8])
+            start_weight = float(tokens[7])
+        except ValueError:
+            problems.append("%s has non-numeric condition/weight" % trigger_id)
+            continue
+        if condition != 4:
+            problems.append("%s condition %d, expected 4"
+                            % (trigger_id, condition))
+        if floor_weight != start_weight:
+            problems.append("%s floor %s, expected the start weight %s"
+                            % (trigger_id, tokens[8], tokens[7]))
+    for key, tokens in entries:
+        if len(tokens) != 18:
+            continue
+        try:
+            condition = int(tokens[4])
+            floor_weight = float(tokens[8])
+            start_weight = float(tokens[7])
+        except ValueError:
+            continue
+        if condition == 4 and floor_weight < start_weight:
+            problems.append("%s still decays below its start weight" % key)
+
+    # 3. The three always-eligible attack triggers.
+    names = {}
+    for key, tokens in entries:
+        if len(tokens) == 18:
+            names.setdefault(tokens[0].strip().lower(), []).append(key)
+    for trigger_id, _name, team, side in ALWAYS_TRIGGER_SPEC:
+        tokens = table.get(trigger_id)
+        if tokens is None or len(tokens) != 18:
+            problems.append("always-trigger %s is missing" % trigger_id)
+            continue
+        if tokens[0].strip() != _name:
+            problems.append("%s name %r, expected %r"
+                            % (trigger_id, tokens[0].strip(), _name))
+        if len(names.get(_name.lower(), [])) != 1:
+            problems.append("always-trigger name %r is not unique" % _name)
+        if tokens[1].strip() != team:
+            problems.append("%s team %r, expected %r"
+                            % (trigger_id, tokens[1].strip(), team))
+        if tokens[3].strip() != "1":
+            problems.append("%s tech-level threshold %r, expected 1"
+                            % (trigger_id, tokens[3].strip()))
+        if tokens[4].strip() != "-1":
+            problems.append("%s condition %r, expected -1"
+                            % (trigger_id, tokens[4].strip()))
+        if tokens[5].strip().lower() != "<none>":
+            problems.append("%s object %r, expected <none>"
+                            % (trigger_id, tokens[5].strip()))
+        mask = tokens[6].strip()
+        if len(mask) != 64 or any(c not in "0123456789abcdefABCDEF"
+                                  for c in mask):
+            problems.append("%s mask is not 64 hex chars" % trigger_id)
+        if tuple(tokens[7:10]) != ALWAYS_TRIGGER_WEIGHTS:
+            problems.append("%s weights %s, expected %s"
+                            % (trigger_id, "/".join(tokens[7:10]),
+                               "/".join(ALWAYS_TRIGGER_WEIGHTS)))
+        if tokens[10].strip() != "1":
+            problems.append("%s multiplayer %r, expected 1"
+                            % (trigger_id, tokens[10].strip()))
+        if tokens[12].strip() != side:
+            problems.append("%s side %r, expected %s"
+                            % (trigger_id, tokens[12].strip(), side))
+        if tokens[14].strip().lower() != "<none>":
+            problems.append("%s secondary team %r, expected <none>"
+                            % (trigger_id, tokens[14].strip()))
+        if "".join(tokens[15:18]) != "111":
+            problems.append("%s difficulty %s, expected 111"
+                            % (trigger_id, "".join(tokens[15:18])))
+        team_fields = {}
+        for entry in sections.get(team, []):
+            entry = entry.strip()
+            if "=" in entry:
+                field, value = entry.split("=", 1)
+                team_fields[field.strip().lower()] = value.strip()
+        try:
+            cap = int(team_fields.get("max", ""))
+        except ValueError:
+            cap = 0
+        if cap < 2:
+            problems.append(
+                "%s reuses team %s with Max=%r; `at_max_teams` would keep the "
+                "trigger from ever firing while the first team is alive"
+                % (trigger_id, team, team_fields.get("max")))
+
+    # 4. Nothing else moved: condition histogram and the counter rows.
+    counts = {}
+    for key, tokens in entries:
+        if len(tokens) != 18:
+            continue
+        try:
+            condition = int(tokens[4])
+        except ValueError:
+            problems.append("%s condition %r is not an integer"
+                            % (key, tokens[4].strip()))
+            continue
+        counts[condition] = counts.get(condition, 0) + 1
+    for condition, wanted in EXPECTED_TRIGGER_CONDITIONS.items():
+        if counts.get(condition, 0) != wanted:
+            problems.append("condition %d: %d triggers, expected %d"
+                            % (condition, counts.get(condition, 0), wanted))
+    for condition in counts:
+        if condition not in EXPECTED_TRIGGER_CONDITIONS:
+            problems.append("unexpected condition %d on %d triggers"
+                            % (condition, counts[condition]))
+
+    for trigger_id, _name, condition, obj, weights in COUNTER_TRIGGER_PINS:
+        tokens = table.get(trigger_id)
+        if tokens is None or len(tokens) != 18:
+            problems.append("counter trigger %s is missing" % trigger_id)
+            continue
+        if tokens[0].strip() != _name:
+            problems.append("%s name %r, expected %r"
+                            % (trigger_id, tokens[0].strip(), _name))
+        if tokens[4].strip() != condition:
+            problems.append("%s condition %r, expected %s"
+                            % (trigger_id, tokens[4].strip(), condition))
+        if tokens[5].strip() != obj:
+            problems.append("%s object %r, expected %s"
+                            % (trigger_id, tokens[5].strip(), obj))
+        if weights is not None and tuple(tokens[7:10]) != weights:
+            problems.append("%s weights %s, expected %s"
+                            % (trigger_id, "/".join(tokens[7:10]),
+                               "/".join(weights)))
+
+    if problems:
+        raise SystemExit("attack trigger boost missing: "
+                         + "; ".join(problems[:4]))
+    return len(entries)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rules-dir", required=True,
@@ -3167,7 +3587,7 @@ def main():
 
     os.makedirs(args.out, exist_ok=True)
     buildings = build_rules(args.rules_dir, args.out)
-    switched, recovered, preserved, boost = build_aimd(
+    switched, recovered, preserved, boost, attack = build_aimd(
         args.rules_dir, args.out, args.assembly_teams)
 
     # The mod's own CSF rows: `UIName=` is a label, so the two renamed delivery
@@ -3199,6 +3619,7 @@ def main():
     cluster_bombs = assert_nuke_gunship3(rules_lines, aimd_lines)
     assert_ui_labels(rules_lines, csf_labels)
     assert_air_and_aa_boosted(aimd_lines)
+    assert_attack_triggers_boosted(aimd_lines)
     counts = assert_build_counts(rules_lines)
     assert_no_walls(rules_lines)
     aa_defences = assert_aa_defenses_competitive(rules_lines)
@@ -3235,6 +3656,12 @@ def main():
              boost["aircraft_added"], boost["air_triggers"], AIR_WEIGHT_FACTOR))
     print("aa   : %d AA teams, %d AA triggers weighted x%d"
           % (boost["aa_teams"], boost["aa_triggers"], AA_WEIGHT_FACTOR))
+    print("atk  : %d dead triggers re-enabled on their named difficulty, "
+          "%d condition-4 floors at the start weight (%d moved), "
+          "%d always-eligible triggers at %s"
+          % (attack["dead_fixed"], attack["floors_matched"],
+             attack["floors_raised"], attack["added"],
+             ALWAYS_TRIGGER_WEIGHTS[0]))
     print("nuke : [%s] is retail [NUKE]'s %d keys under another name, so the "
           "engine's NUKE block (screen flash + global relight) never runs"
           % (GUNSHIP_WARHEAD, warhead_keys))
