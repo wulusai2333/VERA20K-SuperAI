@@ -157,6 +157,13 @@ RULES_EDITS = {
     "AISafeDistance": ("20", "12"),
 }
 
+#: Every airfield type an airport-bound aircraft may land on.  ``Dock=`` is a
+#: hard link, not documentation: a type missing here is a building the aircraft
+#: cannot use (they crash with the pad standing empty).  Defined up here because
+#: :data:`SECTION_KEY_EDITS` below needs it; the airfield block further down
+#: explains the whole design.
+AIRFIELD_DOCKS = "GAAIRC,AMRADR,ZAIKRAIRC"
+
 #: Per-section key rewrites, applied inside the named section only.
 #:
 #: The three repair depots ship `AIBuildThis=no` and the base-plan generator
@@ -189,6 +196,13 @@ SECTION_KEY_EDITS = {
     # only through the air category -- which rarely wins between computer
     # houses.  See docs/ai-tuning-playbook.md §14 and
     # assert_aa_defenses_competitive (which now pins the retail values).
+    # --- airfield docking ---------------------------------------------------
+    # The Korean airfield clone (`KOREAN_AIRFIELD`) is only usable if the two
+    # airport-bound aircraft accept it in `Dock=`; retail's own AMRADR shows the
+    # shape (`Dock=GAAIRC,AMRADR`).  `assert_airfield_expansion` pins the exact
+    # comma list, so a typo here fails the build instead of crashing aircraft.
+    "ORCA": {"Dock": AIRFIELD_DOCKS},
+    "BEAG": {"Dock": AIRFIELD_DOCKS},
 }
 
 #: Comment written beside a rewritten key, replacing the retail one.  Retail's
@@ -199,6 +213,7 @@ SECTION_KEY_COMMENTS = {
     "AIBuildThis": ";SuperAI: enabled so the AI can build its MCV (see docs/ai-tuning-playbook.md)",
     "AntiInfantryValue": ";SuperAI: retail 0 made the AA gun air-only in the defence picker",
     "AntiArmorValue": ";SuperAI: retail 0 made the AA gun air-only in the defence picker",
+    "Dock": ";SuperAI: ZAIKRAIRC is the Alliance-only airfield clone (docs/ai-tuning-playbook.md 16.5)",
 }
 
 #: Ares ``SW.*`` keys for the superweapons a computer can actually build.
@@ -340,19 +355,110 @@ ALLOWED_AITARGETING = {
 #: the type first appears.
 #:
 #: 2.4 emptied this table to hand the build rhythm back to the retail
-#: difficulties; 2.6 reintroduces exactly six entries because a hard computer is
-#: supposed to field three barracks and five war factories.  Keep it at this
-#: size: the 1.x setting of 60 per type scattered copies across the whole plan
-#: and produced 403 power plants against 12 war factories.
+#: difficulties; 2.6 reintroduced exactly six entries because a hard computer is
+#: supposed to field three barracks and five war factories.  Keep the table
+#: small -- the 1.x setting of 60 per type scattered copies across the whole plan
+#: and produced 403 power plants against 12 war factories.  3.14 adds only types
+#: where a COUNT is the mechanism itself: the two Allied airfields (pads are the
+#: air-force ceiling, and the USA needs its own type because `[GAAIRC]` forbids
+#: it) and the French Grand Cannon.
 BUILD_COUNTS = {
     # Hard computer: 3 barracks.  Normal/easy stay at the retail single node.
     "GAPILE": (3, 1, 1), "NAHAND": (3, 1, 1), "YABRCK": (3, 1, 1),
     # Hard computer: 5 war factories.
     "GAWEAP": (5, 1, 1), "NAWEAP": (5, 1, 1), "YAWEAP": (5, 1, 1),
+    # Two airfields for every house, on every difficulty: pads, not team caps,
+    # are what limits an airport-bound air force (see `[GAAIRC]` below), so this
+    # is the whole "the AI owns an air force worth watching" mechanism.
+    # `[GAAIRC]` is `ForbiddenHouses=Americans`, so the American house plans
+    # `[AMRADR]` (its own `RequiredHouses=Americans` airfield) instead -- that
+    # type needs the same count or the USA is left with four pads while every
+    # other Allied country has eight.
+    "GAAIRC": (2, 2, 2),
+    "AMRADR": (2, 2, 2),
+    # Korea's extra airfield: 2 + 1 = 3 airfields = 12 pads = three 4-aircraft
+    # teams.  `RequiredHouses=Alliance` keeps it off every other country.
+    "ZAIKRAIRC": (1, 1, 1),
+    # French Grand Cannon: retail ships `AIBuildThis=yes` but one plan node, so a
+    # French computer owns exactly one of its national defence building.  Two is
+    # the "national flavour you can see" level without eating the defence budget.
+    "GTGCAN": (2, 2, 2),
 }
 
 CONSTRUCTION_YARDS = ("GACNST", "NACNST", "YACNST")
 REFINERIES = ("GAREFN", "NAREFN", "YAREFN")
+
+#: ------------------------------------------------------------------ airfields
+#:
+#: ``[ORCA]``/``[BEAG]`` are ``AirportBound=yes`` with ``Ammo=1``: every sortie
+#: needs a pad to land on, and the aircraft crashes when its ``Dock=`` list has
+#: no free one.  ``[GAAIRC] NumberOfDocks=4``, so **a house can only field as
+#: many airport-bound aircraft as it has airfields x 4** -- and retail plans
+#: exactly one airfield (``[AI] BuildRadar=GAAIRC``), i.e. four aircraft.  That,
+#: not the trigger weights, is why the AI never had an air force
+#: (docs/ai-tuning-playbook.md §16).
+#:
+#: ``AIBuildCounts`` is per building TYPE and per difficulty, with no country
+#: dimension (`ai_extra_copies(difficulty.table_index())`), so "2 for everyone,
+#: 3 for Korea" needs a second building type -- not more copies of GAAIRC.
+#: ``[AMRADR]`` is retail's own precedent: the same airfield art, registering
+#: the same four pads, restricted with ``RequiredHouses=Americans``.  This is
+#: that clone for the Alliance (Korea), the one country retail already gives a
+#: dedicated aircraft (``[BEAG]`` ``RequiredHouses=Alliance``).
+KOREAN_AIRFIELD = "ZAIKRAIRC"
+#: The `[BuildingTypes]` index this clone is appended at.  Pinned literally (the
+#: same convention as `ATTACK_FLOOR_TRIGGER_IDS`): retail's highest key is
+#: `406=CALUNR02`, and `check_retail` only exempts registry rows whose numeric
+#: key is ABOVE the retail maximum -- reuse an unused retail number (`253` is
+#: one) and the build fails the retail guard.  A later append must bump this.
+AIRFIELD_REGISTRY_INDEX = 407
+#: Fields of the clone.  Copied key for key from retail ``[AMRADR]`` (the
+#: proven second-airfield type) with two deliberate differences:
+#:
+#: * ``RequiredHouses=Alliance`` instead of ``Americans`` -- that is the AI gate
+#:   (`recalc_candidate_allowed`), and the same hook retail uses for SNIPE /
+#:   TNKD / DESO / BEAG;
+#: * **no** ``SuperWeapon=AmericanParaDropSpecial``: inheriting it would hand
+#:   Korea a free American paradrop superweapon.  No ``ForbiddenHouses=`` either
+#:   (``[GAAIRC]`` bans Americans; the clone must not add bans of its own).
+KOREAN_AIRFIELD_FIELDS = (
+    ("UIName", "Name:GAAIRC"),
+    ("Name", "Allied Airforce Command Headquarters"),
+    ("Image", "GAAIRC"),
+    ("BuildCat", "Tech"),
+    ("Prerequisite", "GAREFN,GACNST"),
+    ("Strength", "600"),
+    ("Armor", "steel"),
+    ("Adjacent", "2"),
+    ("TechLevel", "3"),
+    ("Sight", "5"),
+    ("UnitReload", "yes"),
+    ("Helipad", "yes"),
+    ("Owner", "British,French,Germans,Americans,Alliance,Russians,"
+              "Confederation,Africans,Arabs,YuriCountry"),
+    ("RequiredHouses", "Alliance"),
+    ("AIBasePlanningSide", "0"),
+    ("Cost", "1000"),
+    ("Points", "70"),
+    ("Power", "-50"),
+    ("Factory", "AircraftType"),
+    ("Capturable", "true"),
+    ("Crewed", "yes"),
+    ("Explosion", "TWLT070,S_BANG48,S_BRNL58,S_CLSN58,S_TUMU60"),
+    ("MaxDebris", "4"),
+    ("ThreatPosed", "0"),
+    ("DamageParticleSystems", "SparkSys,SmallGreySSys,BigGreySmokeSys"),
+    ("DamageSmokeOffset", "75, 270, 140"),
+    ("AIBuildThis", "yes"),
+    ("NumberOfDocks", "4"),
+    ("HasStupidGuardMode", "false"),
+    ("Radar", "yes"),
+    ("Spyable", "yes"),
+    ("ImmuneToPsionics", "no"),
+)
+#: Airport-bound TeamTypes that must stay pad-safe.  Retail + this mod ship five
+#: ORCA teams and the Korean BEAG team; `assert_airfield_expansion` pins them.
+AIRPORT_TEAM_COUNT = 6
 
 #: Retail script used by the three MCV teams: move to a clear spot and deploy.
 MCV_DEPLOY_SCRIPT = "043F23CC-G"
@@ -908,9 +1014,12 @@ UI_LABELS = {
 
 #: Retail CSF labels the mod reuses on purpose.  `Name:Nuke` is the sidebar's
 #: "核弹攻击"/"Nuke Attack" (kept for the unlimited nuke), `Name:ZEP` is the
-#: Kirov's display name (used by both gunship units).  Everything else a mod
-#: section writes in `UIName=` has to be one of `UI_LABELS`.
-RETAIL_UI_LABELS = frozenset(("name:nuke", "name:zep"))
+#: Kirov's display name (used by both gunship units), `Name:GAAIRC` is the
+#: airfield's (retail `[GAAIRC]` *and* `[AMRADR]` both point at it, which is the
+#: precedent for the Korean clone: same art, same sidebar name, its own entry).
+#: Everything else a mod section writes in `UIName=` has to be one of
+#: `UI_LABELS`.
+RETAIL_UI_LABELS = frozenset(("name:nuke", "name:zep", "name:gaairc"))
 
 
 #: The second gunship reuses the deleted nuke trooper's weapon exactly as it was at
@@ -2054,6 +2163,39 @@ def apply_superweapon_edits(lines):
     return len(SUPERWEAPON_EDITS)
 
 
+def apply_korea_airfield(lines):
+    """Write the Alliance-only airfield clone and register it.
+
+    Two writes, both required:
+
+    * the ``[ZAIKRAIRC]`` section itself (our own section, so no retail key is
+      touched);
+    * ``N=ZAIKRAIRC`` at the END of ``[BuildingTypes]``.  Registry order is
+      index order, so appending is what keeps every existing building on the
+      number it already had (playbook §17.2's rule) -- and a number taken from a
+      retail gap such as 253 would be rejected by the retail guard.
+
+    ``AIBuildCounts=`` is deliberately NOT written here: :data:`BUILD_COUNTS`
+    owns it, and the pass in :func:`build_rules` runs right after this one.
+    """
+    body = ["[%s]\r\n" % KOREAN_AIRFIELD,
+            ";SuperAI: the Alliance (Korea) airfield -- retail [AMRADR] is the\r\n"
+            ";  same building for the Americans.  Two airfields per house is the\r\n"
+            ";  default (8 pads); Korea plans a third one here (12 pads = three\r\n"
+            ";  4-aircraft teams).  RequiredHouses is the AI gate; SuperWeapon is\r\n"
+            ";  deliberately NOT inherited from AMRADR (no free American paradrop).\r\n"]
+    body += ["%s=%s\r\n" % pair for pair in KOREAN_AIRFIELD_FIELDS]
+    _replace_section(lines, KOREAN_AIRFIELD, body)
+    index = _append_registry(lines, "BuildingTypes", KOREAN_AIRFIELD)
+    if index != AIRFIELD_REGISTRY_INDEX:
+        raise SystemExit(
+            "[BuildingTypes] appended %s at %d, expected %d.  Retail's highest "
+            "key moved: update AIRFIELD_REGISTRY_INDEX (and check_retail's "
+            "above-retail-maximum rule still holds)."
+            % (KOREAN_AIRFIELD, index, AIRFIELD_REGISTRY_INDEX))
+    return index
+
+
 def build_rules(source_dir, out_dir):
     text = open(os.path.join(source_dir, "rulesmd.ini"), "rb").read().decode("latin-1")
     lines = text.splitlines(keepends=True)
@@ -2087,6 +2229,20 @@ def build_rules(source_dir, out_dir):
         else:
             raise SystemExit("AISafeDistance= not found")
 
+    # "All to Hunt" should only pick up units that are actually idle, not pull
+    # units out of a fight that is already happening.  Written unconditionally as
+    # a NEW key (nothing retail reads it today): the engine branch that
+    # implements the reader ships separately, and until then the key is inert --
+    # do not read that as "verified".  Action 6 currently calls `all_to_hunt`
+    # with no filter at all (src/sim/trigger_runtime/actions.rs -> all_to_hunt).
+    if not any(l.startswith("IdleOnlyAllToHunt=") for l in lines):
+        for i, line in enumerate(lines):
+            if line.startswith("AINearestEnemy="):
+                lines.insert(i + 1, "IdleOnlyAllToHunt=yes\r\n")
+                break
+        else:
+            raise SystemExit("AINearestEnemy= not found")
+
     # Ore-free maps still fund the AI: refineries pay a trickle (oil derrick key).
     for refn in REFINERIES:
         insert_after_section_header(lines, refn, "ProduceCashDelay=60\r\n")
@@ -2099,6 +2255,10 @@ def build_rules(source_dir, out_dir):
     apply_nuke_gunship2(lines)
     apply_nuke_cluster(lines)
     apply_unit_delivery(lines)
+    # The Alliance-only airfield has to exist as a SECTION before the
+    # AIBuildCounts pass below runs, because that pass is what writes its
+    # `AIBuildCounts=` line (see BUILD_COUNTS).
+    apply_korea_airfield(lines)
 
     # Ares AIBuildCounts: planned copies of the production buildings that must
     # exist in numbers, keyed by difficulty (hard, normal, easy).
@@ -2277,6 +2437,55 @@ ATTACK_FLOOR_CONDITION = "4"
 #: How many condition-4 triggers retail ships with `floor < ceiling` (and
 #: therefore with a floor that sinks when teams die).  Asserted exactly.
 ATTACK_FLOOR_EXPECTED = 46
+
+#: ------------------------------------------------------- national triggers
+#:
+#: The ten AITriggers that give a computer house its COUNTRY's signature force
+#: (British snipers, German tanks, Korean Black Eagles, Cuban terrorists, Iraqi
+#: desolators, Libyan demo trucks, Russian Tesla troopers + Apocalypses).  They
+#: are separated by ``tokens[2]`` = the owner country, which
+#: ``ai_team_creation.rs`` compares against the house's country before the
+#: trigger is even eligible -- so this is the only "the AI plays its country"
+#: hook in the data.
+#:
+#: Their problem is the same decay every other trigger has: `succeeded` means
+#: "reached script action 49", and a national force that gets killed on the way
+#: in counts as a failure.  `AiTriggerTrackRecord::record` then subtracts
+#: `AITriggerFailureWeightDelta` (-50 in this mod) and clamps to
+#: `[tokens[8], tokens[9]]` -- for the five rows shipped at 500/10/500 that means
+#: ten losses take the weight to the floor 10 and the country team effectively
+#: stops appearing.  Six rows already ship with three equal slots (British 70/70/
+#: 70 and 140/140/140, Germany 500, Korea 1500); this pass gives every one of the
+#: ten a single point, so the weight stops moving in either direction.
+#:
+#: ``target = max(start, floor, ceiling, NATION_WEIGHT_FLOOR)`` -- a max, not a
+#: replacement, because Korea's 1500 was pinned by the air pass and must not be
+#: dragged DOWN to the common floor.
+NATION_WEIGHT_FLOOR = 500.0
+#: `PRIORITY_WEIGHT` in `ai_team_creation.rs`: a draw containing one of these
+#: clears every other trigger out of that decision.  No national trigger may sit
+#: there -- one country would monopolise the whole AI (playbook §5 records the
+#: accident), so the pinned weight must stay strictly below it.
+PRIORITY_WEIGHT = 5000.0
+#: (trigger id, owner country, side token, difficulty bits easy/normal/hard,
+#: pinned weight).  Pinned literally, not derived from the transformation: a
+#: retail data change, or a bug that rewrites the wrong row, has to fail the
+#: build instead of silently re-aiming another country's force.  British keeps
+#: its three per-difficulty rows (the floor flattens 70/70/140 to 500, which is
+#: the accepted trade: a national force that survives the first wave is worth
+#: more than a difficulty gradient nobody can see).
+NATION_TRIGGERS = (
+    ("0CE44D0C-G", "British", "1", "100", 500.0),        # Biristh Sniper - Easy
+    ("0CA5945C-G", "British", "1", "010", 500.0),        # British Sniper - Med
+    ("0CAD2C3C-G", "British", "1", "001", 500.0),        # British - Hard
+    ("0D535EDC-G", "Germans", "1", "111", 500.0),        # German Tank 1
+    ("0C8C645C-G", "Alliance", "1", "011", 1500.0),      # Korea (4x BEAG)
+    ("0C96F5AC-G", "Confederation", "2", "011", 500.0),  # Cuban vs Ally
+    ("0C96F45C-G", "Confederation", "2", "011", 500.0),  # Cuban vs Soviet
+    ("0CB2CEDC-G", "Arabs", "2", "111", 500.0),          # Iraqi
+    ("0C91D45C-G", "Africans", "2", "011", 500.0),       # Lybian Demo Truck
+    ("0CB29EDC-G", "Russians", "2", "011", 500.0),       # Russian
+)
 
 #: Weight for the six "always eligible" attack triggers: the floor under the
 #: three difficulties, not a replacement for them.  Far below the 5000 takeover
@@ -2557,6 +2766,10 @@ def build_aimd(source_dir, out_dir, assembly_teams=False):
     boost = boost_air_and_aa(doc)
     kirov = tune_kirov_teams(doc)
     attack = boost_attack_triggers(doc)
+    # Country forces last: `max()` in this pass can only raise what the air pass
+    # pinned on the Korean trigger, so ordering is safe either way -- but keeping
+    # it here means the table in NATION_TRIGGERS sees the final weights.
+    attack["nation_pinned"] = pin_nation_triggers(doc)
     open(os.path.join(out_dir, "aimd.ini"), "wb").write(doc.text().encode("latin-1"))
     return switched, recovered, preserved, boost, attack, kirov
 
@@ -2812,6 +3025,225 @@ def assert_build_counts(rules_lines):
             raise SystemExit("[%s] AIBuildCounts=%r, expected %r (hard,normal,easy)"
                              % (name, values, list(wanted)))
     return written
+
+
+def assert_idle_hunt_switch(rules_lines):
+    """The "only idle units go hunting" switch must reach the built rules.
+
+    It is a NEW ``[General]`` key with no retail counterpart, so nothing in the
+    engine reads it yet -- the reader ships on a separate engine branch.  The
+    build only has to prove the key survived; it must NOT be described anywhere
+    as verified behaviour (docs/ai-tuning-playbook.md §1.5 lists it as such).
+    """
+    value = read_ini_value(rules_lines, "General", "IdleOnlyAllToHunt")
+    if value is None:
+        raise SystemExit(
+            "[General] IdleOnlyAllToHunt= is missing.  build_rules() writes it "
+            "after AINearestEnemy=; without the line the engine branch that "
+            "implements the reader has nothing to read.")
+    if value.strip().lower() != "yes":
+        raise SystemExit("[General] IdleOnlyAllToHunt=%r, expected 'yes'" % value)
+    return True
+
+
+def assert_airfield_expansion(rules_lines, aimd_lines):
+    """Two airfields per house, three for Korea, and pads the aircraft can use.
+
+    Pads, not team caps, are the air-force ceiling: ``[ORCA]``/``[BEAG]`` are
+    ``AirportBound=yes`` with ``Ammo=1`` and crash when no ``Dock=`` type has a
+    free pad.  So:
+
+    * default = ``[GAAIRC] AIBuildCounts=2,2,2`` -> 2 airfields -> 8 pads ->
+      two 4-aircraft teams;
+    * the American house plans ``[AMRADR]`` instead (``[GAAIRC]`` is
+      ``ForbiddenHouses=Americans``), so that type carries the same ``2,2,2``
+      -- otherwise the USA alone would keep four pads;
+    * Korea adds one ``[ZAIKRAIRC]`` (``RequiredHouses=Alliance``, the same gate
+      retail uses for SNIPE/TNKD/DESO/BEAG) -> 12 pads -> three teams, which is
+      exactly the ``AIRPORT_TEAM_MAX`` (3) x ``AIRPORT_TEAM_SIZE`` (4) contract.
+
+    The clone is retail ``[AMRADR]``'s shape -- and AMRADR is also why the three
+    types must be spelled out in ``Dock=``: getting that list wrong leaves a pad
+    the aircraft cannot use, which looks exactly like "the AI builds airfields
+    but the aircraft never come back" (they crash instead).
+    """
+    problems = []
+
+    def value(section, key):
+        raw = read_ini_value(rules_lines, section, key)
+        return None if raw is None else raw.strip()
+
+    if value("GAAIRC", "AIBuildCounts") != "2,2,2":
+        problems.append("[GAAIRC] AIBuildCounts=%r, expected '2,2,2'"
+                        % value("GAAIRC", "AIBuildCounts"))
+    for key, wanted in (("Helipad", "yes"), ("UnitReload", "yes"),
+                        ("NumberOfDocks", "4"), ("AIBuildThis", "yes"),
+                        ("Factory", "AircraftType")):
+        got = (value("GAAIRC", key) or "").lower()
+        if got != wanted.lower():
+            problems.append("[GAAIRC] %s=%r, expected %r"
+                            % (key, value("GAAIRC", key), wanted))
+
+    # The AMERICAN airfield.  `[GAAIRC]` is `ForbiddenHouses=Americans`, so the
+    # USA never plans it -- `[AMRADR]` (RequiredHouses=Americans) is its only
+    # airfield type, and without a count of its own the USA stays at four pads
+    # while every other Allied country gets eight.
+    if value("AMRADR", "AIBuildCounts") != "2,2,2":
+        problems.append("[AMRADR] AIBuildCounts=%r, expected '2,2,2' (the USA "
+                        "cannot build GAAIRC, so this is its only airfield)"
+                        % value("AMRADR", "AIBuildCounts"))
+    for key, wanted in (("Helipad", "yes"), ("NumberOfDocks", "4"),
+                        ("AIBuildThis", "yes")):
+        got = (value("AMRADR", key) or "").lower()
+        if got != wanted.lower():
+            problems.append("[AMRADR] %s=%r, expected %r"
+                            % (key, value("AMRADR", key), wanted))
+
+    text = "".join(rules_lines)
+    if "[%s]" % KOREAN_AIRFIELD not in text:
+        problems.append("no [%s] section" % KOREAN_AIRFIELD)
+    else:
+        for key, wanted in (("Image", "GAAIRC"), ("RequiredHouses", "Alliance"),
+                            ("AIBuildThis", "yes"), ("AIBuildCounts", "1,1,1"),
+                            ("Helipad", "yes"), ("NumberOfDocks", "4"),
+                            ("UnitReload", "yes"), ("Factory", "AircraftType"),
+                            ("Radar", "yes")):
+            got = (value(KOREAN_AIRFIELD, key) or "").lower()
+            if got != wanted.lower():
+                problems.append("[%s] %s=%r, expected %r"
+                                % (KOREAN_AIRFIELD, key,
+                                   value(KOREAN_AIRFIELD, key), wanted))
+        # Inheriting either of these would change behaviour behind our back:
+        # AMRADR's SuperWeapon would hand Korea the American paradrop, and any
+        # ForbiddenHouses= would ban a country the airfield is meant for.
+        for forbidden in ("SuperWeapon", "ForbiddenHouses"):
+            if value(KOREAN_AIRFIELD, forbidden) is not None:
+                problems.append("[%s] must not set %s="
+                                % (KOREAN_AIRFIELD, forbidden))
+
+    # Registry: our row must be the LAST one and carry the pinned index.
+    rows, section = [], None
+    for line in rules_lines:
+        header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
+        if header:
+            section = header.group(1).strip()
+            continue
+        if section != "BuildingTypes":
+            continue
+        m = re.match(r"^(\d+)\s*=\s*([^;\r\n]+)", line)
+        if m:
+            rows.append((int(m.group(1)), m.group(2).strip()))
+    if not rows:
+        problems.append("[BuildingTypes] is empty or missing")
+    else:
+        index, name = rows[-1]
+        if name != KOREAN_AIRFIELD:
+            problems.append("[BuildingTypes] last row is %d=%s, expected %d=%s "
+                            "(append at the end, never into a retail gap)"
+                            % (index, name, AIRFIELD_REGISTRY_INDEX,
+                               KOREAN_AIRFIELD))
+        elif index != AIRFIELD_REGISTRY_INDEX:
+            problems.append("[BuildingTypes] registers %s at %d, expected %d"
+                            % (KOREAN_AIRFIELD, index, AIRFIELD_REGISTRY_INDEX))
+        highest = max(key for key, _name in rows)
+        if index != highest:
+            problems.append("[BuildingTypes] has a row (%d) above %s"
+                            % (highest, KOREAN_AIRFIELD))
+
+    for unit in sorted(AIRPORT_AIRCRAFT):
+        got = value(unit, "Dock")
+        if got != AIRFIELD_DOCKS:
+            problems.append("[%s] Dock=%r, expected %r (a missing type is a pad "
+                            "the aircraft cannot land on)"
+                            % (unit, got, AIRFIELD_DOCKS))
+
+    # The six airport teams: same cap, same aircraft count, as documented.
+    sections, current = {}, None
+    for line in aimd_lines:
+        header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
+        if header:
+            current = header.group(1).strip()
+            sections.setdefault(current, [])
+            continue
+        if current is not None:
+            sections[current].append(line)
+
+    def team_values(name):
+        out = {}
+        for line in sections.get(name, []):
+            m = re.match(r"^([A-Za-z][\w.]*)=(.*)$", line.strip())
+            if m:
+                out[m.group(1).strip().lower()] = m.group(2).split(";")[0].strip()
+        return out
+
+    airport_teams = []
+    for name in sections:
+        tf = team_values(name).get("taskforce")
+        if not tf or tf not in sections:
+            continue
+        aircraft = 0
+        for line in sections[tf]:
+            m = re.match(r"^\d+\s*=\s*(\d+)\s*,\s*([^,\s]+)", line.strip())
+            if m and m.group(2) in AIRPORT_AIRCRAFT:
+                aircraft += int(m.group(1))
+        if not aircraft:
+            continue
+        airport_teams.append(name)
+        raw_cap = team_values(name).get("max", "")
+        try:
+            cap = int(raw_cap)
+        except ValueError:
+            problems.append("%s Max=%r is not an integer" % (name, raw_cap))
+            continue
+        if cap > AIRPORT_TEAM_MAX:
+            problems.append("%s Max=%d, expected <= %d (pads are the cap)"
+                            % (name, cap, AIRPORT_TEAM_MAX))
+        if aircraft != AIRPORT_TEAM_SIZE:
+            problems.append("%s holds %d airport-bound aircraft, expected %d "
+                            "(one airfield's pads per team)"
+                            % (name, aircraft, AIRPORT_TEAM_SIZE))
+    if len(airport_teams) != AIRPORT_TEAM_COUNT:
+        problems.append("%d airport-bound TeamTypes, expected %d: %s"
+                        % (len(airport_teams), AIRPORT_TEAM_COUNT,
+                           ", ".join(sorted(airport_teams))))
+
+    # Pad invariant, spelled out so the next reader cannot "raise Max to 6".
+    # Three cases, all of which must hold on the WORST difficulty:
+    #   other Allied houses : GAAIRC x 2
+    #   the USA             : AMRADR x 2   (GAAIRC is ForbiddenHouses=Americans)
+    #   Korea               : GAAIRC x 2 + ZAIKRAIRC x 1
+    def plan_count(section):
+        parts = [part.strip() for part in
+                 (value(section, "AIBuildCounts") or "").split(",")]
+        try:
+            return min(int(part) for part in parts)
+        except ValueError:
+            return 0
+
+    try:
+        per_airfield = int(value("GAAIRC", "NumberOfDocks") or 0)
+    except ValueError:
+        per_airfield = 0
+    allied = plan_count("GAAIRC")
+    american = plan_count("AMRADR")
+    korea = allied + plan_count(KOREAN_AIRFIELD)
+    if per_airfield * allied < 2 * AIRPORT_TEAM_SIZE:
+        problems.append("an Allied house's %d airfields x %d pads cannot hold "
+                        "two %d-aircraft teams"
+                        % (allied, per_airfield, AIRPORT_TEAM_SIZE))
+    if per_airfield * american < 2 * AIRPORT_TEAM_SIZE:
+        problems.append("the USA's %d airfields x %d pads cannot hold two "
+                        "%d-aircraft teams"
+                        % (american, per_airfield, AIRPORT_TEAM_SIZE))
+    if per_airfield * korea < AIRPORT_TEAM_MAX * AIRPORT_TEAM_SIZE:
+        problems.append("Korea's %d airfields x %d pads cannot hold Max=%d "
+                        "teams of %d" % (korea, per_airfield,
+                                         AIRPORT_TEAM_MAX, AIRPORT_TEAM_SIZE))
+
+    if problems:
+        raise SystemExit("airfield expansion missing: "
+                         + "; ".join(problems[:4]))
+    return len(airport_teams)
 
 
 def assert_no_walls(rules_lines):
@@ -3289,6 +3721,79 @@ def boost_attack_triggers(doc):
             "floors_raised": floors_raised, "added": len(ALWAYS_TRIGGER_SPEC)}
 
 
+def pin_nation_triggers(doc):
+    """Give each country's signature force a constant weight.
+
+    Runs AFTER :func:`boost_air_and_aa` (which pins the Korean BEAG trigger at
+    1500) and AFTER :func:`boost_attack_triggers` (which raises the condition-4
+    floors): both of those write the same three tokens, and ``max()`` here means
+    the later pass can only ever add to what they did, never undo it.
+
+    Every row's owner country, side token and difficulty bits are checked before
+    the write.  A mismatch means the retail AI data no longer has the row this
+    table describes -- silently rewriting it would re-aim a different country's
+    force, which is worse than failing the build.
+    """
+    wanted = {row[0]: row for row in NATION_TRIGGERS}
+    pinned = 0
+    start, end = doc.bounds("AITriggerTypes")
+    for i in range(start, end):
+        line = doc.lines[i]
+        if "=" not in line or line.lstrip().startswith(";"):
+            continue
+        key, value = line.split("=", 1)
+        trigger_id = key.strip()
+        row = wanted.get(trigger_id)
+        if row is None:
+            continue
+        _id, owner, side, bits, weight = row
+        tokens = value.rstrip("\r\n").split(",")
+        if len(tokens) != 18:
+            raise SystemExit("%s has %d tokens, not 18" % (trigger_id, len(tokens)))
+        if tokens[2].strip() != owner:
+            raise SystemExit(
+                "%s owner is %r, expected %r: the retail aimd changed shape"
+                % (trigger_id, tokens[2].strip(), owner))
+        if "".join(tokens[15:18]) != bits:
+            raise SystemExit(
+                "%s difficulty %s, expected %s" % (trigger_id,
+                                                  "".join(tokens[15:18]), bits))
+        # Side token: 1 = Allied, 2 = Soviet.  Germany is an Allied COUNTRY
+        # (its tanks come from the Allied side), which is why it sits on 1 with
+        # Britain and Korea, not on 2 with the Soviet-side countries.
+        if tokens[12].strip() != side:
+            raise SystemExit(
+                "%s side %r, expected %s" % (trigger_id, tokens[12].strip(), side))
+        try:
+            current = [float(tokens[slot]) for slot in (7, 8, 9)]
+        except ValueError:
+            raise SystemExit("%s has a non-numeric weight (%r/%r/%r)"
+                             % (trigger_id, tokens[7], tokens[8], tokens[9]))
+        target = max(current + [NATION_WEIGHT_FLOOR])
+        # Never leave the pinned value at a different level than the table says:
+        # Korea must stay at 1500 (air pass), everyone else at the floor.
+        if target < weight:
+            raise SystemExit(
+                "%s computed weight %.0f is below its pinned %.0f"
+                % (trigger_id, target, weight))
+        if target != weight:
+            raise SystemExit(
+                "%s weights %s give %.0f, expected %.0f: update NATION_TRIGGERS "
+                "and this trigger together" % (trigger_id, "/".join(tokens[7:10]),
+                                               target, weight))
+        eol = line[len(line.rstrip("\r\n")):]
+        tokens[7] = tokens[8] = tokens[9] = "%.6f" % target
+        doc.lines[i] = key + "=" + ",".join(tokens) + eol
+        pinned += 1
+    if pinned != len(NATION_TRIGGERS):
+        raise SystemExit(
+            "expected %d national AITriggers, matched %d: the retail aimd does "
+            "not match NATION_TRIGGERS (ids: %s)"
+            % (len(NATION_TRIGGERS), pinned, ", ".join(sorted(wanted))))
+    return pinned
+
+
+
 def assert_air_and_aa_boosted(aimd_lines):
     """The air / AA boost must actually be present in the built aimd."""
     text = "".join(aimd_lines)
@@ -3743,6 +4248,98 @@ def assert_attack_triggers_boosted(aimd_lines):
     return len(entries)
 
 
+def assert_nation_triggers_pinned(aimd_lines, rules_lines):
+    """The ten national triggers must be pinned, and their identity untouched.
+
+    A national trigger is the only data hook that makes a computer house fight
+    like its country (`ai_team_creation.rs` filters on ``tokens[2]`` = owner
+    country).  Two failure modes are silent in game and are refused here:
+
+    * **a decaying floor** -- ``record`` clamps the running weight to
+      ``[tokens[8], tokens[9]]`` and subtracts 50 per failed team; a row left at
+      ``500/10/500`` stops being drawn after ten losses, and the country's
+      signature force simply never appears again;
+    * **a moved row** -- if the owner country, the side token or the difficulty
+      bits drift, the pin lands on a different force (or on a row that can never
+      be drawn).  Pinned literally in :data:`NATION_TRIGGERS`, and the table is
+      the assertion's only source.
+
+    ``GTGCAN`` is checked here too: France's national building is the Grand
+    Cannon, it already ships ``AIBuildThis=yes``, and one plan node per house is
+    what made it invisible -- two is the visible level.
+    """
+    sections, current = {}, None
+    for line in aimd_lines:
+        header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
+        if header:
+            current = header.group(1).strip()
+            sections.setdefault(current, [])
+            continue
+        if current is not None:
+            sections[current].append(line)
+
+    table = {}
+    for line in sections.get("AITriggerTypes", []):
+        entry = line.strip()
+        if not entry or entry.startswith(";") or "=" not in entry:
+            continue
+        key, value = entry.split("=", 1)
+        table[key.strip()] = value.split(",")
+
+    problems = []
+    matched = 0
+    for trigger_id, owner, side, bits, weight in NATION_TRIGGERS:
+        tokens = table.get(trigger_id)
+        if tokens is None or len(tokens) != 18:
+            problems.append("%s is missing or malformed" % trigger_id)
+            continue
+        matched += 1
+        if tokens[2].strip() != owner:
+            problems.append("%s owner %r, expected %s"
+                            % (trigger_id, tokens[2].strip(), owner))
+        if tokens[12].strip() != side:
+            problems.append("%s side %r, expected %s"
+                            % (trigger_id, tokens[12].strip(), side))
+        if "".join(tokens[15:18]) != bits:
+            problems.append("%s difficulty %s, expected %s"
+                            % (trigger_id, "".join(tokens[15:18]), bits))
+        try:
+            weights = [float(tokens[slot]) for slot in (7, 8, 9)]
+        except ValueError:
+            problems.append("%s has a non-numeric weight" % trigger_id)
+            continue
+        if len(set(weights)) != 1:
+            problems.append("%s weights %s are not pinned (all three slots must "
+                            "be equal)" % (trigger_id,
+                                           "/".join(tokens[7:10])))
+            continue
+        value = weights[0]
+        if value < NATION_WEIGHT_FLOOR:
+            problems.append("%s weight %.0f is below the national floor %.0f"
+                            % (trigger_id, value, NATION_WEIGHT_FLOOR))
+        if value >= PRIORITY_WEIGHT:
+            problems.append("%s weight %.0f is at/above PRIORITY_WEIGHT %.0f, "
+                            "which would clear every other trigger out of the "
+                            "draw" % (trigger_id, value, PRIORITY_WEIGHT))
+        if value != weight:
+            problems.append("%s weight %.0f, expected %.0f"
+                            % (trigger_id, value, weight))
+    if matched != len(NATION_TRIGGERS):
+        problems.append("%d of %d national triggers found"
+                        % (matched, len(NATION_TRIGGERS)))
+
+    if (read_ini_value(rules_lines, "GTGCAN", "AIBuildCounts") or "").strip() != "2,2,2":
+        problems.append("[GTGCAN] AIBuildCounts=%r, expected '2,2,2'"
+                        % read_ini_value(rules_lines, "GTGCAN", "AIBuildCounts"))
+    if (read_ini_value(rules_lines, "GTGCAN", "AIBuildThis") or "").strip().lower() != "yes":
+        problems.append("[GTGCAN] must keep AIBuildThis=yes (retail)")
+
+    if problems:
+        raise SystemExit("national triggers not pinned: "
+                         + "; ".join(problems[:4]))
+    return matched
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rules-dir", required=True,
@@ -3796,7 +4393,10 @@ def main():
     assert_air_and_aa_boosted(aimd_lines)
     assert_reinforce_off(aimd_lines)
     assert_kirov_teams(aimd_lines)
+    airport_teams = assert_airfield_expansion(rules_lines, aimd_lines)
     assert_attack_triggers_boosted(aimd_lines)
+    assert_nation_triggers_pinned(aimd_lines, rules_lines)
+    assert_idle_hunt_switch(rules_lines)
     counts = assert_build_counts(rules_lines)
     assert_no_walls(rules_lines)
     aa_defences = assert_aa_defenses_competitive(rules_lines)
@@ -3833,6 +4433,14 @@ def main():
              boost["aircraft_added"], boost["air_triggers"], AIR_WEIGHT_FACTOR))
     print("aa   : %d AA teams, %d AA triggers weighted x%d"
           % (boost["aa_teams"], boost["aa_triggers"], AA_WEIGHT_FACTOR))
+    print("field: %d airport-bound teams at Max<=%d x %d aircraft; pads 2x%d "
+          "Allied (GAAIRC) / 2x%d USA (AMRADR) / 3x%d Korea (+%s at "
+          "[BuildingTypes] %d)"
+          % (airport_teams, AIRPORT_TEAM_MAX, AIRPORT_TEAM_SIZE,
+             AIRPORT_TEAM_SIZE, AIRPORT_TEAM_SIZE, AIRPORT_TEAM_SIZE,
+             KOREAN_AIRFIELD, AIRFIELD_REGISTRY_INDEX))
+    print("nation: %d triggers pinned (British/German/Cuban/Iraqi/Libyan/Russian "
+          "at %.0f, Korea at 1500)" % (attack["nation_pinned"], NATION_WEIGHT_FLOOR))
     print("atk  : %d dead triggers re-enabled on their named difficulty, "
           "%d condition-4 floors at the start weight (%d moved), "
           "%d always-eligible triggers at %s"

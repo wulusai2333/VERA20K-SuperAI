@@ -114,11 +114,21 @@ BuildDummy
 
 ```
 BuildSpeed
+IdleOnlyAllToHunt
 ```
 
 > `BuildSpeed=.025` 一直写在模组里并被文档描述成「约 28 倍建造速度」，
 > 但抽取集里没有任何代码读它。**这是一个未验证的声明**，不要当既定事实引用；
 > 要么实测差异，要么在文档里标注未验证。
+
+> `IdleOnlyAllToHunt` 是 3.14 新增的**数据先行键**：模组写 `yes`，读取者在引擎分支
+> （task-21）里实现，**旧 exe 下它 100% 无效**。证据：`[General]` 的 29 处读取
+> （`rules/ruleset/general.rs`）没有这个键名；触发动作 6 走
+> `sim/trigger_runtime/actions.rs:282 → sim/house_strategy.rs:432` 的 `all_to_hunt`，
+> 那里对全户 techno 无条件 `leave_team` + Hunt，没有任何 idle 过滤。
+> 容易混的两个近邻键：`[General] AIAllToHunt`（Phobos 开关，只作用于
+> 「工厂全失、最后一搏」那条支路，`house_strategy.rs:252`），以及 `AIFireSale`
+> ——它们都**不会**收窄动作 6。想让它生效只能改引擎，数据层到此为止。
 
 **曾经被我误判为死键的一条**：`AIHateDelays`。它在抽取集里**是活的**
 （`general.rs` 有 `[General] AIHateDelays=` 字段，`house_strategy.rs` 用它启动
@@ -850,7 +860,7 @@ attacked  lightningstorm_inactive  dominator_inactive
 | 我们做的事 | 后果 |
 | --- | --- |
 | 151 支队伍换成 `ZAIATK01-G`（不集结、出生即冲锋） | 部队一出来就散开、持续移动 |
-| 地图 `AIHunt*` 每 5 分钟按户错峰把槽位 1–119 All to Hunt | 临时聚起来的部队每 5 分钟再被打散一次；错峰避免全图同时回头 |
+| 地图 `AIHunt*` 每 60 秒按户错峰把槽位 1–119 All to Hunt | 临时聚起来的部队每 60 秒再被打散一次；错峰（`60 + (slot % 30) * 2` 秒）避免全图同时回头。这是动作 6 的既有行为（无条件 `leave_team`），`[General] IdleOnlyAllToHunt` 是留给引擎分支的开关，旧 exe 无效（§1.5） |
 
 所以有一个很有力的怀疑：**不是 AI 不想放，而是它找不到一个 3×3 里塞着自家部队的格子**。
 这也解释了为什么核弹/闪电正常 —— 它们要的是"敌方格子"，那种格子遍地都是。
@@ -870,7 +880,7 @@ python tools/build_mod.py --rules-dir "<原版规则目录>" \
 
 | 结果 | 结论 | 下一步 |
 | --- | --- | --- |
-| **集结版会放铁幕/超时空** | 我们的进攻逻辑确实消灭了触发条件 | 谈取舍：队伍在基地停留几秒、或把 All to Hunt 放宽到 5 分钟（当前已生效，按户错峰） |
+| **集结版会放铁幕/超时空** | 我们的进攻逻辑确实消灭了触发条件 | 谈取舍：队伍在基地停留几秒，或放宽 All to Hunt 的间隔（当前 60 秒、按户错峰；3.14 曾试 5 分钟，回头太稀疏、idle 扎堆更久，已改回） |
 | **两版都不放** | 与进攻逻辑无关，是引擎没有「作用于自家单位」的 AI 发射路径 | 记为引擎限制，停止调配置 |
 
 > 为什么必须靠人眼：超武发射**不写日志**（只有 `force_shield` 写）、录像只存玩家指令、
@@ -1180,17 +1190,25 @@ AirstripLimit=0                           ; ← 额外机库上限是 0：永远
 
 ### 16.2 修法
 
-| 项 | 零售/旧 | 3.6 |
-| --- | --- | --- |
-| `[AI] AirstripLimit` | `0` | **`4`**（1 座雷达位 + 4 座机库 = 5 座 = 20 个停机位；该键在 §1.5 被列为确认死键——抽取源码无读取者，实际是否生效未实测） |
-| `[AI] AirstripRatio` | `.12` | **`.25`** |
-| 机场型飞机（`ORCA`/`BEAG`）每队 | 6–10 | **`4`**（正好一座空指部的 4 个停机位） |
-| 机场型空军队伍 `Max` | `6` | **`3`**（4×3=12 架 = 3 座空指部的 12 个停机位） |
-| 火箭飞行兵 `JUMPJET` 每队 | 12 | **`6`**（6 人能在 160 秒解散窗口内补齐，才会真的出现在场上） |
-| 基洛夫 `ZEP` | 6–8 | **3/4（中/硬），队伍 `Max=3`**（原 6/8 要等新造单位凑满一队，出发太晚；不需要停机位） |
+| 项 | 零售/旧 | 3.6 起 | 3.14 起 |
+| --- | --- | --- | --- |
+| `[AI] AirstripLimit` | `0` | **`4`**（1 座雷达位 + 4 座机库 = 5 座 = 20 个停机位；该键在 §1.5 被列为确认死键——抽取源码无读取者，实际是否生效未实测） | 不变（仍是死键，真正起作用的是下面两条 `AIBuildCounts`） |
+| `[AI] AirstripRatio` | `.12` | **`.25`** | 不变（同样无读取者） |
+| `[GAAIRC] AIBuildCounts` | 无 | 无 | **`2,2,2`**（每户 2 座空指部 = 8 个停机位） |
+| `[AMRADR] AIBuildCounts` | 无 | 无 | **`2,2,2`**（美国专用：`[GAAIRC]` 是 `ForbiddenHouses=Americans`，美国只建这一种空指部；不补就只剩 4 个停机位） |
+| `[ZAIKRAIRC] AIBuildCounts` | — | — | **`1,1,1`**（韩国专属克隆，`RequiredHouses=Alliance`；2+1 = 3 座 = 12 个停机位） |
+| 机场型飞机（`ORCA`/`BEAG`）每队 | 6–10 | **`4`**（正好一座空指部的 4 个停机位） | 不变 |
+| 机场型空军队伍 `Max` | `6` | **`3`** | 不变（3 队 ×4 架 = 12 = 韩国 3 座空指部的容量） |
+| 火箭飞行兵 `JUMPJET` 每队 | 12 | **`6`**（6 人能在 160 秒解散窗口内补齐，才会真的出现在场上） | 不变 |
+| 基洛夫 `ZEP` | 6–8 | **3/4（中/硬），队伍 `Max=3`**（原 6/8 要等新造单位凑满一队，出发太晚；不需要停机位） | 不变 |
 
 **不变量**：`每户机场型飞机数 ≤ 空指部数 × 4`。
 `AIRPORT_AIRCRAFT = {"ORCA","BEAG"}` 在 `boost_air_and_aa` 里单独走一条分支。
+默认 2 座 = 8 个停机位 = **2 队 ×4 架**；韩国 3 座 = 12 个停机位 = **3 队 ×4 架**。
+**美国是特例**：`[GAAIRC]` 带 `ForbiddenHouses=Americans`，美国电脑只建
+`[AMRADR]`，所以那个类型也必须写 `AIBuildCounts=2,2,2`，否则美国单独停在 1 座。
+`Max` 是**每个 TeamType**、不是每户，所以真正的上限永远是停机位——**不要再想把
+`AIRPORT_TEAM_MAX` 调回 6**，那只会让飞机造不出来或者没地方落。
 
 ### 16.3 防回归
 
@@ -1204,15 +1222,74 @@ AirstripLimit=0                           ; ← 额外机库上限是 0：永远
 - `JUMPJET` 每队 4–8 人；
 - 其它飞行单位仍 ≥6 架。
 
+`assert_airfield_expansion`（3.14 起）再钉死三件事：
+
+- `[GAAIRC] AIBuildCounts=2,2,2`、`[AMRADR] AIBuildCounts=2,2,2`（美国专用空指部）
+  + 克隆 `[ZAIKRAIRC]` 的
+  `Image/RequiredHouses/AIBuildThis/AIBuildCounts/NumberOfDocks/Helipad` 六个关键键，
+  并且**不允许**它带 `SuperWeapon=` 或 `ForbiddenHouses=`；
+- `ZAIKRAIRC` 是 `[BuildingTypes]` 的**最后一行**且索引 == `AIRFIELD_REGISTRY_INDEX`（407）；
+- `[ORCA]`/`[BEAG]` 的 `Dock=` 必须**逐字**是 `GAAIRC,AMRADR,ZAIKRAIRC`、
+  机场型 TeamType 恰好 **6 支**、每支 `Max ≤ 3` 且队内正好 **4 架**、
+  停机位不变量（默认 2 座够 2 队、韩国 3 座够 `Max=3` 队）。
+
 ### 16.4 验收
 
-1. 盟军基地里能看到**多座空指部**（不再只有一座）；
+1. 基地里能看到**多座空指部**：默认 2 座，韩国 3 座；
 2. 飞机**打完会回去降落补给**，不再在空中盘旋坠毁；
 3. 火箭飞行兵成批出现（每批 6 人，最多 6 批）。
 
-> `AirstripLimit` 在 §1.5 的死键清单里（抽取源码无读取者），所以第 1 条**尚未实测**：
-> 先看基地里到底有几座空指部。如果实测仍然只造一座，退路是把机场型飞机压到
-> 每队 2 架、`Max=2`（4 架 = 一座空指部的容量），至少保证不再坠毁。
+> `AirstripLimit` 在 §1.5 的死键清单里（抽取源码无读取者），3.6 改它**没有生效**——
+> 3.14 起改由 `AIBuildCounts` 建第二座（这是引擎真的读的键，
+> `base_plan_generation.rs` 的 `ai_extra_copies`）。退路仍是把 `Max` 降到 2，
+> 但那等于放弃「3 队 ×4 架」的编制。
+
+### 16.5 韩国为什么要一个**独立建筑类型**（3.14）
+
+`AIBuildCounts` 挂在**建筑类型**上、按**难度**取三档
+（`HouseDifficulty::table_index()` → 冷酷/中等/简单），**没有国家维度**。
+所以「默认 2 座、韩国 3 座」不能靠同一类型写两套数字，只能再加一个类型：
+
+```ini
+[BuildingTypes]
+407=ZAIKRAIRC          ; 末尾追加，既有索引一个都不位移
+
+[ZAIKRAIRC]            ; 照零售 [AMRADR] 克隆（美国专属空指部）
+Image=GAAIRC           ; 同一份 art
+Helipad=yes
+NumberOfDocks=4        ; ← 4 个停机位，和 GAAIRC 完全一样
+Factory=AircraftType
+UnitReload=yes
+AIBuildThis=yes
+RequiredHouses=Alliance ; ← 韩国/朝鲜；这是 AI 建造的过滤闸门
+AIBuildCounts=1,1,1
+; 不写 SuperWeapon=（AMRADR 的美国伞兵会被一起继承，等于白送韩国一个超武）
+; 不写 ForbiddenHouses=
+```
+
+三个必须一起成立的点：
+
+1. **`RequiredHouses` 就是 AI 的闸门**（`recalc_candidate_allowed`，与
+   `SNIPE=British` / `TNKD=Germans` / `BEAG=Alliance` 同一套机制）；
+   写 `Owner=` 不够 —— `Owner` 只决定侧边栏按钮归属。
+2. **`Dock=` 是硬链接**：`[ORCA]`/`[BEAG]` 改成 `Dock=GAAIRC,AMRADR,ZAIKRAIRC`。
+   漏掉的新类型就是「有停机位但飞机落不上去」，表现是盘旋到没油坠毁
+   （`aircraft/idle_entry.rs`），比不建还糟。
+3. **注册表只能末尾追加**：`407` 是 `406=CALUNR02` 之后的下一个号。零售区间里
+   有空洞（`253` 就是空的），但 `check_retail.py` 只放行「大于零售最大值」的注册表行，
+   用 253 会被零售守卫判违规。
+
+已知覆盖关系（3.14 修正）：
+
+| 电脑国家 | 空指部类型 | 计划座数 | 停机位 | 可容纳 |
+| --- | --- | --- | --- | --- |
+| 其他盟国（英/法/德/韩以外的盟军） | `[GAAIRC]` | 2 | 8 | 2 队 ×4 架 |
+| **美国** | **`[AMRADR]`**（`GAAIRC` 被 `ForbiddenHouses=Americans` 排除） | **2** | **8** | 2 队 ×4 架 |
+| 韩国（`Alliance`） | `[GAAIRC]` + `[ZAIKRAIRC]` | 2 + 1 | 12 | **3 队 ×4 架** |
+| 苏/尤里 | 无（`NAAIRC` 在本仓库不存在，苏联没有空指部类型） | 0 | 0 | 机场型飞机只有盟军有 |
+
+这张表由 `assert_airfield_expansion` 的停机位不变量逐行覆盖
+（美国那一行曾经漏掉，表现就是“只有美国不造第二座空指部”）。
 
 ---
 
@@ -2084,3 +2161,65 @@ let half = (radius + 0.99).floor();
 | --- | --- |
 | `DetonationAltitude=800` 让母弹半空爆 | 该键只在 `Vertical=yes` 时被读（`projectile_delivery.rs`：`vertical.then_some(detonation_altitude)` → `ProjectileTrajectory::Vertical`，弹体**向上**飞到高度再爆）。给 `Arcing` 炸弹写它是死键；写了 `Vertical=yes` 反而让炸弹从发射点往上飞，不是在空中拦截 |
 | 子武器 `Speed=50` / `ROT=80` / `Proximity=yes` | VERA 里 `ROT>0` 的出膛速度被归一化成 1 雷普顿/帧，`Speed=` 是**上限**；50 等于 0.2 格/帧（50 格要 250 帧 ≈ 17 秒）。`Proximity=yes` 也没用：`ROT>0` 的引信本来就被强制打开，`Arm=` 才是免疫窗口 |
+
+---
+
+## 21. 国家特色触发器：为什么必须三槽钉死（3.14）
+
+`AITriggerTypes` 的 `token[2]` 是 **owner 国家**，`ai_team_creation.rs` 会先比
+`house_country == Some(token[2])` 再判断可见性。这是数据层**唯一**能让电脑
+"打自己国家的仗"的钩子：零售有 10 条这样的触发器，覆盖 7 个国家。
+
+问题不在条件，在**权重下限**。`AiTriggerTrackRecord::record` 按队伍结局结算：
+
+```text
+成功（脚本走到动作 49）: weight += AITriggerSuccessWeightDelta  (+20)
+失败（没走到 49 就散）  : weight += AITriggerFailureWeightDelta  (-50)
+之后一律钳制到 [weights[1], weights[2]] = token8, token9
+```
+
+零售的 5 条国家触发器是 `500 / 10 / 500`：**十次失败就掉到地板 10**，
+然后基本抽不到——表现为"这个国家的招牌部队整局只出现一两次"。
+利比亚那条更绝：队伍脚本 `0AD0CDBC-G` 里根本没有动作 49，
+**永远判失败**，不钉死就一定会掉到 10。
+
+### 21.1 做法
+
+`target = max(token7, token8, token9, NATION_WEIGHT_FLOOR=500)`，三槽同写 =
+钳制区间退化成一个点 → **权重恒定**（失败不降、成功不涨）。
+
+用 `max` 而不是直接赋值，是因为韩国那条 `0C8C645C-G` 已经被空军 pass 钉到
+`1500/1500/1500`，直接赋 500 会把它**降权**；`max` 只会往上。
+
+| 国家 | 触发器 | 现值（起/下/上） | 钉死 |
+| --- | --- | --- | --- |
+| British | `0CE44D0C-G` / `0CA5945C-G` / `0CAD2C3C-G` | 70/70/70、70/70/70、140/140/140 | 500 |
+| German | `0D535EDC-G` | 500/500/500 | 500（不变） |
+| Korea | `0C8C645C-G` | 1500/1500/1500 | **1500（不降）** |
+| Cuban | `0C96F5AC-G` / `0C96F45C-G` | 500/10/500 | 500 |
+| Iraqi | `0CB2CEDC-G` | 500/10/500 | 500 |
+| Libyan | `0C91D45C-G` | 500/10/500 | 500 |
+| Russian | `0CB29EDC-G` | 500/10/500 | 500 |
+
+`NATION_TRIGGERS` 是**字面量表**，写入前逐条校验 `token[2]` 国家、
+`token[12]` side（**1 = 盟、2 = 苏**；注意德国是盟国阵营、Korea 也是 1）、
+难度位 `token[15:18]` —— 对不上就 `SystemExit`，因为"写错行"等于把另一个国家的
+招牌部队改权重，比构建失败危险得多。
+
+### 21.2 三条边界
+
+1. **不能取 5000**。`5000` 是 `PRIORITY_WEIGHT`：命中即清空该次抽签里的其它所有触发器，
+   一个国家会独占 AI（playbook §5 记过一次事故）。断言里有 `< PRIORITY_WEIGHT`。
+2. **British 的难度梯度会被抹平**（`70/70/140` → 全部 500）。这是有意取舍：
+   招牌部队整局在场，比一个没人看得见的难度梯度有价值。想保留梯度就把
+   `NATION_WEIGHT_FLOOR` 设 0，那只钉不涨。
+3. **难度位一个字没动**：`011` / `111` / `100` / `010` / `001` 原样。
+   所以 Easy 档下 Cuban/Libyan/Russian/Korea 依然**没有**这条触发器——
+   要开就先确认它不破 `assert_attack_triggers_boosted` 的难度位与条件直方图守卫。
+
+### 21.3 法国 / 尤里为什么没有新触发器
+
+- 法国：巨炮是**建筑**（`[GTGCAN]`，零售已 `AIBuildThis=yes`），没有队伍型触发器。
+  它的毛病是"只有 1 个计划节点"，所以只补 `AIBuildCounts=2,2,2`。
+- 尤里：`RequiredHouses` 里 `YuriCountry` 只出现在两条狗上，没有对等国家单位，
+  也没有任何国家触发器（`owner=<all>` 的尤里队属阵营级，不是国家特色）。**不新增**。

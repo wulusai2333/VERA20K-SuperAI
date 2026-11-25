@@ -32,15 +32,25 @@ RETAIL_VALUE_EDITS = {
     "GADEPT": {"aibuildthis"},
     "NADEPT": {"aibuildthis"},
     "YADEPT": {"aibuildthis"},
+    # The Korean airfield clone is a new TYPE, but the two airport-bound aircraft
+    # must list it in their (retail) `Dock=` or it is a pad they cannot land on.
+    "ORCA": {"dock"},
+    "BEAG": {"dock"},
 }
 
 #: Retail sections where we may *add* keys without touching any existing value.
 RETAIL_KEY_ADDITIONS = {
-    "General": {"aifriendlydistance", "ainearestenemy"},
+    "General": {"aifriendlydistance", "ainearestenemy", "idleonlyalltohunt"},
     "GACNST": {"spysat"}, "NACNST": {"spysat"}, "YACNST": {"spysat"},
     "GAPILE": {"aibuildcounts"}, "GAWEAP": {"aibuildcounts"},
     "NAHAND": {"aibuildcounts"}, "NAWEAP": {"aibuildcounts"},
     "YABRCK": {"aibuildcounts"}, "YAWEAP": {"aibuildcounts"},
+    # Airfield / national-building plan counts: no retail key is changed, the
+    # engine simply has no way to plan more than one node per type without it.
+    # AMRADR is the American airfield -- GAAIRC is ForbiddenHouses=Americans, so
+    # without this the USA keeps exactly four pads.
+    "GAAIRC": {"aibuildcounts"}, "AMRADR": {"aibuildcounts"},
+    "GTGCAN": {"aibuildcounts"},
     "GAREFN": {"producecashamount", "producecashdelay"},
     "NAREFN": {"producecashamount", "producecashdelay"},
     "YAREFN": {"producecashamount", "producecashdelay"},

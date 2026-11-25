@@ -230,25 +230,28 @@ ID=REPEAT,NAME,TRIGGER_ID
 
 所以 `4476..4482` 对应 1–7 号位的 7 个电脑。
 
-### 5.4 示例：每 5 分钟按户清一次 AI 部队
+### 5.4 示例：每 60 秒按户清一次 AI 部队
 
-`AIHunt*` 现在是**每个电脑户一条触发器**，timer = `300 + (slot % 30) * 2` 秒，避免全图在同一帧回头。单户示例（slot 1，timer 302 秒）：
+`AIHunt*` 现在是**每个电脑户一条触发器**，timer = `60 + (slot % 30) * 2` 秒，避免全图在同一帧回头。单户示例（slot 1，timer 62 秒）：
 
 ```ini
 [Triggers]
-02000000=<none>,<none>,AIHunt000,0,1,1,1,0
+03000000=<none>,<none>,AIHunt000,0,1,1,1,0
 
 [Events]
-02000000=1,13,0,302
+03000000=1,13,0,62
 
 [Actions]
-02000000=1,6,0,4476,0,0,0,0,A
+03000000=1,6,0,4477,0,0,0,0,A
 
 [Tags]
-02000001=2,AIHunt000,02000000
+03000001=2,AIHunt000,03000000
 ```
 
-`build_maps.py` 的 `flat` / `ice` / `ice120` / `retrigger` 会把所有电脑 slot 都生成成这种单户触发器（120 图 119 条）。
+间隔来自 `build_maps.py` 的 `HUNT_INTERVAL`（60 秒，与 `veramap.trigger_block` 的默认值一致），
+错峰来自 `HUNT_STAGGER=2`；1 号电脑户 62 秒、29 号 118 秒，30 号回到 60 秒。
+
+`build_maps.py` 的 `flat` / `ice` / `ice120` / `retrigger` 会把所有电脑 slot 都生成成这种单户触发器（120 人图 119 条）。
 
 ## 6. 生成 Flat 地图
 

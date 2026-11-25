@@ -20,14 +20,22 @@ python tools/build_mod.py --rules-dir "<原版规则目录>" --out mod/SuperAI
 输出：
 
 ```
-rules: AIBuildCounts on 6 building types (empty table = retail rhythm)
+rules: AIBuildCounts on 10 building types (empty table = retail rhythm)
 aimd : 151 team types charging, 9 kept their superweapon script, 6 MCV triggers re-armed
 air  : 12 air teams (Max<=6, 12 raised), +8 aircraft, 11 air triggers weighted x3
 aa   : 41 AA teams, 43 AA triggers weighted x2
+field: 6 airport-bound teams at Max<=3 x 4 aircraft; pads 2x4 Allied (GAAIRC) / 2x4 USA (AMRADR) / 3x4 Korea (+ZAIKRAIRC at [BuildingTypes] 407)
+nation: 10 triggers pinned (British/German/Cuban/Iraqi/Libyan/Russian at 500, Korea at 1500)
+atk  : 7 dead triggers re-enabled on their named difficulty, 46 condition-4 floors at the start weight (44 moved), 6 always-eligible triggers at 40.000000
 nuke : [ZAINukeMissileWH] is retail [NUKE]'s 9 keys under another name, so the engine's NUKE block (screen flash + global relight) never runs
 csf  : 3 label(s) in ares.csf (空中炮艇, 集束炮艇, 核弹炮艇)
 cluster: 4 launches a trigger (all BurstDelays 0), each mother is a nuke and lands 0-200 cells off the aim point, then splits into 1 child that flies back to the aim point; 8 warheads, 5 landing points; Sight=200
 ```
+
+> 10 类 `AIBuildCounts` = 6 个生产建筑（`GAPILE/NAHAND/YABRCK/GAWEAP/NAWEAP/YAWEAP`）
+> + `GAAIRC`（2,2,2，盟军通用空指部）+ `AMRADR`（2,2,2，美国专用：`[GAAIRC]` 是
+> `ForbiddenHouses=Americans`，美国不建 GAAIRC）+ 韩国空指部克隆 `ZAIKRAIRC`（1,1,1）
+> + 法国 `GTGCAN`（2,2,2）。
 
 `--no-art` 可以跳过 `artmd.ini`（本模组没有改它，引擎会回退到原版）。
 发布版仍保留该文件，保证「整包替换」的行为一致。
@@ -160,6 +168,19 @@ python tools/build_maps.py retrigger \
   --players 8 --triggers full
 ```
 
+`maps/` 下 7 张图都是这条命令生成的（`--players` 依次 8 / 8 / 120 / 30 / 120 / 8 / 120）：
+
+```bash
+for f in SuperAI-IceLake-1v7 SuperAI-IceLake-1v7-NoOre SuperAI-IceLake-120-NoOre \
+         SuperAI-Flat30 SuperAI-Flat120 SuperAI-Flat200 SuperAI-FlatSnow-120-Center; do
+  python tools/build_maps.py retrigger --src "maps/$f.yrm" --out "maps/$f.yrm" --triggers full
+done
+```
+
+它只重写 `[Triggers]/[Events]/[Actions]/[Tags]` 四段；`AIHunt*` 的 timer 由
+`build_maps.py` 的 `HUNT_INTERVAL`（60 秒）+ 按户错峰算出，
+改间隔只需改那一个常量再逐张重跑。
+
 ### 2.5 模式名单：离线 Skirmish 也全列出
 
 引擎在离线 Skirmish 里只列 Battle / FreeForAll 两个模式类（LAN 房间不过滤类）。
@@ -210,7 +231,9 @@ python tools/build_maps.py modes --dir maps
 | `SuperAI-Flat120.yrm` | 逐字节一致 |
 | `SuperAI-Flat200.yrm` | 逐字节一致（构建时加 `--terrain-newline crlf`） |
 
-> v3.13.5 的地图带 20 秒 AIHunt；当前仓库是 5 分钟、按户错峰（`300 + (slot % 30) * 2` 秒，每户一条触发器），因此表中地图产物不再与 v3.13.5 逐字节一致。`rulesmd.ini` / `aimd.ini` / `ares.csf` 仍一致。
+> v3.13.5 的地图带 20 秒 AIHunt；当前仓库是 **60 秒、按户错峰**
+> （`60 + (slot % 30) * 2` 秒，每户一条触发器），因此表中地图产物不再与 v3.13.5 逐字节一致。
+> `rulesmd.ini` / `aimd.ini` / `ares.csf` 仍一致。
 
 模组构建依赖原版规则文件的字节内容；不同语言版本（`rulesmd.ini` 被本地化修改过）
 会导致 `RULES_EDITS` 找不到原值而报错，这是有意的保护。

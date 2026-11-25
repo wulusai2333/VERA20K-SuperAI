@@ -2,6 +2,45 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## Unreleased — 60 秒按户错峰 All to Hunt、空指部 2/3 座、国家特色权重钉死
+
+- **地图 All to Hunt**：5 分钟改回 **60 秒**，仍**每户一条触发器**、
+  timer = `60 + (slot % 30) * 2` 秒（`build_maps.py` 的 `HUNT_INTERVAL=60`）；
+  7 张仓库图由 `retrigger --triggers full` 重写，实测只动 timer 行
+  （IceLake-1v7/+NoOre、Flat200 各 −7 B；Flat30 −19 B；三张 120 人图各 −79 B）。
+- **idle 猎杀开关（数据先行）**：`[General] IdleOnlyAllToHunt=yes`。
+  **本版引擎没有读取者**——动作 6 的 `all_to_hunt` 无条件对全户 `leave_team`+Hunt，
+  `[General] AIAllToHunt` 只管「无工厂最后一搏」那条支路。读取者由引擎分支实现，
+  旧 exe 下该键 100% 无效（playbook §1.5 B 档）。
+- **空指部扩编（停机位是硬上限）**：`[GAAIRC]` 加 `AIBuildCounts=2,2,2`
+  （每户 2 座 = 8 个停机位 = 2 队 ×4 架）；**美国**因 `[GAAIRC] ForbiddenHouses=Americans`
+  只建 `[AMRADR]`，所以 `[AMRADR]` 也加 `AIBuildCounts=2,2,2`（否则美国单独停在 1 座 = 4 个停机位）；
+  新增韩国专属克隆 `[ZAIKRAIRC]`
+  （照零售美国专用 `[AMRADR]`：`Image=GAAIRC`、`Helipad=yes`、`NumberOfDocks=4`、
+  `AIBuildThis=yes`，用 `RequiredHouses=Alliance` 锁给韩国；**不继承**
+  `SuperWeapon=AmericanParaDropSpecial`、不带 `ForbiddenHouses=`），
+  `AIBuildCounts=1,1,1`，追加在 `[BuildingTypes]` **末尾 407**（不是零售空号 253）。
+  `[ORCA]`/`[BEAG]` 的 `Dock=` → `GAAIRC,AMRADR,ZAIKRAIRC`（漏了就是有停机位落不上去）。
+  `AIRPORT_TEAM_MAX=3`、每队 4 架不变：默认 2 座 = 2 队，韩国 3 座 = 3 队。
+- **国家特色触发器钉死（10 条）**：British×3 / German / Cuban×2 / Iraqi / Libyan / Russian
+  三槽写 **500**，Korea 保持 **1500**（`target = max(起,下,上,500)`，用 `max` 是为了不把
+  韩国那条从 1500 降下来）；Owner/side/难度位一字未动，`< 5000`（5000 是独占抽签的
+  `PRIORITY_WEIGHT`）。零售那 5 条 `500/10/500` 原本十次损失就掉到地板 10，
+  Libyan 那支队脚本没有动作 49、永远判失败。代价（有意）：British 的 `70/70/140` 抹平。
+- **法国**：`[GTGCAN]` 加 `AIBuildCounts=2,2,2`（零售已有 `AIBuildThis=yes`）；
+  尤里没有对等国家单位，**不新增**触发器。
+- **空军权重**：Kirov / Rocketeer / ORCA / BEAG 三槽钉死与 `assert_air_and_aa_boosted`
+  全部保持原样，本次**未改任何数值**。
+- 守卫：新增 `assert_airfield_expansion`（GAAIRC/AMRADR/克隆计数、`Dock`、注册表末行 407、
+  6 支机场队 `Max≤3` 且每队 4 架、三家停机位不变量：盟军 GAAIRC×2、美国 AMRADR×2、
+  韩国 GAAIRC×2+ZAIKRAIRC×1）、`assert_nation_triggers_pinned`
+  （10 条、三槽严格相等、`>=500`、`<5000`、Owner/side/难度位、GTGCAN 计数）、
+  `assert_idle_hunt_switch`；`check_retail.py` 登记 `ORCA/BEAG dock`、
+  `GAAIRC/AMRADR/GTGCAN aibuildcounts`、`General idleonlyalltohunt`
+  （`ZAIKRAIRC` 属新段 + 注册表末尾，本就免登记）；构建二次幂等。
+- 文档：ai-design §2/§3.3.2/§4、playbook §1.5/§16.2-16.5/新 §21、build、map-format §5.4、
+  mod.ini About。
+
 ## Unreleased — 5 分钟按户错峰 All to Hunt、更持续进攻
 
 - **地图 All to Hunt**：从每 60 秒一次改为 **5 分钟（300 秒）**，并改成**每个电脑户一条触发器**，timer 为 `300 + (slot % 30) * 2` 秒，避免全图同时回头；7 张仓库图由 `retrigger` 重写，`NoHunt` 诊断图保持无 hunt。

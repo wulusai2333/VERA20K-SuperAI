@@ -40,9 +40,12 @@ import veramap as vm
 GAME_MODES = "standard, teamgame, megawealth, duel, meatgrind, navalwar"
 GAME_MODE_NAMES = tuple(name.strip() for name in GAME_MODES.split(","))
 
-#: All to Hunt every five minutes, one trigger per computer house, staggered by
-#: up to 58 seconds so the whole map does not turn back on the same frame.
-HUNT_INTERVAL = 300
+#: All to Hunt every 60 seconds, one trigger per computer house, staggered by up
+#: to 58 seconds so the whole map does not turn back on the same frame:
+#: ``timer = 60 + (slot % 30) * 2``.  The per-house split is what keeps the wave
+#: from re-forming the whole map's army at once; the interval itself is the
+#: engine's own default (``veramap.trigger_block``), so 60 needs no argument.
+HUNT_INTERVAL = 60
 HUNT_STAGGER = 2
 HUNT_PER_HOUSE = True
 
