@@ -2,6 +2,14 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## Unreleased — 5 分钟按户错峰 All to Hunt、更持续进攻
+
+- **地图 All to Hunt**：从每 60 秒一次改为 **5 分钟（300 秒）**，并改成**每个电脑户一条触发器**，timer 为 `300 + (slot % 30) * 2` 秒，避免全图同时回头；7 张仓库图由 `retrigger` 重写，`NoHunt` 诊断图保持无 hunt。
+- **持续进攻**：`ZAIALW01…06-G` 从 3 条扩到 **6 条**（盟/苏/尤各 2 条），权重 `30 → 40`；`TotalAITeamCap` **10 → 12**。
+- **基地守卫补员**：5 支 `Reinforce=yes`（Allied Base Guard - Refine / Basic、Nation Korea - 1、Yuri Refinery Guards / Base Guard - Adv）改为 **`Reinforce=no`**，不再等新造单位。
+- 守卫：`assert_attack_triggers_boosted` 钉 174 条 / 6 条 always / `-1:6` / 权重 40；`assert_reinforce_off` 钉 5 支全 no 且全表无 `Reinforce=yes`；地图断言每户恰好一条 AIHunt。
+- 说明：5 分钟错峰只是降低回头频率，不能消除 `All to Hunt` 拆队；两次索敌之间仍会有少量 idle 扎堆（数据层折中）。
+
 ## Unreleased — 基洛夫队 6/8→3/4、Max 6→3
 
 - `Soviet Kirov Medium`（`06BC359C-G`，TaskForce `0EC7959C-G`）一队 **6→3 架**；

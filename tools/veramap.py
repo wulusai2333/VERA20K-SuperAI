@@ -384,6 +384,8 @@ def trigger_block(
     hunt_prefix: str = "03",
     hunt_name: str = None,
     hunt_interval: int = 60,
+    hunt_per_house: bool = False,
+    hunt_stagger: int = 0,
 ) -> str:
     """Build a trigger block for a spectator map.
 
@@ -392,13 +394,19 @@ def trigger_block(
     * ``AIHuntNN``    - action 6 (All to Hunt) for slots 1..player_count-1,
       every 60 s by default (``hunt_interval``).  Ares ``Player @ X`` selectors
       are ``0x117B + slot``.
+    * ``hunt_per_house`` - one trigger per computer slot instead of one per
+      ``hunt_chunk``; ``hunt_stagger`` adds ``(slot % 30) * hunt_stagger``
+      seconds to each house's timer so the whole map does not turn at once.
 
     All triggers are logic tags (timer event 13), so they do not need to be
     attached to a house on the map.
     """
     slots = list(range(1, player_count))
-    chunks = [slots[i:i + hunt_chunk] for i in range(0, len(slots), hunt_chunk)]
-    if hunt_name is None and len(chunks) == 1:
+    if hunt_per_house:
+        chunks = [[slot] for slot in slots]
+    else:
+        chunks = [slots[i:i + hunt_chunk] for i in range(0, len(slots), hunt_chunk)]
+    if hunt_name is None and len(chunks) == 1 and not hunt_per_house:
         # Single-chunk maps (<= 11 players) use the compact 02xxxxxx block.
         hunt_prefix, hunt_name = "02", "AIHuntAll"
 
@@ -422,9 +430,12 @@ def trigger_block(
     if hunt:
         for index, chunk in enumerate(chunks):
             tid = hunt_prefix + "%06X" % (index * 0x10)
-            label = hunt_name or ("AIHunt%02d" % index)
+            label = ("AIHunt%03d" % index) if hunt_per_house else \
+                (hunt_name or ("AIHunt%02d" % index))
+            timer = (hunt_interval + (chunk[0] % 30) * hunt_stagger
+                     if hunt_per_house else hunt_interval)
             triggers.append("%s=<none>,<none>,%s,0,1,1,1,0" % (tid, label))
-            events.append("%s=1,13,0,%d" % (tid, hunt_interval))
+            events.append("%s=1,13,0,%d" % (tid, timer))
             body = ",".join("6,0,%d,0,0,0,0,A" % (0x117B + slot) for slot in chunk)
             actions.append("%s=%d,%s" % (tid, len(chunk), body))
             tags.append("%s=2,%s,%s" % (hunt_prefix + "%06X" % (index * 0x10 + 1), label, tid))

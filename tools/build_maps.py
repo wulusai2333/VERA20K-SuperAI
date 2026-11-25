@@ -40,6 +40,12 @@ import veramap as vm
 GAME_MODES = "standard, teamgame, megawealth, duel, meatgrind, navalwar"
 GAME_MODE_NAMES = tuple(name.strip() for name in GAME_MODES.split(","))
 
+#: All to Hunt every five minutes, one trigger per computer house, staggered by
+#: up to 58 seconds so the whole map does not turn back on the same frame.
+HUNT_INTERVAL = 300
+HUNT_STAGGER = 2
+HUNT_PER_HOUSE = True
+
 
 def assert_game_modes(text, where):
     """Refuse to build a map that a game mode's map filter would not match."""
@@ -53,6 +59,20 @@ def assert_game_modes(text, where):
     return value
 
 
+def assert_hunt_triggers(text, players, where):
+    """Every computer slot must own exactly one staggered AIHunt trigger."""
+    body = vm.section_body(text, "Triggers") if vm.has_section(text, "Triggers") else ""
+    hunt = [line for line in body.splitlines() if "AIHunt" in line]
+    expected = max(players - 1, 0)
+    if len(hunt) != expected:
+        raise SystemExit("%s: %d AIHunt triggers, expected %d (one per computer)"
+                         % (where, len(hunt), expected))
+    if "AIHuntAll" in body and players > 11:
+        raise SystemExit("%s: AIHuntAll chunk still present; expected one per house"
+                         % where)
+    return len(hunt)
+
+
 def cmd_ice(args):
     text = vm.read_text(args.src)
     text = vm.set_name(text, "Super AI Ice Lake 1v7", free_radar=True)
@@ -63,12 +83,15 @@ def cmd_ice(args):
     text = vm.add_triggers(
         text,
         vm.trigger_block(players, reveal=True, iron_curtain=True, hunt=True,
-                         newline="\r\n", hunt_prefix="02", hunt_name="AIHuntAll"),
+                         newline="\r\n", hunt_prefix="02", hunt_name="AIHuntAll",
+                         hunt_interval=HUNT_INTERVAL, hunt_stagger=HUNT_STAGGER,
+                         hunt_per_house=HUNT_PER_HOUSE),
     )
 
     os.makedirs(args.out, exist_ok=True)
     main_path = os.path.join(args.out, "SuperAI-IceLake-1v7.yrm")
     assert_game_modes(text, main_path)
+    assert_hunt_triggers(text, players, main_path)
     vm.write_text(main_path, text)
     print("written %s (%d players, %d bytes)" % (main_path, players, len(text)))
 
@@ -80,6 +103,7 @@ def cmd_ice(args):
         no_ore = vm.ensure_value(no_ore, "GameMode", GAME_MODES)
         path = os.path.join(args.out, "SuperAI-IceLake-1v7-NoOre.yrm")
         assert_game_modes(no_ore, path)
+        assert_hunt_triggers(no_ore, players, path)
         vm.write_text(path, no_ore)
         print("written %s (%d bytes)" % (path, len(no_ore)))
 
@@ -242,11 +266,14 @@ def cmd_ice120(args):
     text = vm.add_triggers(
         text,
         vm.trigger_block(len(all_points), reveal=True, iron_curtain=True,
-                         hunt=True, newline="\r\n"),
+                         hunt=True, newline="\r\n",
+                         hunt_interval=HUNT_INTERVAL, hunt_stagger=HUNT_STAGGER,
+                         hunt_per_house=HUNT_PER_HOUSE),
     )
 
     assert_ice120(src, text, all_points, ground, region)
     assert_game_modes(text, args.out)
+    assert_hunt_triggers(text, len(all_points), args.out)
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     vm.write_text(args.out, text)
     print("written %s (%d starts: player %s upper-right, %d computers lower-left "
@@ -511,6 +538,9 @@ def cmd_flat(args):
             iron_curtain=full,
             iron_curtain_initial=full,
             hunt=True,
+            hunt_interval=HUNT_INTERVAL,
+            hunt_stagger=HUNT_STAGGER,
+            hunt_per_house=HUNT_PER_HOUSE,
         ),
     )
 
@@ -526,6 +556,7 @@ def cmd_flat(args):
               % (args.tile, args.sub, args.height, gaps[0] if gaps else 0, closest))
 
     assert_game_modes(text, args.out)
+    assert_hunt_triggers(text, players, args.out)
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     vm.write_text(args.out, text)
     print("written %s (%d cells, %d players, triggers=%s, %d bytes)"
@@ -548,8 +579,12 @@ def cmd_retrigger(args):
             iron_curtain_initial=full,
             hunt=True,
             newline=newline,
+            hunt_interval=HUNT_INTERVAL,
+            hunt_stagger=HUNT_STAGGER,
+            hunt_per_house=HUNT_PER_HOUSE,
         ),
     )
+    assert_hunt_triggers(text, players, args.out)
     vm.write_text(args.out, text)
     print("written %s (%d players, triggers=%s, %d bytes)"
           % (args.out, players, args.triggers, len(text)))

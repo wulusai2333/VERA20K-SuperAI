@@ -91,10 +91,11 @@ RULES_EDITS = {
     # so they never count towards it.
     "AISlaveMinerNumber": ("4,3,2", "2,2,2"),
     "Paranoid": ("yes", "no"),
-    # Ten teams per house.  Retail is 30; with charging teams and no regrouping
-    # that is a thousand-strong army per house and the frame cost that comes
-    # with it.  TEAM SIZE stays retail -- only the count of teams is capped.
-    "TotalAITeamCap": ("30,30,30", "10,10,10"),
+    # Twelve teams per house (ten was the original cap; the continuous attack
+    # floor wants a little more headroom).  Retail is 30; with charging teams
+    # and no regrouping that is a thousand-strong army per house and the frame
+    # cost that comes with it.  TEAM SIZE stays retail -- only the count is capped.
+    "TotalAITeamCap": ("30,30,30", "12,12,12"),
     # The defensive-team trio must be neutralised, and the reason is a trap
     # that cost a whole release:
     #
@@ -2277,11 +2278,11 @@ ATTACK_FLOOR_CONDITION = "4"
 #: therefore with a floor that sinks when teams die).  Asserted exactly.
 ATTACK_FLOOR_EXPECTED = 46
 
-#: Weight for the three "always eligible" attack triggers: the floor under the
+#: Weight for the six "always eligible" attack triggers: the floor under the
 #: three difficulties, not a replacement for them.  Far below the 5000 takeover
 #: triggers (MCV/superweapon/anti-spy) and the 1000 AA triggers, so counter
 #: teams are still drawn first.
-ALWAYS_TRIGGER_WEIGHTS = ("30.000000", "30.000000", "30.000000")
+ALWAYS_TRIGGER_WEIGHTS = ("40.000000", "40.000000", "40.000000")
 #: 32-byte comparison mask.  `condition=-1` never reads it, but the reader
 #: still needs exactly 64 hex characters or it drops the whole trigger.
 ALWAYS_TRIGGER_MASK = "0000000003000000" + "0" * 48
@@ -2292,7 +2293,22 @@ ALWAYS_TRIGGER_SPEC = (
     ("ZAIALW01-G", "ZAI Always Attack - Allied", "0CA0486C-G", "1"),
     ("ZAIALW02-G", "ZAI Always Attack - Soviet", "09B58D0C-G", "2"),
     ("ZAIALW03-G", "ZAI Always Attack - Yuri", "08B9108C-G", "3"),
+    ("ZAIALW04-G", "ZAI Always Attack II - Allied", "0CA0486C-G", "1"),
+    ("ZAIALW05-G", "ZAI Always Attack II - Soviet", "09B58D0C-G", "2"),
+    ("ZAIALW06-G", "ZAI Always Attack II - Yuri", "08B9108C-G", "3"),
 )
+
+#: The five base-guard TeamTypes that ship `Reinforce=yes`.  A formed guard
+#: team that is missing members keeps waiting for newly produced ones instead
+#: of fighting; the point of this pass is to turn that off without touching any
+#: offensive team (`Reinforce=no` already).
+REINFORCE_OFF_TEAMS = {
+    "06175EFC-G": "Allied Base Guard - Refine",
+    "0CB1CDEC-G": "Nation Korea - 1",
+    "08DA30EC-G": "Allied Base Guard - Basic",
+    "061183BC-G": "Yuri Refinery Guards",
+    "08BE3EFC-G": "Yuri Base Guard - Adv",
+}
 
 
 def teams_using_superweapon_scripts(doc):
@@ -2436,6 +2452,16 @@ def build_aimd(source_dir, out_dir, assembly_teams=False):
                 doc.replace_value(fields[key.lower()][1], key, wanted)
             else:
                 doc.insert_value(tid, key, wanted)
+
+    # Five retail base-guard TeamTypes reinforce; a guard that is a couple of
+    # members short waits for the factory instead of fighting.  Turn exactly
+    # those five off (attack teams already ship Reinforce=no).
+    for tid in REINFORCE_OFF_TEAMS:
+        fields = doc.values(tid)
+        if "reinforce" not in fields:
+            raise SystemExit("TeamType %s has no Reinforce=" % tid)
+        if fields["reinforce"][0].strip().lower() != "no":
+            doc.replace_value(fields["reinforce"][1], "Reinforce", "no")
 
     # Base recovery.  The stock "this house owns zero Construction Yards"
     # triggers (condition 1 with GACNST/NACNST/YACNST) rebuild an MCV, but
@@ -3401,6 +3427,38 @@ def assert_air_and_aa_boosted(aimd_lines):
     return air_tfs
 
 
+def assert_reinforce_off(aimd_lines):
+    """The five base guard types must no longer wait for reinforcements."""
+    sections, current = {}, None
+    for line in aimd_lines:
+        header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
+        if header:
+            current = header.group(1).strip()
+            sections.setdefault(current, [])
+            continue
+        if current is not None:
+            sections[current].append(line)
+
+    problems = []
+    yes = []
+    for name, body in sections.items():
+        for line in body:
+            if line.strip().lower() == "reinforce=yes":
+                yes.append(name)
+    for tid, label in REINFORCE_OFF_TEAMS.items():
+        line = next((x.strip() for x in sections.get(tid, [])
+                     if x.strip().lower().startswith("reinforce=")), None)
+        if line != "Reinforce=no":
+            problems.append("%s (%s) is %r, expected Reinforce=no"
+                            % (tid, label, line))
+    if yes:
+        problems.append("Reinforce=yes still on: " + ", ".join(sorted(yes)[:5]))
+    if problems:
+        raise SystemExit("base-guard reinforcement still on: "
+                         + "; ".join(problems[:4]))
+    return len(REINFORCE_OFF_TEAMS)
+
+
 def assert_kirov_teams(aimd_lines):
     """Pin the tuned Kirov sizes and the lower house cap."""
     sections, current = {}, None
@@ -3436,8 +3494,8 @@ def assert_kirov_teams(aimd_lines):
     return len(KIROV_TEAM_SIZES) + len(KIROV_TEAM_TYPES)
 
 
-#: 168 retail triggers + the 3 always-eligible ones.
-EXPECTED_ATTACK_TRIGGER_COUNT = 171
+#: 168 retail triggers + the 6 always-eligible ones.
+EXPECTED_ATTACK_TRIGGER_COUNT = 174
 
 #: The 46 condition-4 attack triggers whose retail weight floor sits below the
 #: start weight, pinned by id (the 46 that used to decay).  Pinned literally
@@ -3477,9 +3535,9 @@ COUNTER_TRIGGER_PINS = (
      ("5000.000000", "5000.000000", "5000.000000")),
 )
 
-#: Retail condition distribution plus the three new `-1` rows.  Any trigger
+#: Retail condition distribution plus the six new `-1` rows.  Any trigger
 #: silently decoupled from 0/1 to -1 shows up here.
-EXPECTED_TRIGGER_CONDITIONS = {-1: 3, 0: 50, 1: 52, 4: 53, 5: 2, 6: 3, 7: 8}
+EXPECTED_TRIGGER_CONDITIONS = {-1: 6, 0: 50, 1: 52, 4: 53, 5: 2, 6: 3, 7: 8}
 
 
 def assert_attack_triggers_boosted(aimd_lines):
@@ -3487,9 +3545,9 @@ def assert_attack_triggers_boosted(aimd_lines):
 
     Checks the shape the INI reader demands (18 tokens, 64-hex mask -- a
     malformed row is dropped **silently**, which looks like "the AI stopped
-    attacking"), the three intended edits (7 dead rows revived, 46 floors at
-    their start weight, 3 always-eligible rows), and the things that must NOT
-    have moved: the condition histogram and the pinned counter rows.
+    attacking"), the intended edits (7 dead rows revived, 46 floors at their
+    start weight, 6 always-eligible rows), and the things that must NOT have
+    moved: the condition histogram and the pinned counter rows.
     """
     sections, current = {}, None
     for line in aimd_lines:
@@ -3736,6 +3794,7 @@ def main():
     cluster_bombs = assert_nuke_gunship3(rules_lines, aimd_lines)
     assert_ui_labels(rules_lines, csf_labels)
     assert_air_and_aa_boosted(aimd_lines)
+    assert_reinforce_off(aimd_lines)
     assert_kirov_teams(aimd_lines)
     assert_attack_triggers_boosted(aimd_lines)
     counts = assert_build_counts(rules_lines)

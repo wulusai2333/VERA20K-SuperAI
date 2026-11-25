@@ -210,8 +210,7 @@ python tools/build_maps.py modes --dir maps
 | `SuperAI-Flat120.yrm` | 逐字节一致 |
 | `SuperAI-Flat200.yrm` | 逐字节一致（构建时加 `--terrain-newline crlf`） |
 
-> v3.13.5 的地图带 20 秒 AIHunt；当前仓库已改为 60 秒，因此表中地图产物不再与
-> v3.13.5 逐字节一致。`rulesmd.ini` / `aimd.ini` / `ares.csf` 仍一致。
+> v3.13.5 的地图带 20 秒 AIHunt；当前仓库是 5 分钟、按户错峰（`300 + (slot % 30) * 2` 秒，每户一条触发器），因此表中地图产物不再与 v3.13.5 逐字节一致。`rulesmd.ini` / `aimd.ini` / `ares.csf` 仍一致。
 
 模组构建依赖原版规则文件的字节内容；不同语言版本（`rulesmd.ini` 被本地化修改过）
 会导致 `RULES_EDITS` 找不到原值而报错，这是有意的保护。
