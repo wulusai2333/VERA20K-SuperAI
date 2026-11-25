@@ -28,7 +28,7 @@ RETAIL_VALUE_EDITS = {
         "targetdistancecoefficientdefault", "teamdelays", "totalaiteamcap",
         "usemindefenserule",
     },
-    "AI": {"airstriplimit", "airstripratio", "paranoid"},
+    "AI": {"airstriplimit", "airstripratio", "computerbasedefenseresponse", "paranoid"},
     "GADEPT": {"aibuildthis"},
     "NADEPT": {"aibuildthis"},
     "YADEPT": {"aibuildthis"},

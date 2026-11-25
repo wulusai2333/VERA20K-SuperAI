@@ -2,6 +2,20 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## Unreleased — 关闭基地防御响应：MCV 扩张不再拉护卫
+
+- `[AI] ComputerBaseDefenseResponse` 由 `3` 改为 **`0`**：`RespondToBaseAttack` 的预算
+  变成 `ThreatPosed × 0 = 0`，建筑挨打时不再扫描/改写附近单位的 mission，不再出现
+  `AreaGuard + ArchiveTarget` 的“护卫/跟随”。
+- 现象根因：新扩建的建造厂被攻击时，附近**无队伍、武装**的散兵（常是正在前线交战的）
+  被拉去围新基地，看起来像在护卫 MCV；MCV 本身无 `ToProtect`、无武器，不会叫援。
+  MCV 的 TeamType/TaskForce/Script 与零售零差异，改它们无效。
+- 代价（全 House 级，已接受）：建筑被攻击时不再拉散兵回防；`ToProtect=yes` 的
+  矿车/采矿车/无畏舰等也不再被救援。只想关“新基地护卫”而保留矿车救援需要引擎改动，
+  本次不做。
+- 落盘：`build_mod.py` 的 `SECTION_KEY_EDITS["AI"]` 写 `0`；`check_retail.py` 的
+  `[AI]` 白名单加 `computerbasedefenseresponse`；`docs/boundaries-and-lessons.md` 登记影响面。
+
 ## Unreleased — AITrigger 积极发展：修死条 + 抬下限 + 3 条保底进攻
 
 - **修死数据**：7 条零售触发器三难度位全关（`d000`，永不可命中），按名字声明的

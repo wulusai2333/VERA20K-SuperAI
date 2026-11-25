@@ -85,7 +85,7 @@
 | 段 | 改动内容 | 性质 |
 | --- | --- | --- |
 | `[General]` | 14 个键（`BuildSpeed`、`TeamDelays`、`MultiplayerAICM`、`AISlaveMinerNumber`、`AIRestrictReplaceTime`、`DissolveUnfilledTeamDelay`、`TargetDistanceCoefficientDefault`、`AISafeDistance` 等） | AI 调优 |
-| `[AI]` | 3 个键（`AirstripRatio`、`AirstripLimit`、`Paranoid`） | AI 调优 |
+| `[AI]` | 4 个键（`AirstripRatio`、`AirstripLimit`、`ComputerBaseDefenseResponse`、`Paranoid`） | AI 调优 |
 | `[GADEPT]` / `[NADEPT]` / `[YADEPT]` | 各 1 键（`AIBuildThis`） | **改原版单位数值**（保留，用户确认需要） |
 
 （`[NASAM]` / `[NAFLAK]` 的 4 个键已于 **3.11.6 还原**，不再出现在本表。）
@@ -115,6 +115,24 @@
   与 `[ZAIATK01-G]` 六步；`docs/ai-design.md` §3.2 写明机制与局限。
 - 回滚：删掉 `RULES_EDITS` 里这一条（或把新值改回 `20`）并重建，同时删掉
   `tools/check_retail.py` 的 `aisafedistance` 白名单项。
+
+**`ComputerBaseDefenseResponse` 的影响面（[AI] 3→4 键）**：
+
+- 作用范围：`TechnoClass::RespondToBaseAttack`（`sim/combat/base_defense_response.rs`）。
+  建筑挨打时，受害 House 会把附近**无队伍、武装**的 Infantry/Unit 拉走，给它们
+  `Rescue`/`AreaGuard` + `ArchiveTarget=Entity(victim)`；`AreaGuard + ArchiveTarget`
+  就是引擎唯一的“护卫/跟随”语义。新扩建的建造厂一挨打，正在前线交战的散兵就会被
+  抽回来围住它，看起来像“MCV 护卫”。
+- 原值 `3`：预算 = `ThreatPosed × 3`，会扫描并改写附近单位的 mission。
+- 新值 `0`：预算 = `ThreatPosed × 0 = 0`，`can_scan()` 恒假，不扫描、不抽 RNG、不写
+  `ArchiveTarget`、不给攻击者冷却；AITrigger 组队不受影响。
+- **代价（全 House 级）**：建筑被攻击时不再拉散兵回防；`ToProtect=yes` 的
+  HARV/SMIN/DRED/AEGIS 等也不再被救。要“只关新基地护卫、保留矿车救援”需要引擎级区分，
+  本次不做。
+- 验证：`tools/build_mod.py` 的 `SECTION_KEY_EDITS` 强制写 `0`；`tools/check_retail.py`
+  白名单含 `computerbasedefenseresponse`；实机打新建造厂（不要打 MCV）观察是否还有散兵掉头。
+- 回滚：删掉 `SECTION_KEY_EDITS` 的 `"AI"` 项（或把值改回 `3`）并重建，同时删掉
+  `check_retail.py` 的对应白名单项。
 
 **给原版段追加键（12 个段，只加不改）**：
 `[General] AINearestEnemy`；`[GACNST]/[NACNST]/[YACNST] SpySat`；

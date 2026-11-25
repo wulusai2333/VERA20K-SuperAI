@@ -168,6 +168,13 @@ RULES_EDITS = {
 #: deploy).  With the depots enabled the chain works; without them the AI can
 #: never satisfy the MCV prerequisite no matter how much money it has.
 SECTION_KEY_EDITS = {
+    # House base-defence response.  `TechnoClass::RespondToBaseAttack` pulls
+    # nearby unteamed armed units onto `AreaGuard` + `ArchiveTarget` when a
+    # building is hit; `ArchiveTarget` is the engine's escort/follow target, so
+    # attacking a fresh expansion yard drags fighting units away from the front.
+    # 0 zeroes the budget (`ThreatPosed * 0 = 0`), so the response never scans
+    # and never rewrites a mission.  AITrigger teams are unaffected.
+    "AI": {"ComputerBaseDefenseResponse": "0"},
     "GADEPT": {"AIBuildThis": "yes"},
     "NADEPT": {"AIBuildThis": "yes"},
     "YADEPT": {"AIBuildThis": "yes"},
