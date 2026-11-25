@@ -17,7 +17,8 @@
   `-0.4` 让距离项在整张地图（最大对角 707 格）上单调，距离项最近者严格胜出
   （最终评分仍叠加 A–D 四项）。
 - **新行为**：`[ZAIATK01-G]` 从 5 步变 6 步——`0=53,0` 先到敌方基地外
-  `AISafeDistance=20` 格（`Mission::Move`，途中会被动索敌并开火），`1=0,6` 起保持
+  `AISafeDistance=20` 格（`Mission::Move`；其中 **123 支** `Suicide=no` 队伍会途中
+  被动索敌并开火，**28 支** `Suicide=yes` 特种队只行军不开火），`1=0,6` 起保持
   原攻击序列。仍是 **151 支队伍**，MCV/超武队伍脚本不变。
 - **守卫/文档**：`tools/build_mod.py` 新增 `assert_attack_script`（钉住系数与六步），
   `tools/check_retail.py` 登记该键；`docs/ai-design.md` §3.2 与

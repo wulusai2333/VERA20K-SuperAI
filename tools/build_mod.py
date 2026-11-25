@@ -2517,7 +2517,9 @@ def assert_attack_script(rules_lines, aimd_lines):
     * **the script shape** -- dropping the opening ``53`` removes the only
       Move leg (and with it the passive scan that lets the column engage on
       the way in); adding or reordering a step changes how many quarries a
-      team attacks before it dissolves.  Pinned to the exact shipped steps.
+      team attacks before it dissolves.  Pinned to the exact shipped steps as
+      a literal list, not derived from :data:`ATTACK_SCRIPT_BODY`, for the
+      same reason: a five-step constant must fail the build, not pass it.
 
     See ``docs/ai-design.md`` section 3.2.
     """
@@ -2533,8 +2535,7 @@ def assert_attack_script(rules_lines, aimd_lines):
             "fixing). -0.4 keeps all candidates positive out to ~977 cells."
             % (coefficient,))
 
-    expected = [line for line in ATTACK_SCRIPT_BODY
-                if re.match(r"^\d+=", line)]
+    expected = ["0=53,0", "1=0,6", "2=49,0", "3=0,2", "4=0,1", "5=0,5"]
     actual = []
     section = None
     for line in aimd_lines:
