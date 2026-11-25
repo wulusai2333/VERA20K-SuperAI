@@ -125,7 +125,6 @@ PCV  Prerequisite=YAWEAP,YAGRND    ; YADEPT 在原版被注释掉
 | `DissolveUnfilledTeamDelay` | 5000 | `2400` | 凑不齐的队伍 160 秒（15 帧/秒）后解散，腾出编制 |
 | `[AI] Paranoid` | yes | `no` | 电脑不抱团针对玩家 |
 | `AINearestEnemy`（VERA 扩展） | 否 | `yes` | 电脑选最近的敌人，FFA 会互殴 |
-| `IdleOnlyAllToHunt`（VERA 新增键） | 否（首发） | `yes` | 「All to Hunt 只拉**真正空闲**的单位」。**旧 exe / 本版引擎没有读取者**：动作 6 的 `all_to_hunt` 目前无条件对该户每个 techno `leave_team` + 排 Hunt，`[General] AIAllToHunt` 只管「无工厂最后一搏」那条支路，改它不会收窄动作 6。本仓库**只落数据**，读取者由引擎分支配套；在带读取者的 exe 之前，这个键 100% 无效（[playbook §1.5](ai-tuning-playbook.md#15-死键清单)） |
 | `TargetDistanceCoefficientDefault` | `-10` | `-0.4` | AI 威胁评分里的距离惩罚。原版约 **39 格外**评分被 `max(1)` 钳成 1 分，而 `keep` 只在「严格大于」时替换，于是「最近」退化为「遍历顺序第一个 = 最老的敌方工厂」；`-0.4` 把钳制点推到约 **977 格**（大于交付地图最大战场 500×500 的 707 格对角），每远 10 格少 1024 分，距离项上最近者严格胜出（最终评分仍叠加 A–D 四项）。机制与局限见 §3.2 |
 
 > **`TeamDelays` 与 CPU / 寻路的关系**：它不是寻路定时器，而是「这户人家多久
@@ -375,9 +374,9 @@ SW.AffectsHouse=yes                   ; 只加给「作用于自家单位」的�
 
 > 不要用 `StupidHunt=yes`：它会跳过索敌，单位反而原地待命。
 >
-> 已知副作用（数据层折中）：60 秒一次的 All to Hunt 会**拆掉正在集结/交火的队伍**
-> ——这是动作 6 的既有行为（无条件 `leave_team`）。`[General] IdleOnlyAllToHunt=yes`
-> 就是为此准备的数据键，但读取者在引擎分支，本仓库的旧 exe 上不生效（见 §2 进攻节奏表）。
+> 已知副作用（数据层折中）：5 分钟一次的 All to Hunt 仍会**拆掉正在集结/交火的队伍**
+> ——这是动作 6 的既有行为（无条件 `leave_team`）。`IdleOnlyAllToHunt` 的引擎分支
+> 未能改善实机观感，已回退、不安装；本仓库不再写这个键。
 
 ## 5. 观战者的保护
 

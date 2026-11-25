@@ -45,7 +45,7 @@ GAME_MODE_NAMES = tuple(name.strip() for name in GAME_MODES.split(","))
 #: ``timer = 60 + (slot % 30) * 2``.  The per-house split is what keeps the wave
 #: from re-forming the whole map's army at once; the interval itself is the
 #: engine's own default (``veramap.trigger_block``), so 60 needs no argument.
-HUNT_INTERVAL = 60
+HUNT_INTERVAL = 300
 HUNT_STAGGER = 2
 HUNT_PER_HOUSE = True
 

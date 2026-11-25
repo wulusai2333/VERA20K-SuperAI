@@ -2,16 +2,13 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
-## Unreleased — 60 秒按户错峰 All to Hunt、空指部 2/3 座、国家特色权重钉死
+## Unreleased — 5 分钟按户错峰 All to Hunt、空指部 2/3 座、国家特色权重钉死
 
-- **地图 All to Hunt**：5 分钟改回 **60 秒**，仍**每户一条触发器**、
-  timer = `60 + (slot % 30) * 2` 秒（`build_maps.py` 的 `HUNT_INTERVAL=60`）；
-  7 张仓库图由 `retrigger --triggers full` 重写，实测只动 timer 行
-  （IceLake-1v7/+NoOre、Flat200 各 −7 B；Flat30 −19 B；三张 120 人图各 −79 B）。
-- **idle 猎杀开关（数据先行）**：`[General] IdleOnlyAllToHunt=yes`。
-  **本版引擎没有读取者**——动作 6 的 `all_to_hunt` 无条件对全户 `leave_team`+Hunt，
-  `[General] AIAllToHunt` 只管「无工厂最后一搏」那条支路。读取者由引擎分支实现，
-  旧 exe 下该键 100% 无效（playbook §1.5 B 档）。
+- **地图 All to Hunt**：保持 **5 分钟**、每户一条触发器、
+  timer = `300 + (slot % 30) * 2` 秒（`build_maps.py` 的 `HUNT_INTERVAL=300`）。
+- **idle-only 引擎分支已回退**：两版实现（只跳过队伍成员、再改为整队空闲判定）
+  实机仍有大量单位闲置在家，**不安装、不生效**；模组不再写 `IdleOnlyAllToHunt`
+  键，客户端 exe 已还原到分支之前的 Alt+T 版本。
 - **空指部扩编（停机位是硬上限）**：`[GAAIRC]` 加 `AIBuildCounts=2,2,2`
   （每户 2 座 = 8 个停机位 = 2 队 ×4 架）；**美国**因 `[GAAIRC] ForbiddenHouses=Americans`
   只建 `[AMRADR]`，所以 `[AMRADR]` 也加 `AIBuildCounts=2,2,2`（否则美国单独停在 1 座 = 4 个停机位）；
@@ -34,9 +31,8 @@
 - 守卫：新增 `assert_airfield_expansion`（GAAIRC/AMRADR/克隆计数、`Dock`、注册表末行 407、
   6 支机场队 `Max≤3` 且每队 4 架、三家停机位不变量：盟军 GAAIRC×2、美国 AMRADR×2、
   韩国 GAAIRC×2+ZAIKRAIRC×1）、`assert_nation_triggers_pinned`
-  （10 条、三槽严格相等、`>=500`、`<5000`、Owner/side/难度位、GTGCAN 计数）、
-  `assert_idle_hunt_switch`；`check_retail.py` 登记 `ORCA/BEAG dock`、
-  `GAAIRC/AMRADR/GTGCAN aibuildcounts`、`General idleonlyalltohunt`
+  （10 条、三槽严格相等、`>=500`、`<5000`、Owner/side/难度位、GTGCAN 计数）；
+  `check_retail.py` 登记 `ORCA/BEAG dock`、`GAAIRC/AMRADR/GTGCAN aibuildcounts`
   （`ZAIKRAIRC` 属新段 + 注册表末尾，本就免登记）；构建二次幂等。
 - 文档：ai-design §2/§3.3.2/§4、playbook §1.5/§16.2-16.5/新 §21、build、map-format §5.4、
   mod.ini About。

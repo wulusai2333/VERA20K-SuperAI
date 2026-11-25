@@ -2229,20 +2229,6 @@ def build_rules(source_dir, out_dir):
         else:
             raise SystemExit("AISafeDistance= not found")
 
-    # "All to Hunt" should only pick up units that are actually idle, not pull
-    # units out of a fight that is already happening.  Written unconditionally as
-    # a NEW key (nothing retail reads it today): the engine branch that
-    # implements the reader ships separately, and until then the key is inert --
-    # do not read that as "verified".  Action 6 currently calls `all_to_hunt`
-    # with no filter at all (src/sim/trigger_runtime/actions.rs -> all_to_hunt).
-    if not any(l.startswith("IdleOnlyAllToHunt=") for l in lines):
-        for i, line in enumerate(lines):
-            if line.startswith("AINearestEnemy="):
-                lines.insert(i + 1, "IdleOnlyAllToHunt=yes\r\n")
-                break
-        else:
-            raise SystemExit("AINearestEnemy= not found")
-
     # Ore-free maps still fund the AI: refineries pay a trickle (oil derrick key).
     for refn in REFINERIES:
         insert_after_section_header(lines, refn, "ProduceCashDelay=60\r\n")
@@ -3025,25 +3011,6 @@ def assert_build_counts(rules_lines):
             raise SystemExit("[%s] AIBuildCounts=%r, expected %r (hard,normal,easy)"
                              % (name, values, list(wanted)))
     return written
-
-
-def assert_idle_hunt_switch(rules_lines):
-    """The "only idle units go hunting" switch must reach the built rules.
-
-    It is a NEW ``[General]`` key with no retail counterpart, so nothing in the
-    engine reads it yet -- the reader ships on a separate engine branch.  The
-    build only has to prove the key survived; it must NOT be described anywhere
-    as verified behaviour (docs/ai-tuning-playbook.md §1.5 lists it as such).
-    """
-    value = read_ini_value(rules_lines, "General", "IdleOnlyAllToHunt")
-    if value is None:
-        raise SystemExit(
-            "[General] IdleOnlyAllToHunt= is missing.  build_rules() writes it "
-            "after AINearestEnemy=; without the line the engine branch that "
-            "implements the reader has nothing to read.")
-    if value.strip().lower() != "yes":
-        raise SystemExit("[General] IdleOnlyAllToHunt=%r, expected 'yes'" % value)
-    return True
 
 
 def assert_airfield_expansion(rules_lines, aimd_lines):
@@ -4396,7 +4363,6 @@ def main():
     airport_teams = assert_airfield_expansion(rules_lines, aimd_lines)
     assert_attack_triggers_boosted(aimd_lines)
     assert_nation_triggers_pinned(aimd_lines, rules_lines)
-    assert_idle_hunt_switch(rules_lines)
     counts = assert_build_counts(rules_lines)
     assert_no_walls(rules_lines)
     aa_defences = assert_aa_defenses_competitive(rules_lines)

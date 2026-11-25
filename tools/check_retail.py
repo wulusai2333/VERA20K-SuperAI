@@ -40,7 +40,7 @@ RETAIL_VALUE_EDITS = {
 
 #: Retail sections where we may *add* keys without touching any existing value.
 RETAIL_KEY_ADDITIONS = {
-    "General": {"aifriendlydistance", "ainearestenemy", "idleonlyalltohunt"},
+    "General": {"aifriendlydistance", "ainearestenemy"},
     "GACNST": {"spysat"}, "NACNST": {"spysat"}, "YACNST": {"spysat"},
     "GAPILE": {"aibuildcounts"}, "GAWEAP": {"aibuildcounts"},
     "NAHAND": {"aibuildcounts"}, "NAWEAP": {"aibuildcounts"},
