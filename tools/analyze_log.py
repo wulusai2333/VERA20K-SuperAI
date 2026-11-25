@@ -67,7 +67,10 @@ DEPOTS = {"GADEPT", "NADEPT", "YADEPT"}
 #: PCV YAWEAP+YAGRND (YADEPT is commented out in the retail rules).
 MCVS = {"AMCV", "SMCV", "PCV"}
 
-#: The tech-tree order the AI is expected to come up in.
+#: The tech-tree families, grouped in the order the plan generator tends to
+#: produce them.  Used only to group types for the report: no gate asserts the
+#: order, and base defences are counted separately because ``-1`` nodes are
+#: interleaved anywhere past index 3.
 ORDER = [
     ("power", POWER),
     ("refinery", REFINERIES),
@@ -91,10 +94,10 @@ WALL_MAX = 0.15
 TYPE_MAX = 0.30
 #: Placements of the same type on one cell.
 SAME_CELL_MAX = 3
-#: Anti-air share of one house's defences.  Retail's ``0/0/25`` shape kept the
-#: Allied and Soviet AA guns air-only, which measured 12-17% of defences; the
-#: mod gives them Yuri's ``25/10/25`` shape so they compete in every category.
-AA_MIN = 0.20
+#: Anti-air share is reported (``report["aa_share"]``) but deliberately not
+#: gated: since 3.11.6 the AA buildings are back at retail ``0/0/25`` and the
+#: defence picker chooses the category from the enemy's cost mix, which
+#: commonly lands around 12-17% of a house's defences.
 
 
 def read_sessions(path):
@@ -223,12 +226,6 @@ def judge(house, report):
         report["wall_share"] <= WALL_MAX,
         "walls %d (%.0f%%, gate <=%.0f%%)"
         % (report["walls"], report["wall_share"] * 100, WALL_MAX * 100),
-    ))
-    checks.append((
-        report["aa_share"] >= AA_MIN,
-        "AA defences %d of %d (%.0f%% of defences, gate %.0f%%)"
-        % (report["aa"], report["defence"], report["aa_share"] * 100,
-           AA_MIN * 100),
     ))
 
     # Power plants are exempt: a big base genuinely needs a lot of them and

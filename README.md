@@ -1,14 +1,15 @@
 # Super AI for VERA20k
 
 [![repo](https://img.shields.io/badge/GitHub-VERA20K--SuperAI-blue)](https://github.com/wulusai2333/VERA20K-SuperAI)
-[![mod version](https://img.shields.io/badge/mod-v3.0-green)](CHANGELOG.md)
+[![mod version](https://img.shields.io/badge/mod-v3.13.5-green)](CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
 把《红色警戒 2：尤里的复仇》遭遇战里的电脑，变成一个**会铺满地图、几乎全员冲锋、永不囤兵**的对手；
 再附上一套专门为「看 AI 打 AI」设计的地图包（平地图 + 冰湖图）。
 
-当前版本 **3.10.6**：电脑会被打到就立刻重建、把基地铺到 3 个、超武（核弹/闪电/心灵/基因/铁幕/超时空）
-充满即用；本模组**不造围墙**，冷酷难度给到 3 兵营 / 5 战车工厂。
+当前版本 **3.13.5**：电脑会被打到就立刻重建、把基地铺到 3 个、超武（核弹/闪电/心灵/基因/铁幕/超时空）
+充满即用；本模组**不造围墙**，冷酷难度给到 3 兵营 / 5 战车工厂。玩家手里有四个核弹超武，
+分别显示 **核弹攻击 / 核弹炮艇 / 空中炮艇 / 集束炮艇**。
 
 本项目面向 [VERA20k](https://github.com/YuriPlanet/vera20k)（YR 的开源重制引擎），
 由两部分组成：
@@ -19,7 +20,7 @@
 > English summary: a fan-made mod + spectator map pack for VERA20k. It gives the
 > skirmish AI x1001 starting credits, an aggressive global build speed, a graded
 > per-type building plan at the retail three-difficulty rhythm (no AIBuildCounts
-> tuning), 25/20/6 base defences, instant rebuild of any destroyed building
+> tuning), retail base defences (25/20/6; 25/22/6 for Soviet/Yuri), instant rebuild of any destroyed building
 > (`AIRestrictReplaceTime=0`) which is also how the base grows, a 10-team cap with
 > retail-sized task forces, and a custom team script that skips the retail
 > "regroup at base" steps. Repair depots are now AI-buildable, which is what
@@ -41,14 +42,19 @@
 | 全局建造速度 | `BuildSpeed=.7` | **`.025`（玩家同样生效）**<br>注：该键的读取路径未在引擎抽取源码中确认，见 [playbook §1.5](docs/ai-tuning-playbook.md#15-死键清单) |
 - [docs/boundaries-and-lessons.md](docs/boundaries-and-lessons.md)：边界手册 —— 动手前先确认改动属于地图/玩家/全局哪一级，附已验证的正确路径与黑名单
 | 建筑规划 | 每种 1 个 | **只给 6 个生产建筑**：冷酷 **3 个兵营 / 5 个战车工厂**（`AIBuildCounts=3,1,1` / `5,1,1`），中等/简单保持 1 个 |
-| 基地防御 | 25 / 20 / 6 | **原版 `25/20/6`**；想要更大基地就只调这里（防御节点沿周长向外找位置） |
-| **空军** | 11 支空军队伍全部 `Max=1`（同时最多一支）、每支 1–4 架、权重 40–70；且触发器会因战损失败把权重砸到 30 的地板（「打完很久不造」的真因） | 机场型飞机（入侵者/黑鹰）**每队 3 架、`Max=3`**（停机位是硬约束：一座空指部 4 个位，超了会起飞坠毁）、`AirstripLimit` 0→4 让 AI 真的造机库；基洛夫 6–8 架 `Max=6`；火箭飞行兵每队 6 人 `Max=6`；权重 **×3 并钉死**（三档同值，钳制区间退化为一点，失败不再衰减）；空队伍解散延迟 900→2400 |
+| 基地防御 | 25 / 20 / 6（苏、尤里 25 / 22 / 6） | **原版值，未改**；想要更大基地就只调这里（防御节点沿周长向外找位置） |
+| **空军** | 11 支空军队伍全部 `Max=1`（同时最多一支）、每支 1–4 架、权重 40–70；且触发器会因战损失败把权重砸到 30 的地板（「打完很久不造」的真因） | 机场型飞机（入侵者/黑鹰）**每队 4 架、`Max=3`**（4 架正好一座空指部的 4 个位，超了会起飞坠毁）、`AirstripLimit` 0→4（抽取源码里没有该键的读取者，机库增加未实测，见 playbook §16）；基洛夫 6–8 架 `Max=6`；火箭飞行兵每队 6 人 `Max=6`；权重 **×3 并钉死**（三档同值，钳制区间退化为一点，失败不再衰减）；空队伍解散延迟 900→2400 |
 | **防空部队** | 只有 46/165 条触发器带防空单位 | 防空触发器权重 **×2**：带防空队伍在抽签中的权重占比约 28% → 44% |
-| **防空比例** | 盟/苏防空炮只在「air 类别」被选中（`AntiInfantryValue=0`/`AntiArmorValue=0`） | **和尤里盖特机炮同形状（25/10/25）**：三类都是候选，防御总数不变、防空占比 12–17% → 20%+ |
+| **防空比例** | 盟/苏防空炮只在「air 类别」被选中（`AntiInfantryValue=0`/`AntiArmorValue=0`） | **3.11.6 已回退零售 `0/0/25`**：AI 先按敌方三类造价份额选类别，盟/苏防空炮只在 air 类别候选，防空建筑占比回到零售的 12–17%；这是引擎行为，配置改不动。防空**部队**仍由触发器权重 ×2 提升 |
 | **被打掉就重建** | `AIRestrictReplaceTime=400`（约 27 秒内只补墙/防御/电厂） | **`0`**：任何建筑丢失后立刻重建，扩建由此被动发生 |
 | **基地数量** | 1 座建造厂 | **稳定 3 座**：建造厂 < 3 时立刻补基地车去展开（`… MCV - Expand` 触发器，权重 5000；MCV 队伍 `Max=2`），被打掉会补回 |
-| **核弹飞艇投放** | 无 | 玩家专属超武 `ZAINukeGunshipDrop`（`Type=UnitDelivery`）：点地面即把 `ZAINukeGunship` 投下来（`UnitDelivery.Types`、`SW.AllowAI=no`、`SW.AlwaysGranted=yes`、`SW.InitialReady=yes`）；不碰任何公共表 |
-| **玩家核弹** | 要造发射井、每 10 分钟一发 | **0 号位玩家无限核弹**：新增独立超武类型 `ZAIUnlimitedNuke`（`SW.AlwaysGranted=yes` 免发射井、`RechargeTime=0` 零冷却、`SW.AllowAI=no`）；**电脑的 `NukeSpecial` 原封不动**，照旧 10 分钟一发 |
+| **核弹飞艇投放** | 无 | 玩家专属超武 `ZAINukeGunshipDrop` / `ZAINukeGunship2Drop` / `ZAINukeGunship3Drop`（`Type=UnitDelivery`）：点地面即把对应的飞艇投下来（载荷键是 `Deliver.Types`、`SW.AllowAI=no`、`SW.AlwaysGranted=yes`、`SW.InitialReady=yes`）；不碰任何公共表 |
+| **四个核弹超武的名字** | 只有一个「核弹攻击」 | 无限核弹仍叫 **核弹攻击**；三艘飞艇的投放按钮叫 **核弹炮艇** / **空中炮艇** / **集束炮艇**。`UIName=` 是 CSF 标签而不是文字，所以模组自带一张 `ares.csf` 提供这几行（Ares 游戏在 `ra2md.csf` 之后追加它，与界面语言无关；缺了它游戏里会画成 `MISSING:'…'`） |
+| **飞艇索敌范围** | — | 三艘飞艇都是 `GuardRange=200` + 武器 `Range=200`（`Range` 只是武器射程；两者必须相等，否则会追着打不到的目标转） |
+| **核弹落点特效** | 闪白 + 把整张地图的光照重算一遍 | 飞艇的弹头一律用零售 `[NUKE]` 的克隆段（`ZAINukeMissileWH`）而不是零售 `[NUKE]` 本身：引擎按**弹头名字** `strcmpi(warhead,"NUKE")` 触发核弹特判，换名后只剩 `AnimList=NUKEANIM` 的蘑菇云，伤害与爆炸半径与零售核弹完全一致 |
+| **集束炮艇（第四个超武）** | 无 | 空中炮艇的射速（`ROF=9`、`Range=200`、`Sight=200`）+ **4 发齐射**（`Burst=4` + 四个 `BurstDelay0..3=0`，约 0.27 秒）：每发母弹落在点击点外 0–200 格任意处，**本身是一颗 10 格核爆**（`ZAINukeMissileWH`、`NUKEANIM`、不闪白）；爆开时各分裂 **1 颗**追踪子弹，4 颗全部飞回**点击点** ±3 格炸开（`Splits=yes`、`Cluster=1`、`AroundTarget=yes`）。结果 = **4 母 + 4 子 = 8 个弹头**、**5 个落点**（4 个随机核爆 + 1 个被集火的点）。为什么是 4 不是 8：`Burst` 每 tick 一发、默认间隔 3–5 帧、单位只有 4 个 `BurstDelay` 槽 |
+| **三艘炮艇的造价** | 战车工厂 2000 | **核弹炮艇 1000000 / 空中炮艇 100000 / 集束炮艇 10000000**。本模组 `BuildSpeed=.025` 是全局的，建造时间 ≈ `Cost × .025 × .9` 帧（150 秒 / 25 分钟 / ~4.2 小时），所以这三档价格实际等于"只能靠投放超武拿"；投放超武不看 `Cost=` |
+| **玩家核弹** | 要造发射井、每 10 分钟一发 | **0 号位玩家无限核弹**：新增独立超武类型 `ZAIUnlimitedNuke`（`SW.AlwaysGranted=yes` 免发射井、`RechargeTime=0.01` ≈0.6 秒、`SW.AllowAI=no`；写 0 会被引擎当成"未设置"回落到 10 分钟）；**电脑的 `NukeSpecial` 原封不动**，照旧 10 分钟一发 |
 | **超级武器** | 充满后 AI 不放 | **充满即自动发射**：给 AI 可造的 6 个带目标超武写 `SW.AutoFire=yes` / `SW.UseAITargeting=yes`（Ares 超武扩展） |
 | 围墙占防御 | 50 / 25 / 10 | **`AIPickWallDefensePercent=0,0,0`**：AI **完全不造围墙**（墙会占防御名额又堵路），防御抽签全部落到真枪 |
 | 额外矿场 | 2 / 1 / 0 | **`AIExtraRefineries=0,0,0`** |
@@ -61,13 +67,13 @@
 
 | 项 | 原版 | SuperAI |
 | --- | --- | --- |
-| 组队间隔 `TeamDelays` | 2000/2500/3500 帧 | **300/450/600 帧（20/30/40 秒）** |
+| 组队间隔 `TeamDelays` | 2000/2500/3500 帧 | **300/450/600 帧（困难 20 / 中等 30 / 简单 40 秒）** |
 | 同时队伍上限 | 30 | **10**（每户） |
 | 进攻队编制 | 基准 | **原版规模**（65 支作战队伍，不再 ×2；苏联装甲 7、天启 4、盟军超硬 13） |
 | 进攻触发器权重 | 70 / 下限 10 | **67 个进攻触发器 250 / 下限 150，三难度全开** |
 | 集结行为 | 先回基地、再到敌方基地外集结 | **不集结，出生即冲锋**（151 支队伍改用 `ZAIATK01-G`；3 支 MCV 队伍保留原版 `043F23CC-G` 移动并展开；9 支带铁幕/超时空动作的队伍保留零售脚本） |
 | 守家队伍 | 2 支 | **0 支**（全部队伍都是进攻队；`UseMinDefenseRule=no` 必须配套，否则 AI 一兵不发） |
-| 中后期囤兵 | 无处理 | **地图触发器每 20 秒 All to Hunt** |
+| 中后期囤兵 | 无处理 | **地图触发器每 60 秒 All to Hunt** |
 
 ### 地图
 

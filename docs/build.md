@@ -20,12 +20,23 @@ python tools/build_mod.py --rules-dir "<原版规则目录>" --out mod/SuperAI
 输出：
 
 ```
-rules: AIBuildCounts on 21 building types
-aimd : 65 attack teams, 160 charged, 60 task forces rescaled, 67 triggers boosted (1 shared task forces skipped)
+rules: AIBuildCounts on 6 building types (empty table = retail rhythm)
+aimd : 151 team types charging, 9 kept their superweapon script, 6 MCV triggers re-armed
+air  : 12 air teams (Max<=6, 12 raised), +8 aircraft, 11 air triggers weighted x3
+aa   : 41 AA teams, 43 AA triggers weighted x2
+nuke : [ZAINukeMissileWH] is retail [NUKE]'s 9 keys under another name, so the engine's NUKE block (screen flash + global relight) never runs
+csf  : 3 label(s) in ares.csf (空中炮艇, 集束炮艇, 核弹炮艇)
+cluster: 4 launches a trigger (all BurstDelays 0), each mother is a nuke and lands 0-200 cells off the aim point, then splits into 1 child that flies back to the aim point; 8 warheads, 5 landing points; Sight=200
 ```
 
 `--no-art` 可以跳过 `artmd.ini`（本模组没有改它，引擎会回退到原版）。
 发布版仍保留该文件，保证「整包替换」的行为一致。
+
+构建还会写 `ares.csf` —— 模组自己的界面文字表，由 [tools/csf.py](../tools/csf.py) 生成，
+内容来自 `build_mod.py` 的 `UI_LABELS`（`UIName=` 是 **CSF 标签**，不是文字；
+标签查不到游戏会画 `MISSING:'…'`）。Ares 游戏在 `ra2md.csf` 之后追加这张表，
+**与界面语言无关**，所以中文界面、英文界面都会显示这两个名字。
+改名字只改 `UI_LABELS` 一处，然后重新构建。
 
 ## 2. 重建地图
 
@@ -152,19 +163,23 @@ python tools/build_maps.py info --src maps/SuperAI-Flat120.yrm
 
 ## 4. 可复现性
 
-发布版（v1.9）与仓库内的构建脚本结果：
+发布版（v3.13.5）与仓库内的构建脚本结果：
 
 | 产物 | 结果 |
 | --- | --- |
 | `mod/SuperAI/rulesmd.ini` | 逐字节一致 |
 | `mod/SuperAI/artmd.ini` | 逐字节一致（原版复制） |
 | `mod/SuperAI/aimd.ini` | 逐字节一致 |
+| `mod/SuperAI/ares.csf` | 逐字节一致（`tools/csf.py` 按标签排序写出） |
 | `SuperAI-IceLake-1v7.yrm` | 逐字节一致 |
 | `SuperAI-IceLake-1v7-NoOre.yrm` | 逐字节一致 |
 | `SuperAI-IceLake-120-NoOre.yrm` | 逐字节一致（用 2.1.1 的 `ice120` 重建） |
 | `SuperAI-Flat30.yrm` | 逐字节一致 |
 | `SuperAI-Flat120.yrm` | 逐字节一致 |
 | `SuperAI-Flat200.yrm` | 逐字节一致（构建时加 `--terrain-newline crlf`） |
+
+> v3.13.5 的地图带 20 秒 AIHunt；当前仓库已改为 60 秒，因此表中地图产物不再与
+> v3.13.5 逐字节一致。`rulesmd.ini` / `aimd.ini` / `ares.csf` 仍一致。
 
 模组构建依赖原版规则文件的字节内容；不同语言版本（`rulesmd.ini` 被本地化修改过）
 会导致 `RULES_EDITS` 找不到原值而报错，这是有意的保护。

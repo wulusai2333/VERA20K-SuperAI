@@ -25,6 +25,24 @@ vera20k.exe --probe --ra2-dir "<YR 数据>" --mod SuperAI
 模组声明了 `[Extensions] Ares=yes`，但引擎或数据不完整时可能拒绝加载。
 把 Ares 设为 `Auto`，确认游戏数据里有完整的 `rulesmd.ini` 等文件。
 
+### 三个核弹超武里有两个显示成 `MISSING:'NAME:…'`
+
+说明模组的 `ares.csf` 没被读进来。`UIName=` 是 CSF 标签，标签查不到引擎会**照字面**画
+`MISSING:'NAME:…'`，不会回退到别的文字。
+
+- 确认 `<游戏目录>/Mods/SuperAI/ares.csf` 存在（`install.py` 会整目录复制；手动装漏了它就会这样）；
+- 确认这是 **Ares 游戏**（`VERA.INI` 的 `Ares=Auto` 或 `On`）：只有 Ares 游戏才追加
+  `ares.csf`/`ares_<语言>.csf`/`stringtableNN.csf`；
+- 看启动日志里的这一行，`supplements` 为空数组就是没读到：
+
+```text
+Loaded CSF string table: ra2md.csf; supplements=["ares.csf"]
+```
+
+- 用 `python tools/check.py --game-dir "<游戏目录>"` 的 `sidebar names` 一项比对安装文件与仓库是否一致；
+- 不要试图用 `UIName=NOSTR:文字`（那是 Ares 的前缀写法，VERA20k 没实现，只会显示
+  `MISSING:'NOSTR:…'`）。
+
 ## 对局
 
 ### 一进地图就游戏结束
@@ -152,6 +170,31 @@ ForceShield 这类**不用选目标**的超武由 AI 自动使用；核弹/闪�
 > **一律静默接受**（`SW.TotallyBogusKey=1` 也不报错）、录像只存玩家指令。
 > 详见 [ai-tuning-playbook.md §13.1.2](ai-tuning-playbook.md#1312-三个无头判定器全部失效29-实测记录)。
 
+### 集束炮艇不开花 / 只炸出一个小坑 / 看不到子弹
+
+- **子弹只在母弹落点原地爆 / 看不到子弹飞出去**：①`ROT>0` 的子弹出膛速度被归一化成
+  1 雷普顿/帧，必须在子弹丸写 `Acceleration=`（默认只有 3）并把子武器 `Speed=` 调大
+  （本模组 `800` / `250`）；②分裂中心默认是**母弹落点**，要让子弹飞离落点必须
+  `AroundTarget=yes`，再让母弹的 `BallisticScatter` 把落点甩远；
+- **第一道门：子武器没被任何 TechnoType 武器槽登记**。仅靠 `AirburstWeapon=` 命名的武器会在
+  **Weapon 扫描之后**才被分配，段永远读不到（`damage=0`、`projectile=None`）→ 一颗子弹都不出。
+  必须再挂一次：`Secondary=<子武器>`（本模组就是这么做的，子武器 `Range=0` 所以不会真开火），
+  或 `DeathWeapon=`。**自检**：启动日志 `RuleSet loaded: ... N projectiles` 里的 N，
+  挂上之后应该 +1（子弹丸第一次被读入）；不 +1 就是没生效；
+- **第二道门：子子弹丸没有 `ROT`（不是追踪弹）**。空气爆给出的出膛速度几乎是**竖直向下**，
+  引擎只对 `ROT > 0` 的弹体重新瞄准，弹道轨迹（`Arcing`）永不重瞄 → 子子弹全部在母弹落点原地
+  炸掉，正好埋在母弹的爆炸里。子子弹丸要照零售 `[ClusterBits]`：`Arm=2` + `ROT=60` +
+  `Proximity=yes` + `Ranged=yes`，**不要 `Arcing`**；
+- **先看弹丸段**：`Airburst=yes` 必须配 `AirburstWeapon=`，**缺了引擎整段静默不分裂**（不报错）；
+  且被指向的子武器**必须带 `Projectile=`**，否则连一颗子弹都不发；
+- **颗数不是 `Cluster=` 管的**：不带 `Splits=` 时引擎根本不读它，颗数 = `AirburstSpread=` 半径内
+  的地图格数（1.0→5、1.5→9、2.0→13、3.0→29、4.0→49）。想让环更大就调这个半径；
+- **子弹一落地就闪白 + 地图整体变暗/变亮**：弹头用了零售 `[NUKE]` 这个名字，换成克隆段
+  （`ZAINukeMissileWH` / `ZAINukeWH`）；
+- **开火时掉帧**：半径开了太大。每 +1 格 ≈ 颗数 ×2；本模组断言把 `AirburstSpread` 钉在 1.0–3.0；
+- 想让一颗子弹再分裂一次？**不要**：子级带 `Airburst`/`Splits`/`ShrapnelCount` 会指数级增长，
+  构建期断言会直接拒绝。
+
 ### AI 建筑被打掉了却不重建
 
 「打掉就重建」是引擎原生的节点重规划，不需要触发器，但**按类型分档**：
@@ -166,7 +209,7 @@ ForceShield 这类**不用选目标**的超武由 AI 自动使用；核弹/闪�
 2. 那种建筑**有没有进过基地计划**：从没规划过的类型永远不会补
    （`AIBuildThis=no` 的类型进不了计划）。
 3. 是不是**没有建造厂**：没有建造厂时引擎什么都不造，只能等基地车。
-4. 连续 6 次选址失败后节点会被**删除**（`MaximumBuildingPlacementFailures=5`），
+4. 连续 4 次选址失败后节点会被**删除**（`MaximumBuildingPlacementFailures=3`），
    此后那种建筑不会再补 —— 基地被围死时会看到这个现象。
 5. 想量化验证，用重建事件报告：
 

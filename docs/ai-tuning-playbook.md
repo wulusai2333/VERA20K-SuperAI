@@ -466,6 +466,29 @@ python tools/analyze_log.py --log "<游戏目录>/logs/ra2.log" --session all --
 - **纪律**：涉及「造不造兵、组不组队、打不打」的问题，**不能只靠日志下结论**，
   要么进游戏看，要么先做一个可观测的间接信号。这正是 7.11 拖了一整轮才定位的原因。
 
+### 7.14 把「科技树按顺序建全」当成硬门槛（2026-11-24）
+
+- **疑问**：要求 AI 按「电厂 → 矿场 → 兵营 → 战车工厂 → 雷达 → 高科 → 维修厂 → 防御」
+  的顺序建全，会不会让 AI 卡死？
+- **结论**：不会——引擎没有「按顺序等待」这条逻辑。计划由 `recalc_base_plan` 一次性按
+  `Prerequisite` 拓扑排好；`choose_building` 取「第一个未满足的节点」就设 `building_choice`，
+  建筑生产也不查前置（`production/factory_lifecycle.rs` 明说 AI 建筑不问前置；
+  `production::can_build` 只被单位和队伍调用）。顺序是生成结果，不是可下发的规则。
+- **硬做才会卡**：
+  1. 计划只生成一次 → 任何「压后/删类型」永久生效（2.2 的维修厂 `AIBuildThis=no` 就是实例：
+     MCV 的 `GAWEAP+GADEPT` 永远不满足，厂一丢就永久损失）；
+  2. 维修厂被压后（给前面的类型加副本、给它加前置）→ MCV（单位，检查前置）晚一档才能造；
+     这段窗口里若建造厂被拆，5000 权重的 MCV 触发器还会压掉所有进攻触发器（2.2/2.3 的
+     「基地正常、一兵不发」）。注意：苏军的零售 `[BuildingTypes]` 顺序本来就是高科在前
+     （NATECH 11 < NADEPT 27），这是数据现状，不是本条要求的产物；别在此基础上再压后；
+  3. 防御不是普通计划节点：`-1` 在生成时随机插在 index ≥4，`choose_next_production`
+     用「当前拥有的非防御建筑」筛前置，筛不出就 `remove_node`（不是延后）。所以「防御最后」
+     等于白扔 25/20/6 的防御预算，也丢掉最主要的向外扩张驱动。
+- **验收别拿顺序当闸门**：战损下重建节点会插队（`find_node` 取最靠前的未满足节点），
+  日志里的首现顺序必然被打乱；`analyze_log.py` 的 `ORDER` 只用于分组，不判顺序。
+- **边界（与顺序无关）**：`MaximumBuildingPlacementFailures=3` 时，某类型连续 4 次因单位挡路
+  放不下，计划节点会被删且不补回；若删的是维修厂，同样会断 MCV 链（代码路径，未实测）。
+
 ---
 
 ## 8. 源码位置速查
@@ -513,7 +536,7 @@ AIRestrictReplaceTime=0     ; 0 = 不限制；零售 400（约 27 秒）
 - **重建会插队**：重建的是同一个节点，位置不变（通常很靠前），而
   `choose_building` 取的是**最靠前的未满足节点**，所以「被打掉的东西」
   天然比「还没造过的东西」优先。
-- **失败会放弃**：连续 `MaximumBuildingPlacementFailures + 1`（默认 6）次放不下，
+- **失败会放弃**：连续 `MaximumBuildingPlacementFailures + 1`（本模组 3，即第 4 次删节点）次放不下，
   节点会被删掉（`base_plan.rs` → `count_placement_failure`），不会无限硬撑。
 
 ### 9.1 三条硬边界
@@ -577,7 +600,7 @@ AIRestrictReplaceTime=0     ; 0 = 不限制；零售 400（约 27 秒）
   两台同点会互相挡住（`MCV deploy blocked`），所以不做。
 - 前提仍是维修厂可建（`AIBuildThis=yes`）：`assert_mcv_recovery_fillable` 强制
   6 条 MCV 触发器与「三个维修厂可建」必须同时成立，否则构建失败。
-  局内维修厂被打掉无法预防，靠 `DissolveUnfilledTeamDelay=900`（60 秒）解散重试。
+  局内维修厂被打掉无法预防，靠 `DissolveUnfilledTeamDelay=2400`（160 秒）解散重试。
 
 ### 9.3 怎么验证「重建」生效
 
@@ -621,7 +644,7 @@ python tools/analyze_log.py --log "<游戏目录>/logs/ra2.log" --session last -
 | 维修厂 `AIBuildThis=yes` | — | 重建基地车的**前提** |
 | `AIPickWallDefensePercent` | **`0,0,0`** | **完全不造围墙**，见 §11 |
 | `AIExtraRefineries` / `AISlaveMinerNumber` | `0,0,0` / `2,2,2` | 修 Yuri 矿场自我复制与同格重建 |
-| `DissolveUnfilledTeamDelay` | `900` | 凑不齐的队伍尽快腾出编制 |
+| `DissolveUnfilledTeamDelay` | `2400` | 凑不齐的队伍尽快腾出编制 |
 | `MultiplayerAICM` / `BuildSpeed` / `Paranoid=no` | — | 模组身份与 FFA 观战 |
 
 ### 10.3 代价
@@ -799,7 +822,7 @@ attacked  lightningstorm_inactive  dominator_inactive
 | 我们做的事 | 后果 |
 | --- | --- |
 | 151 支队伍换成 `ZAIATK01-G`（不集结、出生即冲锋） | 部队一出来就散开、持续移动 |
-| 地图 `AIHuntAll` 每 20 秒把槽位 1–119 全部 All to Hunt | 临时聚起来的部队每 20 秒再被打散 |
+| 地图 `AIHuntAll` 每 60 秒把槽位 1–119 全部 All to Hunt | 临时聚起来的部队每 60 秒再被打散 |
 
 所以有一个很有力的怀疑：**不是 AI 不想放，而是它找不到一个 3×3 里塞着自家部队的格子**。
 这也解释了为什么核弹/闪电正常 —— 它们要的是"敌方格子"，那种格子遍地都是。
@@ -819,7 +842,7 @@ python tools/build_mod.py --rules-dir "<原版规则目录>" \
 
 | 结果 | 结论 | 下一步 |
 | --- | --- | --- |
-| **集结版会放铁幕/超时空** | 我们的进攻逻辑确实消灭了触发条件 | 谈取舍：队伍在基地停留几秒、或把 All to Hunt 从 20 秒放宽到 45–60 秒 |
+| **集结版会放铁幕/超时空** | 我们的进攻逻辑确实消灭了触发条件 | 谈取舍：队伍在基地停留几秒、或把 All to Hunt 放宽到 60 秒（当前已生效） |
 | **两版都不放** | 与进攻逻辑无关，是引擎没有「作用于自家单位」的 AI 发射路径 | 记为引擎限制，停止调配置 |
 
 > 为什么必须靠人眼：超武发射**不写日志**（只有 `force_shield` 写）、录像只存玩家指令、
@@ -920,7 +943,7 @@ python tools/build_mod.py --rules-dir "<原版规则目录>" \
 
 ---
 
-## 14. 防御选型：为什么 AI 防空造得少（3.1 修掉）
+## 14. 防御选型：为什么 AI 防空造得少（3.1 曾改，3.11.6 回滚）
 
 ### 14.1 机制：**先选类别，再选建筑**
 
@@ -951,31 +974,31 @@ air 类别要胜出，得让**敌人的空中占比**超过我方防空覆盖 �
 > **和"打掉才重建"无关**：重建只管"节点空了要不要再建一栋"，
 > "建哪一种"完全由上面的类别逻辑决定。防空少是**选型**问题，不是产量问题。
 
-### 14.3 修法：给盟/苏防空炮尤里那个形状
+### 14.3 现状：3.11.6 已回退零售值
+
+3.10.x 曾给 `[NASAM]`/`[NAFLAK]` 加地面值（`AntiInfantryValue=25` / `AntiArmorValue=10`），
+让它们三类都是候选；3.11.6 确认这是 hack 并回退：
 
 ```ini
-[NASAM]  AntiInfantryValue=25   AntiArmorValue=10     ; 零售 0 / 0
-[NAFLAK] AntiInfantryValue=25   AntiArmorValue=10     ; 零售 0 / 0
+[NASAM]  AntiInfantryValue=0   AntiArmorValue=0   AntiAirValue=25   ; 零售
+[NAFLAK] AntiInfantryValue=0   AntiArmorValue=0   AntiAirValue=25   ; 零售
 ```
 
-- **防御节点数一个没动**（`*BaseDefenseCounts` 仍是零售 `25/20/6`），
-  建造强度不变，只是同样这些节点里防空被选中的概率从"几乎 0"提到和盖特机炮同级；
-- 权重分布：infantry 25/100、armor 10/55、air 100%（唯一候选）；
-- 想更激进就调大这两个数（如 30/15），想收一点就 15/5 —— 一个旋钮。
-
-`assert_aa_defenses_competitive` 守住这一点：三个防空建筑的三类值必须**都非零**，
-否则构建失败 —— 因为 `0/0/25` 这种"看起来正常、实际被架空"的数值最容易在换数据时静默回归。
+- 防御节点数一个没动（`*BaseDefenseCounts` 仍是零售值）；
+- 盟/苏防空炮只在 air 类别候选，而 AI 之间几乎没有空军，所以 air 很少赢 ——
+  防空建筑占比回落到零售的 12–17%。这是**引擎行为**（类别由敌方三类造价份额决定），配置扭不动；
+- `assert_aa_defenses_competitive` 现在**钉住零售**：只要求 `AntiAirValue > 0`，
+  且 `NASAM`/`NAFLAK` 地面值为 0/0、`YAGGUN` 为 25/10；谁再给地面值，构建失败。
 
 ### 14.4 怎么量
 
-`tools/analyze_log.py` 现在会报防空占比，并带一条 `AA_MIN=20%` 的闸门：
+`tools/analyze_log.py` 仍报告防空占比，但**不再设 FAIL 闸门**（3.11.6 之后 20% 已不可达）：
 
 ```
 AA: 6 of 17 defences (35%)
-PASS  AA defences 6 of 17 (35% of defences, gate 20%)
 ```
 
-改动前的基线：`NASAM` 41 / `NAFLAK` 29 / `YAGGUN` 62（占各自防御 12–17%）。
+零售基线：`NASAM` 41 / `NAFLAK` 29 / `YAGGUN` 62（占各自防御 12–17%）。
 
 ---
 
@@ -1004,7 +1027,7 @@ PASS  AA defences 6 of 17 (35% of defences, gate 20%)
 | 改动 | 数值 |
 | --- | --- |
 | 空军队伍上限 | `Max` `1` → **`6`**（9 支队伍） |
-| 每支空军队伍的飞机数 | `max(零售+1, 3) × 2` → **6–10 架**（上限 16） |
+| 每支空军队伍的飞机数 | `max(零售+1, 3) × 2` → **6–10 架**（上限 16；机场型另见 §16，压到 4 架） |
 | 空军触发器权重 | **×3**（上限 1500） |
 | 防空触发器权重 | **×2**（上限 1500） |
 
@@ -1014,11 +1037,13 @@ PASS  AA defences 6 of 17 (35% of defences, gate 20%)
 - 上限 1500 保证不会盖过 5000 权重的接管触发器（MCV 扩张 / 超武）；
 - 只改权重和数量，**没有新增队伍类型**，所以不会破坏 TaskForce 的兵种搭配。
 
-结果：空军从「每户同时最多 1 支、1–4 架」变成「**最多 6 支、每支 6–10 架**」；
+结果：空军从「每户同时最多 1 支、1–4 架」变成「**最多 6 支**」；每支数量按机型
+（机场型 4、基洛夫 6–8、火箭兵 6，见 §16）；
 带防空的队伍在抽签中的权重占比从约 28% 提到约 44%。
 
 实际数值（零售 → 3.3）：黑鹰 4→10、入侵者 4→10、入侵者支援 2→6、
 基洛夫（硬）3→8、基洛夫（中）2→6、基洛夫（反巨炮）1→6。
+（3.6 把机场型的黑鹰/入侵者压到 3 架/队；当前已改为 4 架/队、`Max=3`，见 §16；基洛夫/火箭兵不变。）
 
 > **规模提醒**：6 队 × 10 架 = 单户理论峰值 60 架。战机便宜（1200/2000）、
 > 10 万初始资金够用，但单位数明显上升，可能影响帧率；超编飞机还会在空中排队待降。
@@ -1059,14 +1084,14 @@ PASS  AA defences 6 of 17 (35% of defences, gate 20%)
 砸到 30 之后就停在地板 —— 而普通进攻触发器是 40–70，所以空军「再也抽不到」。
 我们的进攻队不受影响：`ZAIATK01-G` 第二步就是 `49`，基本都算成功。
 
-**叠加因素**：我们把 `DissolveUnfilledTeamDelay` 改成过 900（15 秒）。
+**叠加因素**：我们把 `DissolveUnfilledTeamDelay` 改成过 900（60 秒）。
 一支 10 架飞机的队伍，第一架还没下线就被判「空队伍解散」，**这也算一次失败**。
 
 **修法**：
 
 1. 空军触发器的三个权重槽**全部设成三者最大值** → 钳制区间退化成一个点 → **权重恒定**，
    失败多少次都不掉（`210/210/210`、`1500/1500/1500`）；
-2. `DissolveUnfilledTeamDelay` **900 → 2400**（40 秒），让慢队伍有机会出现第一个成员。
+2. `DissolveUnfilledTeamDelay` **900 → 2400**（160 秒），让慢队伍有机会出现第一个成员。
 
 **防回归**：`assert_air_and_aa_boosted` 现在要求每条空军触发器的 `weights[1] == weights[2]`，
 否则构建失败（实测会把 `210/30/210` 这种形状报出来）。
@@ -1129,11 +1154,11 @@ AirstripLimit=0                           ; ← 额外机库上限是 0：永远
 
 | 项 | 零售/旧 | 3.6 |
 | --- | --- | --- |
-| `[AI] AirstripLimit` | `0` | **`4`**（1 座雷达位 + 4 座机库 = 5 座 = 20 个停机位） |
+| `[AI] AirstripLimit` | `0` | **`4`**（1 座雷达位 + 4 座机库 = 5 座 = 20 个停机位；该键在 §1.5 被列为确认死键——抽取源码无读取者，实际是否生效未实测） |
 | `[AI] AirstripRatio` | `.12` | **`.25`** |
-| 机场型飞机（`ORCA`/`BEAG`）每队 | 6–10 | **`3`**（一座空指部的容量内） |
-| 机场型空军队伍 `Max` | `6` | **`3`**（3×3=9 架 ≤ 12 个停机位，两座机库就够） |
-| 火箭飞行兵 `JUMPJET` 每队 | 12 | **`6`**（6 人能在 40 秒解散窗口内补齐，才会真的出现在场上） |
+| 机场型飞机（`ORCA`/`BEAG`）每队 | 6–10 | **`4`**（正好一座空指部的 4 个停机位） |
+| 机场型空军队伍 `Max` | `6` | **`3`**（4×3=12 架 = 3 座空指部的 12 个停机位） |
+| 火箭飞行兵 `JUMPJET` 每队 | 12 | **`6`**（6 人能在 160 秒解散窗口内补齐，才会真的出现在场上） |
 | 基洛夫 `ZEP` | 6–8 | **不变**（不需要停机位） |
 
 **不变量**：`每户机场型飞机数 ≤ 空指部数 × 4`。
@@ -1143,7 +1168,7 @@ AirstripLimit=0                           ; ← 额外机库上限是 0：永远
 
 `assert_air_and_aa_boosted` 现在检查：
 
-- 机场型飞机**每队 ≤ 4 架**（一座空指部的停机位），否则报
+- 机场型飞机**每队 4 架，且不得超过一座空指部的 4 个停机位**，否则报
   `ORCA team holds 10 aircraft but an airfield has only 4 pads`；
 - 机场型空军队伍 `Max ≤ 3`；
 - `JUMPJET` 每队 4–8 人；
@@ -1155,9 +1180,9 @@ AirstripLimit=0                           ; ← 额外机库上限是 0：永远
 2. 飞机**打完会回去降落补给**，不再在空中盘旋坠毁；
 3. 火箭飞行兵成批出现（每批 6 人，最多 6 批）。
 
-> 如果实测发现 AI 仍然只造一座空指部（`AirstripLimit` 语义与注释不符），
-> 退路是把机场型飞机压到每队 2 架、`Max=2`（4 架 = 一座空指部的容量），
-> 至少保证不再坠毁。
+> `AirstripLimit` 在 §1.5 的死键清单里（抽取源码无读取者），所以第 1 条**尚未实测**：
+> 先看基地里到底有几座空指部。如果实测仍然只造一座，退路是把机场型飞机压到
+> 每队 2 架、`Max=2`（4 架 = 一座空指部的容量），至少保证不再坠毁。
 
 ---
 
@@ -1237,10 +1262,10 @@ INFO vera20k_core::rules::ruleset::loading] SuperWeaponTypes: 12 loaded
 
 | | 第一艘 `ZAINukeGunship` | 第二艘 `ZAINukeGunship2` |
 | --- | --- | --- |
-| 武器 | `ZAINukeMissile`（追踪弹，`Warhead=NUKE`，`Burst=8`） | `ZAINukeRifle`（**原核弹火箭飞行兵**的武器：天启导弹克隆、`ROF=9`、`Burst=1`） |
-| 射程 | **20**（`GuardRange` 同步 20） | 200（沿用飞行兵原值） |
+| 武器 | `ZAINukeMissile`（追踪弹，`Warhead=ZAINukeMissileWH`，`Burst=8`） | `ZAINukeRifle`（**原核弹火箭飞行兵**的武器：天启导弹克隆、`ROF=9`、`Burst=1`） |
+| 射程 | **200**（`GuardRange` 同步 200；3.12.0 之前是 20） | 200（沿用飞行兵原值） |
 | 弹丸 | `ZAINukeMissileProj`（AA+AG 追踪弹） | `ZAINukeRifleProj`（弹道弹：`Arcing`+`Ranged`+`Inaccurate`+`FlakScatter`，无 `Arm`/`ROT`） |
-| 弹头 | `[NUKE]`（零售，未改） | `ZAINukeWH`（3 星无畏 `[DMISLEWH]` 克隆：`CellSpread=3`、`MININUKE`、弹头级 `BallisticScatter=200`） |
+| 弹头 | `ZAINukeMissileWH`（**零售 `[NUKE]` 的克隆段，9 个键一字不改**；3.12.0 之前直接挂零售 `[NUKE]`，于是每次命中都触发核弹特判 —— 见 [§19](#19-界面文字uiname-是-csf-标签3120)） | `ZAINukeWH`（3 星无畏 `[DMISLEWH]` 克隆：`CellSpread=3`、`MININUKE`、弹头级 `BallisticScatter=200`） |
 
 **方法论：先查二进制字段表，再信"某个键能不能按单位生效"**（3.11.2）：
 
@@ -1765,3 +1790,267 @@ SW.AllowPlayer=yes  SW.AllowAI=no  SW.AlwaysGranted=yes  SW.RequiresTarget=yes
 
 实测四种退化全部被拦：玩家 `RechargeTime=10` / 玩家 `AllowAI=yes` /
 电脑 `RechargeTime=0` / 电脑 `AllowAI=no`。
+
+---
+
+## 19. 界面文字：`UIName` 是 CSF 标签（3.12.0）
+
+### 19.1 三个核弹超武为什么都叫「核弹攻击」
+
+`UIName=` **不是文字**，是 CSF 字符串表里的**标签**。`AbstractTypeClass::ReadINI` 会拿它去
+进程字符串表查（`0x00410AFB..0x00410B69`），查到的才是显示名；`Name=` 只是内部/调试名，
+游戏任何地方都不显示。三个超武原来都写着 `UIName=Name:Nuke`，所以侧边栏、悬停提示、
+计时器上全是同一行中文「核弹攻击」。
+
+反过来的坑更难看：**标签查不到时引擎不会回退，而是照字面画出来**：
+
+```rust
+// src/assets/csf_file.rs
+pub fn text<'a>(&'a self, key: &str) -> Cow<'a, str> {
+    self.get(key).map(Cow::Borrowed)
+        .unwrap_or_else(|| Cow::Owned(format!("MISSING:'{key}'")))
+}
+```
+
+单元测试 `missing_key_uses_native_visible_marker` 钉死了这个行为：游戏里会显示
+`MISSING:'NAME:ZAINUKEGUNSHIPDROP'`。所以"给自建单位/超武起中文名"= **给它提供 CSF 行**，
+没有第二条路。
+
+### 19.2 正确做法：模组自带一张 `ares.csf`
+
+Ares 表单下引擎在 `ra2md.csf` 之后依次追加（`tools/rules_oracle/ares_csf.md`）：
+
+1. `ares.csf` —— **语言无关**（`ignore_language=true`）；
+2. `ares_<语言短码>.csf` —— 只有语言 dword 与基表一致（或 `0xFFFFFFFF`）才被接纳；
+3. `stringtable00.csf` .. `stringtable99.csf`。
+
+后加载的同名标签覆盖先前的；mod 文件夹的散装文件优先于安装目录（`AssetManager::from_roots`
+先把 mod 的 loose 文件挂进去）。本模组 `mod.ini` 已声明 `[Extensions] Ares=yes`，
+玩家的 Ares 设置为 `Auto` 时 `effective_ares()` 判为 `On` → `ships_ares()=true`，
+这条链才生效。
+
+**用通用 `ares.csf`，不要用 `ares_ch.csf`**：本地是中文界面（基表语言 `9`="ch"），但
+`ares_ch.csf` 只在语言码正好匹配时被读，换一个语言包就**静默丢弃**；通用表在任何语言下都读。
+文本是中文这一点是有意的（模组名、说明都是中文；英文界面下这两个名字也会是中文）。
+
+硬证据（启动日志）：
+
+```
+Loaded CSF string table: ra2md.csf; supplements=["ares.csf"]
+```
+
+`supplements` 是空数组就说明表没被读到 —— 那游戏里必然显示 `MISSING:'…'`。
+
+### 19.3 黑名单：Ares 的 `NOSTR:` 前缀在 VERA20k 里不生效
+
+Ares 允许 `UIName=NOSTR:内联文字`（跳过字符串表直接显示后面的文字）。**VERA20k 没有实现它**：
+
+- 引擎源码里没有任何 `NOSTR` 解析（`csf_file.rs` / `ares_labels.rs` / `object_type/reader.rs` /
+  `native_string.rs` 全无）；
+- Ares 的 `Misc/CSFLoader.cpp` 钩子在 `docs/ares-remaining.md` 里标为 **Deferred**，
+  VERA 用自己的 CSF 加载器；
+- 显示名只经过 `type_ui_name(ui_name, csf)` → `csf.text(key)` 一条路。
+
+所以写成 `UIName=NOSTR:核弹炮艇` 只会得到 `MISSING:'NOSTR:核弹炮艇'`。**别试。**
+
+### 19.4 第二个飞艇的弹头为什么必须换名
+
+引擎的"核弹命中特判"不看弹头内容，看**弹头名字**：
+
+```rust
+// src/sim/projectile.rs::nuke_impact
+if !nuke.interner.resolve(self.payload.warhead).eq_ignore_ascii_case("NUKE") {
+    return None;                       // 不是叫 NUKE 的弹头：普通引爆
+}
+```
+
+一旦进来（`src/sim/superweapon/nuke.rs::impact`）：`ScreenNukeFlash`（闪白屏）+
+`publish_global_lighting`（**整张地图的光照重算**，再由 `[AudioVisual]
+AmbientChangeRate/Step` 慢慢淡回）+ 一个 13 号雷达事件 + 等 `NUKEBALL` 动画才真正引爆。
+
+所以第二艘飞艇（`Burst=8`）挂零售 `[NUKE]` 时，一梭子会闪 8 次、地图光照被拉扯 8 次。
+把同一张伤害表换个段名（`ZAINukeMissileWH`）就绕开了整个特判：普通引爆，只播
+`AnimList=NUKEANIM`（artmd 原文 "nuke mushroom cloud explosion"）—— 蘑菇云留下，闪白和
+全局光照没了，伤害/半径一字未变。
+
+构建期两道锁：`assert_nuke_gunship` 断言弹头**不得叫 `NUKE`**；
+`assert_nuke_warhead_clone` 拿**零售** `[NUKE]` 逐键比对克隆段（多一个键也报错），
+保证"同一个爆炸、只是改了名"这件事不会漂。
+
+### 19.5 显示名清单（3.12.0）
+
+| 超武 | `UIName` | 界面文字 |
+| --- | --- | --- |
+| `ZAIUnlimitedNuke` | `Name:Nuke` | 核弹攻击（零售那行，**故意不动**） |
+| `ZAINukeGunshipDrop` | `Name:ZAINukeGunshipDrop` | 核弹炮艇 |
+| `ZAINukeGunship2Drop` | `Name:ZAINukeGunship2Drop` | 空中炮艇 |
+
+两种飞艇**单位**仍是 `UIName=Name:ZEP` → 「基洛夫空艇」；要改单位名，把这两处换成自己的标签
+即可（同样要落进 `ares.csf`）。
+
+---
+
+## 20. 子母弹：`Airburst=` 的真实归属、颗数公式与递归边界（3.13.0）
+
+### 20.1 六个键的真实归属（查读者，别按名字猜）
+
+| 键 | 归属 | 谁在读 | 语义 |
+| --- | --- | --- | --- |
+| `Airburst=` | **弹丸** | `projectile_type.rs` `read_bool("Airburst")` | 命中后进入分裂支路。零售 `[V3AirburstP]` 就在用，**它不是 VoxelAnim 键** |
+| `AirburstWeapon=` | **弹丸** | `projectile_type.rs` `airburst_weapon` | 子弹用它"造"：读子武器的 `Damage`/`Warhead`/`Projectile`/`Speed`。**缺它整段静默不分裂** |
+| `AirburstSpread=` | 弹丸（Ares BulletExt） | `ares_bullet_type.rs::read_ares_double_bits`，默认 `1.5` | 环半径（格），**决定颗数** |
+| `Cluster=` | 弹丸（原生 `+0x2AC`，默认 1） | **只在 `Splits=yes` 支路读** | 带 `Splits=` 时"要几个目标"；不带 `Splits=` 时**完全没用** |
+| `Splits=` | 弹丸（Ares BulletExt） | `ares_bullet_type.rs` | 换成"随机目标"支路：附近单位 + ±3 格随机格，最多 `Cluster=` 个 |
+| `ShrapnelCount=` / `ShrapnelWeapon=` | 弹丸（原生） | `sim/combat/shrapnel.rs` | 另一套子母弹：**要求命中格里第一个地面物体存在且不是建筑**，空地对地一颗不出 |
+
+### 20.2 走哪条支路
+
+```rust
+// src/sim/combat/airburst.rs
+if rules.ares() { ares_emit(...) } else { stock_emit(...) }
+```
+
+- **Ares 局（本模组：`Ares=Auto` + `[Extensions] Ares=yes` → 判成 On）** → `ares_emit`：
+  不带 `Splits=` 时按 `AirburstSpread` 撒格，`Cluster` 不参与；带 `Splits=yes` 时换成
+  「附近单位 + ±3 格随机格」的计数支路，`AirburstSpread` 不参与（见 §20.8）；
+- 非 Ares 局 → `stock_emit`：固定 **9 发**（八方向 + 中心），`AirburstSpread`/`Cluster` 都不读。
+
+### 20.3 颗数公式（Ares 支路、不带 `Splits=`）
+
+```rust
+// cell_range(): floor(radius + 0.99) * 2 + 1 的方格，保留欧氏距离 <= radius 的格
+let half = (radius + 0.99).floor();
+```
+
+即颗数 = 半径内的**整数格点数**，一格一颗：
+
+| `AirburstSpread` | 1.0 | 1.5 | 2.0 | 2.5 | 3.0 | 3.5 | 4.0 | 4.5 | 5.0 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 颗/发 | 5 | 9 | 13 | 21 | 29 | 37 | 49 | 69 | 81 |
+
+注意这张表**没有 8**：颗数是格点计数，半径怎么调都跳不到 8（1.0→5、1.41→5、1.42→9）。
+要"正好 N 颗"只能走 `Splits=yes` + `Cluster=N`（§20.8），这是本模组集束炮艇的选择。
+
+`build_mod.py::airburst_child_count()` 把这个公式实现了一遍，断言用它核对"你写下的半径"与
+"实际会生成多少子弹"。**每发颗数 × 每秒发数 = 每秒子弹数**：本模组 13 × (15/9) ≈ 22 颗/秒。
+
+### 20.4 子弹本体的九个事实
+
+1. **子武器必须被某个 TechnoType 武器槽登记**（`Primary`/`Secondary`/`Elite*`/`DeathWeapon`），
+   否则整段静默不出子弹。原因：`AirburstWeapon=` 是在 **Bullet 扫描**里解析的
+   （`native_processing/pass_families.rs:337-341`），而引擎的 **Weapon 扫描**早已跑完——
+   只被 `AirburstWeapon=` 命名的武器会被"构造但从不读段"：`damage=0`、`projectile=None`，
+   于是 `ares_emit` 在 `let Some(child) = weapon.projectile…` 处直接 return。
+   引擎自己的测试钉死了这件事：
+   `native_processing_tests.rs::airburst_reference_retains_rebinds_and_keeps_native_factory_timing`
+   （`AirburstWeapon=LATE` → `damage==0`、`projectile.is_none()`）。
+   **零售也踩过同一个坑**：`rulesmd.ini:6559` 那句
+   `Secondary=V3Cluster ;gs Looks like hack is weapons must be represented once`。
+   本模组的规避：`[ZAINukeGunship3] Secondary=ZAINukeClusterChild`，子武器 `Range=0`
+   （登记槽永不参与实战），构建期断言 `assert_nuke_gunship3` 两条都钉住。
+   可观测证据：修前日志 `42 projectiles`，修后 **`43 projectiles`**（子弹丸首次被真正读入）；
+2. 子武器只被读 `Damage` / `Warhead` / `Projectile` / `Speed`（+ `Bright`），`ROF`/`Range` 是
+   炮塔冷却，跟子弹无关；但**子武器的 `Projectile=` 必填**，缺了连一颗都不发；
+3. **子子弹丸必须是追踪弹（`ROT > 0`）**，否则它在母弹落点原地炸掉——表现为"一颗子弹都看不到"。
+   原因链：Ares 支路给子子弹的出膛速度**几乎是正下方**（`ares_airburst_launch_velocity`：
+   水平 `cos(1.5π·1.00001)` ≈ -2.4e-16、垂直 `-Speed`），原生引擎随后靠 **`MoveTo`** 把它重新
+   指向目标格；VERA 的 `spawn_ares_child` 没有 `MoveTo`，只有 `FiredBullet::launched` 在
+   `rot > 0` 时才会重算朝向，而 `ProjectileTrajectory::Ballistic` 只做重力积分、永不重瞄。
+   零售 `[V3AirburstP]` 的子武器用的是 `[ClusterBits]`（`Arm=2` + `ROT=60`）就是这个道理；
+4. 因为追踪弹**不会散**，子子弹丸写 `Inaccurate` / `FlakScatter` / `BallisticScatter` 都是废键；
+   想让子弹"看起来乱"，只能靠 `AirburstSpread` 的环（以及母弹自己的大散布）；
+5. 母弹带 `Inaccurate=yes` 时，命中坐标取**自身 Location**（不吸附目标）→ 分裂中心就是实际落点；
+6. 母弹自己的伤害照常结算（`airburst::emit` 在伤害/碎片之后跑），所以"母弹 3 格 + 子弹 10 格"
+   这种组合是可以并存的；
+7. 子弹伤害吃开火方的火力/精英加成（`AirburstWeapon.ApplyFirepowerMult`，子子弹继续继承）；
+8. **`ROT>0` 的子弹出膛速度被归一化成 1 雷普顿/帧**（`FiredBullet::launched` 对 `rot>0` 调
+   `bullet_fire_homing_velocity`，实现是 `scale_to_speed(v, 1, ..)`）。真正的速度靠
+   `homing::ramp` 每帧加 `Acceleration=`（弹丸键，默认 3）爬到武器 `Speed=`；
+   **但 `Acceleration=` 只能小，不能大**：`homing::track` 的第一步是 `advance(old, velocity, 1)`
+   ——**先按当前速度直走，转向在之后**；而出膛速度是**竖直向下**的。子弹出生被
+   `bullet_unlimbo_coord` 抬到 **地面+1**，地形跟随块（`candidate.z += 18`）每帧只补 18。
+   所以第一步下沉 `1 + Acceleration`：大于 18 就钻到地下，第二帧 `homing_impact_admission`
+   的 `old_height <= 0` 判触地 → **子弹在爆点自爆**（3.13.4/3.13.5 的 `Acceleration=250`
+   就是这样，一颗都没飞出去）。本模组用 `Speed=800` + `Acceleration=10`（下沉 11，净 +7，
+   之后按 18/帧爬到离地约 2 格再平飞）；
+9. **`Arm=` 是子弹的"免疫窗口"**：`ROT>0` 的子弹近炸引信被**强制**打开
+   （`ranged_fuse = tracks_target || Ranged`），但只有 `Arm=` 到期后引信才开始检查
+   （`projectile.rs` 的 `arm_timer.expired(...)`）。把 `Arm=` 设成比飞行时间更长
+   （本模组 60 帧 = 4 秒，覆盖爬升 + 50–100 格飞行），子弹途中就不会被母弹爆炸、其它子弹或路过的单位引爆；
+   到达目标格时由 `homing::step` 的到达判定引爆，与引信无关；
+10. **`AroundTarget=`（Ares 弹丸键）决定分裂中心**：不写＝取 `Splits=`（默认 false）＝**母弹落点**；
+   写 `yes`＝母弹**瞄准的那个点**。想让子弹离开落点飞出去，必须 `AroundTarget=yes`，
+   再让母弹自己的 `BallisticScatter` 把落点甩到远处。
+
+### 20.5 递归与性能边界
+
+- 子级**不得**再带 `Airburst` / `Splits` / `ShrapnelCount` / `SpawnsNumber`：否则一炮变指数级。
+  本模组由 `assert_nuke_gunship3` 强制；
+- 引擎对 `AirburstSpread` **没有上限**（只有 `Cluster`/`ShrapnelCount` 限 256，`SpawnsNumber` 限 128），
+  所以要在构建期自己钉：本模组限 `1.0..=3.0` 且派生颗数 ≤ 49；
+- 手感与成本的换算：**半径 +1 格 ≈ 颗数 ×2**（面积），射速不变时 CPU 与屏幕开销同步翻倍；
+- **子弹落点散布的上限**：一颗子弹对应环内一个格，`Splits=` 支路的随机格写死 `±3`，而
+  `spawn_ares_child` **不读 `BallisticScatter`** —— 所以"子弹散开 50–100 格"在引擎里做不到
+  （半径 50 格 = 317 颗、100 格 = 3 万+ 颗）。要"大范围"只能让**母弹**散布大
+  （`BallisticScatter`），子弹再飞回瞄准点开花；"飞 50–100 格"成立，"炸在 50–100 格范围里"不成立；
+- **`BallisticScatter` 会被 flak 支路按射程缩水**：`Inaccurate=yes` + `Arcing=true` 时，
+  `launch_scatter_is_flak` 取 `FlakScatter && !Inviso`；flak 支路的幅度是
+  `random(min,max) × 实际距离 ÷ 武器射程`（`launch.rs::flak_magnitude`）。射程 200、在 100 格处开火，
+  50–100 的抽签只剩 25–50 格。写 `FlakScatter=no` 切到普通支路（值原样使用）才能保证任意距离都 50–100；
+- **`Sight` 必须 ≥ 射程**：玩家单位只打自己看得见的目标，`Range=200` + `Sight=20` 等于 20 格射程。
+
+### 20.6 第四个超武「集束炮艇」（3.13.10 定稿：4 发齐射、母弹也是核爆、每发带 1 颗子弹）
+
+| 段 | 关键值 |
+| --- | --- |
+| `ZAINukeGunship3`（单位） | `Image=ZEP`、`BalloonHover`、`GuardRange=200`、`Sight=200`、`Primary=ZAINukeCluster`、`Cost=10000000`、**`BurstDelay0..3=0`**、**`Secondary=ZAINukeClusterChild`** |
+| `ZAINukeCluster`（武器） | `Damage=600`、`ROF=9`、`Range=200`、**`Burst=4`**、`Speed=20`、`Warhead=ZAINukeMissileWH`（10 格核爆，和子弹同款） |
+| `ZAINukeClusterProj`（母弹） | `Arcing`+`Ranged`+`Inaccurate`+`FlakScatter=no`+`BallisticScatter 0/200`、`Airburst=yes`、`AirburstWeapon=ZAINukeClusterChild`、`Splits=yes`、**`Cluster=1`**、**`AroundTarget=yes`**、`RetargetAccuracy=0`、`RetargetSelf=no` |
+| `ZAINukeClusterChild`（子武器） | `Damage=200`、`Speed=800`、`Warhead=ZAINukeMissileWH`、`Range=0` |
+| `ZAINukeClusterChildProj`（子弹丸） | `ROT=60`、`Arm=120`、`Proximity=no`、`Ranged=yes`、`Acceleration=10` |
+
+一次扳机（`ROF=9` = 0.6 秒）：
+
+1. 4 发在 ~0.27 秒内出膛（四个 `BurstDelay` 都是 0，引擎仍是一 tick 一发）；
+2. 每发各自抽 `BallisticScatter`：0–200 格、方向随机；落地即 10 格核爆；
+3. 每发落地同帧裂 **1 颗**子弹，目标格 = 点击点 ±3 格内随机；
+4. 子弹飞回点击点，到达即 10 格核爆。
+
+**结果**：4 个随机核爆 + 1 个被集火的点 = **5 个落点**；弹头总数 **8**（4 母 + 4 子）。
+目标点的 4 颗子弹仍会在 ±3 格里重叠，看不出 4 个坑——第二层散布是引擎写死的。
+
+### 20.7 犯过的错（留档）
+
+| 结论 | 真相 |
+| --- | --- |
+| "`Airburst` 是 VoxelAnim 键，挂在弹丸上无效" | 错：它是弹丸键（零售 `[V3AirburstP]`）。当时真正的原因是**没配 `AirburstWeapon=`**，引擎整段 return |
+| 子子弹丸用 `Arcing` + `BallisticScatter` 就能"散" | 错（3.13.0 实测）：`ROT=0` 的子子弹保留空气爆的竖直向下速度、原地爆炸。必须 `ROT>0`（见 §20.4 第 3 条） |
+| 子武器只写 `AirburstWeapon=` 就够 | 错（3.13.2 实测）：它会在 Weapon 扫描之后才被分配，段永不读取（`projectile=None`）→ 一颗子弹都不出。必须再用某个 TechnoType 槽位登记一次（见 §20.4 第 1 条；零售 `Secondary=V3Cluster` 同理） |
+| "`Cluster=` 控制子母弹颗数" | 错：不带 `Splits=` 时读都不读；颗数由 `AirburstSpread=` 的格数决定 |
+| 外部方案建议 `AirburstSpread=4.5` + `Cluster=15` | 实际是 **69 颗/发**（不是 15），配 `ROF=9` 就是 ~115 颗/秒/艘，会先卡死再谈伤害 |
+| "把 `AirburstSpread` 调成某个值就能出 8 颗" | 错（3.13.6）：颗数是格点计数 1/5/9/13/21/29…，没有 8；要整数只能 `Splits=yes` + `Cluster=8`（见 §20.8） |
+| "母弹加 `DetonationAltitude=` 就会在半空爆" | 错（3.13.6 查源）：该键只服务 `Vertical=yes` 的上升弹道，`Arcing` 炸弹上它是死键（见 §20.8） |
+
+### 20.8 为什么"正好 8 颗"只能是 `Splits=`（3.13.6 的结论，留档）
+
+> 3.13.7 起本模组改走「8 发齐射」，不再需要下面这条结论；它仍然成立，留档给以后想用 `Airburst=` 的人。
+
+社区 Ares 模板（MO 的 `AirburstSpread` 系、PPM 的 5 段式最小闭环）在别处能用，是因为它们的
+"颗数"就是环内格数——没人要求一个**具体的整数**。一旦要求"正好 8"，`AirburstSpread` 立刻无解：
+
+| 半径（格） | 0 | 1.0 | 1.41 | 1.42 | 1.5 | 2.0 | 2.24 | 2.5 | 3.0 | 4.0 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 颗数 | 1 | 5 | 5 | **9** | 9 | 13 | 21 | 21 | 29 | 49 |
+
+- 1.41 → 5，1.42 → 9，中间**没有 8**：颗数是 `cell_range` 的格点计数，不是可调数字；
+- `Splits=yes` 是 Ares 的"集束"支路：目标池 = 5 格内的 Techno + ±3 格随机格，`Cluster=` 点名颗数，
+  **正好 8**；
+- 代价：落点只能在瞄准点 ±3 格（或贴到附近的单位上）。"飞 50–100 格"由母弹的
+  `BallisticScatter` 提供——母弹落远、子弹飞回，这段距离是真的；"炸在 50–100 格的范围里"不是。
+
+**两条被否掉的替代方案**（都来自"照搬 Ares 社区经验"）：
+
+| 方案 | 在本引擎里的实际结果 |
+| --- | --- |
+| `DetonationAltitude=800` 让母弹半空爆 | 该键只在 `Vertical=yes` 时被读（`projectile_delivery.rs`：`vertical.then_some(detonation_altitude)` → `ProjectileTrajectory::Vertical`，弹体**向上**飞到高度再爆）。给 `Arcing` 炸弹写它是死键；写了 `Vertical=yes` 反而让炸弹从发射点往上飞，不是在空中拦截 |
+| 子武器 `Speed=50` / `ROT=80` / `Proximity=yes` | VERA 里 `ROT>0` 的出膛速度被归一化成 1 雷普顿/帧，`Speed=` 是**上限**；50 等于 0.2 格/帧（50 格要 250 帧 ≈ 17 秒）。`Proximity=yes` 也没用：`ROT>0` 的引信本来就被强制打开，`Arm=` 才是免疫窗口 |

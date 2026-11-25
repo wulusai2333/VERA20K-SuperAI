@@ -383,13 +383,15 @@ def trigger_block(
     newline: str = "\n",
     hunt_prefix: str = "03",
     hunt_name: str = None,
+    hunt_interval: int = 60,
 ) -> str:
     """Build a trigger block for a spectator map.
 
     * ``RevealAll``   - action 16, one second after start.
     * ``IronCurtain`` - action 109 at waypoint 0 every 10 s.
     * ``AIHuntNN``    - action 6 (All to Hunt) for slots 1..player_count-1,
-      every 20 s.  Ares ``Player @ X`` selectors are ``0x117B + slot``.
+      every 60 s by default (``hunt_interval``).  Ares ``Player @ X`` selectors
+      are ``0x117B + slot``.
 
     All triggers are logic tags (timer event 13), so they do not need to be
     attached to a house on the map.
@@ -422,7 +424,7 @@ def trigger_block(
             tid = hunt_prefix + "%06X" % (index * 0x10)
             label = hunt_name or ("AIHunt%02d" % index)
             triggers.append("%s=<none>,<none>,%s,0,1,1,1,0" % (tid, label))
-            events.append("%s=1,13,0,20" % tid)
+            events.append("%s=1,13,0,%d" % (tid, hunt_interval))
             body = ",".join("6,0,%d,0,0,0,0,A" % (0x117B + slot) for slot in chunk)
             actions.append("%s=%d,%s" % (tid, len(chunk), body))
             tags.append("%s=2,%s,%s" % (hunt_prefix + "%06X" % (index * 0x10 + 1), label, tid))

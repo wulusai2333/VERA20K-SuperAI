@@ -71,6 +71,40 @@ def main():
             print("  %-5s %-10s changed=%s" % (entry["id"], entry["source"], entry["changed"]))
 
     failures = 0
+
+    # Sidebar names the mod adds: `UIName=` is a CSF label, so the text lives in
+    # the mod's own `ares.csf`.  A label the table does not hold is drawn
+    # literally as `MISSING:'NAME:X'` in game, and a half-copied install is
+    # exactly how that happens -- so compare the installed file with the one in
+    # this repository, not just its presence.
+    print("sidebar names")
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    try:
+        import csf
+    except ImportError as exc:  # tools/ not importable: skip, do not fail
+        print("  SKIP ares.csf (%s)" % exc)
+    else:
+        installed = os.path.join(game_dir, "Mods", "SuperAI", "ares.csf")
+        source = os.path.join(ROOT, "mod", "SuperAI", "ares.csf")
+        try:
+            labels = csf.read(installed)
+        except (OSError, ValueError) as exc:
+            failures += 1
+            print("  FAIL %s (%s)" % (installed, exc))
+        else:
+            print("  csf  %-10s %d label(s): %s"
+                  % (os.path.basename(installed), len(labels),
+                     ", ".join("%s=%s" % pair for pair in sorted(labels.items()))))
+            try:
+                expected = csf.read(source)
+            except (OSError, ValueError) as exc:
+                failures += 1
+                print("  FAIL repository copy %s (%s)" % (source, exc))
+            else:
+                if expected != labels:
+                    failures += 1
+                    print("  FAIL installed ares.csf differs from %s" % source)
+
     print("maps")
     for path in sorted(glob.glob(os.path.join(args.maps, "*.yrm"))):
         try:
@@ -85,7 +119,7 @@ def main():
             print("  FAIL %-34s %s" % (os.path.basename(path), exc))
 
     if failures:
-        print("%d map(s) failed" % failures)
+        print("%d check(s) failed" % failures)
         return 1
     print("all maps OK")
     return 0

@@ -56,10 +56,12 @@ python tools/check.py --game-dir "<游戏目录>"
 
 ```
 rules / AI
-  mod=超级AI (Super AI) v1.9 ares=on check=None
+  mod=超级AI (Super AI) v3.13.5 ares=on check=None
   rules mod        changed=True
   art   mod        changed=False
   ai    mod        changed=True
+sidebar names
+  csf  ares.csf   3 label(s): Name:ZAINukeGunship2Drop=空中炮艇, Name:ZAINukeGunship3Drop=集束炮艇, Name:ZAINukeGunshipDrop=核弹炮艇
 maps
   OK   SuperAI-Flat120.yrm  3494010 bytes  starts=120
   ...
