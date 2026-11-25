@@ -893,7 +893,7 @@ PlayerControl=no
 [Basic]
 Name=Super AI Ice Lake 1v7 No Ore
 Percent=0
-GameMode=standard, nukewar
+GameMode=standard, teamgame, megawealth, duel, meatgrind, navalwar
 HomeCell=98
 InitTime=10000
 Official=no

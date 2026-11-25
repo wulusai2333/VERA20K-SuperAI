@@ -7,6 +7,7 @@ Subcommands
 ``flat``    a generated random map -> uniform flat stage with spectator triggers
 ``retrigger`` replace an existing map's trigger block, terrain untouched
 ``uniform`` rewrite every terrain cell to one tile / one height
+``modes``   assert every map in a folder carries the six ``GameMode`` filters
 ``info``    print what a map contains (sizes, waypoints, terrain, triggers)
 
 Examples
@@ -32,11 +33,31 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import veramap as vm
 
+#: ``[Basic] GameMode=`` filter names every map this pack builds must carry.
+#: Map matching is case-sensitive, so these spellings must stay lowercase and
+#: identical to ``mod/SuperAI/mpmodesmd.ini``'s MapFilter fields.  ``cooperative``
+#: is deliberately absent: the Coop class caps the lobby at two players.
+GAME_MODES = "standard, teamgame, megawealth, duel, meatgrind, navalwar"
+GAME_MODE_NAMES = tuple(name.strip() for name in GAME_MODES.split(","))
+
+
+def assert_game_modes(text, where):
+    """Refuse to build a map that a game mode's map filter would not match."""
+    value = vm.get_value(text, "GameMode")
+    if value is None:
+        raise SystemExit("%s: [Basic] GameMode= is missing" % where)
+    present = {name.strip() for name in value.split(",")}
+    missing = [name for name in GAME_MODE_NAMES if name not in present]
+    if missing:
+        raise SystemExit("%s: GameMode= lacks %s" % (where, ", ".join(missing)))
+    return value
+
 
 def cmd_ice(args):
     text = vm.read_text(args.src)
     text = vm.set_name(text, "Super AI Ice Lake 1v7", free_radar=True)
     text = vm.ensure_value(text, "FreeRadar", "yes")
+    text = vm.ensure_value(text, "GameMode", GAME_MODES)
 
     players = vm.count_waypoints(text)
     text = vm.add_triggers(
@@ -47,6 +68,7 @@ def cmd_ice(args):
 
     os.makedirs(args.out, exist_ok=True)
     main_path = os.path.join(args.out, "SuperAI-IceLake-1v7.yrm")
+    assert_game_modes(text, main_path)
     vm.write_text(main_path, text)
     print("written %s (%d players, %d bytes)" % (main_path, players, len(text)))
 
@@ -55,7 +77,9 @@ def cmd_ice(args):
         no_ore = vm.ensure_value(no_ore, "TiberiumGrows", "no")
         no_ore = vm.ensure_value(no_ore, "TiberiumSpreads", "no")
         no_ore = vm.set_name(no_ore, "Super AI Ice Lake 1v7 No Ore")
+        no_ore = vm.ensure_value(no_ore, "GameMode", GAME_MODES)
         path = os.path.join(args.out, "SuperAI-IceLake-1v7-NoOre.yrm")
+        assert_game_modes(no_ore, path)
         vm.write_text(path, no_ore)
         print("written %s (%d bytes)" % (path, len(no_ore)))
 
@@ -210,6 +234,7 @@ def cmd_ice120(args):
                        ("MinPlayer", "2"), ("MinPlayers", "2")):
         text = vm.set_value(text, key, value) if vm.get_value(text, key) is not None \
             else vm.ensure_value(text, key, value)
+    text = vm.ensure_value(text, "GameMode", GAME_MODES)
 
     # The stock AIHuntAll only covers slots 1..7.  Keep the same three triggers
     # but widen All to Hunt to every computer slot, or slots 8+ never leave home.
@@ -221,6 +246,7 @@ def cmd_ice120(args):
     )
 
     assert_ice120(src, text, all_points, ground, region)
+    assert_game_modes(text, args.out)
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     vm.write_text(args.out, text)
     print("written %s (%d starts: player %s upper-right, %d computers lower-left "
@@ -420,6 +446,7 @@ def cmd_flat(args):
     text, records = vm.uniform_terrain(text, args.tile, args.sub, args.height, newline)
     text = vm.set_name(text, args.name, free_radar=True)
     text = vm.ensure_value(text, "FreeRadar", "yes")
+    text = vm.ensure_value(text, "GameMode", args.game_modes)
 
     players = args.players or vm.count_waypoints(text)
 
@@ -498,6 +525,7 @@ def cmd_flat(args):
               "the player"
               % (args.tile, args.sub, args.height, gaps[0] if gaps else 0, closest))
 
+    assert_game_modes(text, args.out)
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     vm.write_text(args.out, text)
     print("written %s (%d cells, %d players, triggers=%s, %d bytes)"
@@ -536,6 +564,20 @@ def cmd_uniform(args):
           % (args.out, records, args.tile, args.height))
 
 
+def cmd_modes(args):
+    """Assert every map in a folder carries all six ``GameMode`` filter names."""
+    names = sorted(name for name in os.listdir(args.dir)
+                   if name.lower().endswith(".yrm"))
+    if not names:
+        raise SystemExit("no .yrm under %s" % args.dir)
+    for name in names:
+        path = os.path.join(args.dir, name)
+        text = vm.read_text(path)
+        assert_game_modes(text, path)
+        print("%-34s %s" % (name, vm.get_value(text, "GameMode")))
+    print("%d map(s): every filter present in %s" % (len(names), GAME_MODES))
+
+
 def cmd_info(args):
     text = vm.read_text(args.src)
     print("file      :", args.src)
@@ -543,6 +585,7 @@ def cmd_info(args):
     print("local size:", vm.local_size(text))
     print("size      :", vm.get_value(text, "Size", "?"))
     print("maxplayers:", vm.get_value(text, "MaxPlayers", "?"))
+    print("gamemode  :", vm.get_value(text, "GameMode", "?"))
     print("waypoints :", vm.count_waypoints(text))
 
     triggers = 0
@@ -591,6 +634,8 @@ def main():
     flat.add_argument("--name", required=True, help="map display name")
     flat.add_argument("--players", type=int, default=0,
                       help="start slots (default: read from [Waypoints])")
+    flat.add_argument("--game-modes", default=GAME_MODES,
+                      help="[Basic] GameMode= filter names (default: %s)" % GAME_MODES)
     flat.add_argument("--tile", type=int, default=418, help="terrain tile id (418 = flat land)")
     flat.add_argument("--sub", type=int, default=0, help="sub-tile index")
     flat.add_argument("--height", type=int, default=4, help="terrain level")
@@ -629,6 +674,11 @@ def main():
     uniform.add_argument("--height", type=int, default=4)
     uniform.add_argument("--terrain-newline", choices=("lf", "crlf"), default="lf")
     uniform.set_defaults(func=cmd_uniform)
+
+    modes = sub.add_parser(
+        "modes", help="assert every map in a folder carries the six GameMode filters")
+    modes.add_argument("--dir", default="maps", help="folder holding the .yrm maps")
+    modes.set_defaults(func=cmd_modes)
 
     info = sub.add_parser("info", help="describe a map")
     info.add_argument("--src", required=True)

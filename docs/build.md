@@ -40,6 +40,18 @@ cluster: 4 launches a trigger (all BurstDelays 0), each mother is a nuke and lan
 
 ## 2. 重建地图
 
+所有地图在写出前都会把 `[Basic] GameMode=` 统一成：
+
+```text
+GameMode=standard, teamgame, megawealth, duel, meatgrind, navalwar
+```
+
+`ice` / `ice120` / `flat` 都用 `ensure_value` 写入（已有该键就替换，缺失就插在 `Name=` 后），
+写出前再断言 6 个过滤名一个不缺，缺一个就 `SystemExit`、不写文件。原因：引擎的随机图导出把
+`GameMode` 硬编码成 `standard`，不补这一步，重建一次就会把模式支持冲掉。`flat` 可以用
+`--game-modes "..."` 覆盖写入值，但覆盖值仍必须包含这 6 个过滤名（可以追加别的），否则断言失败。
+过滤名大小写敏感、必须全小写；`cooperative` 故意不加（Coop 类最多 2 人）。
+
 ### 2.1 Ice Lake（需要原始 1v7 地图）
 
 原始地图 `ice lake (1v7).yrm` 属于第三方作品，不在仓库内。把它放到任意路径：
@@ -122,6 +134,7 @@ python tools/build_maps.py flat \
 | `--move-player-corner` | 把 0 号位移到可玩区下方 `--corner-gap` 格（老方案，需先把 MCV 开进来） |
 | `--tile` / `--sub` / `--height` | 统一地形参数，默认 418 / 0 / 4 |
 | `--terrain-newline lf\|crlf` | 仅影响 `[IsoMapPack5]` 的换行，纯外观 |
+| `--game-modes "..."` | 写入 `[Basic] GameMode=` 的过滤名，默认即上面的 6 个；覆盖值必须仍含这 6 个 |
 
 ### 2.3 只改地形
 
@@ -147,6 +160,19 @@ python tools/build_maps.py retrigger \
   --players 8 --triggers full
 ```
 
+### 2.5 模式名单：离线 Skirmish 也全列出
+
+引擎在离线 Skirmish 里只列 Battle / FreeForAll 两个模式类（LAN 房间不过滤类）。
+`mod/SuperAI/mpmodesmd.ini` 覆盖零售名单，把 4/5/6/7/8 这五行放进 `[Battle]` 段，
+于是 9 个模式都会出现在离线 Skirmish 的游戏类型下拉里；`mod/SuperAI/mod.ini` 通过
+`[Files] Modes=mpmodesmd.ini` 指定这份名单。
+
+- 9 行 id 必须保持 **1..9 连续**，不能删行、跳号（联机 agreement 会按行数核对每个模式的覆盖 INI）；
+- 每行仍是零售的 5 个字段：`UINameKey, TooltipKey, OverrideFile, MapFilter, RandomMapsAllowed`；
+- 代价：4 号「邪恶联盟」退化成普通 Battle 类，失去"苏盟双 MCV"和 Bases=on 强制；
+- 模式名单是联机 digest 的比较对象，联机双方必须用同一版本的模组；
+- 地图 `GameMode` 第 4 字段与这里的 `MapFilter` 必须逐字一致（大小写敏感）。
+
 ## 3. 校验
 
 ```bash
@@ -159,6 +185,12 @@ python tools/check.py --game-dir "<游戏目录>"
 
 ```bash
 python tools/build_maps.py info --src maps/SuperAI-Flat120.yrm
+```
+
+一次校验整包（`maps/` 下每张图的 `[Basic] GameMode=` 都要含全部 6 个过滤名，缺一个退出码非 0）：
+
+```bash
+python tools/build_maps.py modes --dir maps
 ```
 
 ## 4. 可复现性

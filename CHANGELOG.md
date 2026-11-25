@@ -21,6 +21,19 @@
   条目）；重建仍走 `tools/build_mod.py`，`docs/ai-design.md` §3.3 与
   `docs/ai-tuning-playbook.md` §10.4 同步。
 
+## Unreleased — 全模式放开：7 张自建图支持全部过滤名
+
+- 7 张 `SuperAI-*.yrm` 的 `[Basic] GameMode=` 从 `standard`（部分图还带无效的
+  `nukewar`）改为 `standard, teamgame, megawealth, duel, meatgrind, navalwar`；
+  `tools/build_maps.py` 增加 `GAME_MODES`、`flat --game-modes`、`ice/ice120` 的
+  `ensure_value` 与 `modes` 断言，重建不会回退。
+- 新增 `mod/SuperAI/mpmodesmd.ini`，把 4/5/6/7/8 行放进 `[Battle]` 类，并在
+  `mod.ini` 的 `[Files]` 设 `Modes=mpmodesmd.ini`；离线 Skirmish 下拉从 3 个模式
+  变为 8 个（Battle、Unholy、Megawealth、Duel、MeatGrind、NavalWar、TeamGame、
+  FreeForAll）。
+- 代价（已接受）：Unholy（邪恶联盟）移入 Battle 类后失去双 MCV 专属规则；
+  Cooperative 仍不列出（2 人上限，不适配 120 人图）。
+
 ## Unreleased — All to Hunt 60 秒、机场编队 4 架
 
 7 张 SuperAI 地图的 `AIHunt*` 事件从 20 秒改为 60 秒；`tools/veramap.py` 的默认值同步。

@@ -25,6 +25,37 @@ MaxPlayers=30
 - 两者之间通常有 2 格左边距、5 格上边距和若干下/右边距。
   把观战者放在 `LocalSize` 下方 3 格，正好有空间放下 3×3 的 MCV。
 
+### 1.1 `[Basic] GameMode`：这张图属于哪些模式
+
+`GameMode=`（单数）是逗号分隔的过滤名列表，引擎按**大小写敏感的相等**匹配：
+选某个模式时，只有列表里含该模式 `MapFilter` 的地图才进候选；没有这个键的地图只算 `standard`。
+`GameModes`（复数）本引擎不读。
+
+本仓库 7 张图统一写：
+
+```ini
+GameMode=standard, teamgame, megawealth, duel, meatgrind, navalwar
+```
+
+| 过滤名 | 匹配的模式（id） |
+| --- | --- |
+| `standard` | Battle(1)、FreeForAll(2)、邪恶联盟(4) |
+| `teamgame` | TeamGame(9) |
+| `megawealth` | Megawealth(5) |
+| `duel` | Duel(6) |
+| `meatgrind` | MeatGrind(7) |
+| `navalwar` | NavalWar(8) |
+
+- 必须全小写。写成 `Standard` / `TeamGame` 会静默匹配不到，日志里也没有提示。
+- 不加 `cooperative`：Coop 类最多 2 人，且 Start 要绑定战役记录。
+- `nukewar` 不是任何模式的过滤名（老图里残留过），没有任何效果，不要写。
+- 引擎的随机图导出硬编码 `GameMode=standard`，所以重建必须走 `tools/build_maps.py`：
+  `flat` / `ice` / `ice120` 都会写入并断言 6 个过滤名齐全。整包校验：
+
+  ```bash
+  python tools/build_maps.py modes --dir maps
+  ```
+
 ## 2. 航点编码
 
 ```text
