@@ -2,6 +2,19 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## Unreleased — 基洛夫队 6/8→3/4、Max 6→3
+
+- `Soviet Kirov Medium`（`06BC359C-G`，TaskForce `0EC7959C-G`）一队 **6→3 架**；
+  `Soviet Kirov Hard`（`0CA0380C-G`，TaskForce `0EC7935C-G`）一队 **8→4 架**；
+  两队 `Max` **6→3**。
+- 原因：3.6 的空军加强把零售 1–3 架的基洛夫队翻倍成 6/8；队伍必须等所有成员造好才成立，
+  所以基洛夫会先回家等最后一架，出发太晚、观感像“在基地里排队”。3/4 仍是一次有压迫感的
+  空袭，但能在合理时间内凑齐；`Max=3` 避免同时排 6 支大队。
+- 落盘：`build_mod.py` 的 `tune_kirov_teams` 按 TaskForce/TeamType id 精确改；
+  `assert_kirov_teams` 钉 3/4 与 `Max=3`；`assert_air_and_aa_boosted` 对 `ZEP` 豁免通用
+  空军下限；playbook §16、ai-design 空军表同步。
+- 未改：机场型飞机 4 架/`Max=3`、火箭兵 6 人、其他空军触发器权重；不改引擎。
+
 ## Unreleased — 53 集结点 8→12；54 展开点用 AIFriendlyDistance=20
 
 - **动作 53**（到敌方基地外集结）的 `[General] AISafeDistance` 由 `8` 改为 **`12`**：

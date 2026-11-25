@@ -2235,6 +2235,16 @@ AIR_UNIT_MIN = 3
 AIR_SIZE_FACTOR = 2
 AIR_UNIT_CAP = 16
 
+#: Kirov teams: retail is one to three airships, but the 3.6 air boost doubled
+#: them to 6 (medium) / 8 (hard).  A team is not formed until every member is
+#: produced, so the AI keeps the airships at home waiting for the last one and
+#: the charge starts late.  3/4 still reads as a Kirov raid and fills in a
+#: reasonable time; ``Max`` drops from the generic air cap 6 to 3 so a house
+#: does not queue six of these large teams at once.
+KIROV_TEAM_SIZES = {"0EC7959C-G": 3, "0EC7935C-G": 4}
+KIROV_TEAM_MAX = 3
+KIROV_TEAM_TYPES = ("06BC359C-G", "0CA0380C-G")
+
 #: The seven retail attack triggers that ship with every difficulty bit off
 #: (`0,0,0` in tokens 15-17).  They can never be drawn on any difficulty, so
 #: the unit composition and the team are pure dead data:
@@ -2519,9 +2529,10 @@ def build_aimd(source_dir, out_dir, assembly_teams=False):
     recovered += added
 
     boost = boost_air_and_aa(doc)
+    kirov = tune_kirov_teams(doc)
     attack = boost_attack_triggers(doc)
     open(os.path.join(out_dir, "aimd.ini"), "wb").write(doc.text().encode("latin-1"))
-    return switched, recovered, preserved, boost, attack
+    return switched, recovered, preserved, boost, attack, kirov
 
 
 def assert_mcv_recovery_fillable(rules_lines, aimd_lines):
@@ -3109,6 +3120,39 @@ def boost_air_and_aa(doc):
             "air_triggers": air_triggers, "aa_triggers": aa_triggers}
 
 
+def tune_kirov_teams(doc):
+    """Undo the 3.6 Kirov team growth that made a raid wait for 6/8 airships.
+
+    The air boost above doubles ordinary air teams, which turned retail's 1-3
+    Kirov groups into 6 (medium) and 8 (hard).  A team only forms once every
+    TaskForce member exists, so the airships sit at home waiting for the last
+    one.  Pin these two entries to 3/4 and the house cap to 3.
+    """
+    changed = 0
+    for tf, size in KIROV_TEAM_SIZES.items():
+        entries = list(doc.members(tf))
+        if len(entries) != 1:
+            raise SystemExit(
+                "Kirov TaskForce %s has %d entries, expected exactly one"
+                % (tf, len(entries)))
+        index, slot, count, unit, rest, eol = entries[0]
+        if unit != "ZEP":
+            raise SystemExit(
+                "Kirov TaskForce %s entry is %r, expected ZEP" % (tf, unit))
+        if int(count) != size:
+            doc.lines[index] = "%d=%d,%s%s%s" % (slot, size, unit, rest, eol)
+            changed += 1
+    for tid in KIROV_TEAM_TYPES:
+        fields = doc.values(tid)
+        if "max" not in fields:
+            raise SystemExit("TeamType %s has no Max=" % tid)
+        if fields["max"][0].strip() != str(KIROV_TEAM_MAX):
+            doc.replace_value(fields["max"][1], "Max", str(KIROV_TEAM_MAX))
+            changed += 1
+    return {"kirov_entries": len(KIROV_TEAM_SIZES),
+            "kirov_teams": len(KIROV_TEAM_TYPES), "changed": changed}
+
+
 def boost_attack_triggers(doc):
     """Make the attack triggers reachable, and stop them sinking when they die.
 
@@ -3243,6 +3287,10 @@ def assert_air_and_aa_boosted(aimd_lines):
             if not 4 <= count <= 8:
                 problems.append("JUMPJET team holds %d men (want 4-8: big enough "
                                 "to matter, small enough to fill)" % count)
+        elif unit == "ZEP":
+            # Kirov sizes are deliberately 3/4, below the generic air floor;
+            # assert_kirov_teams pins the exact values instead.
+            continue
         elif count < AIR_UNIT_MIN * AIR_SIZE_FACTOR:
             problems.append("air task force entry %s has only %s aircraft"
                             % (unit, count))
@@ -3351,6 +3399,41 @@ def assert_air_and_aa_boosted(aimd_lines):
     if problems:
         raise SystemExit("air/AA boost missing: " + "; ".join(problems[:4]))
     return air_tfs
+
+
+def assert_kirov_teams(aimd_lines):
+    """Pin the tuned Kirov sizes and the lower house cap."""
+    sections, current = {}, None
+    for line in aimd_lines:
+        header = re.match(r"^\[([^\]]+)\]\s*(;.*)?$", line)
+        if header:
+            current = header.group(1).strip()
+            sections.setdefault(current, [])
+            continue
+        if current is not None:
+            sections[current].append(line)
+
+    problems = []
+    for tf, size in KIROV_TEAM_SIZES.items():
+        entries = [line.strip() for line in sections.get(tf, [])
+                   if re.match(r"^\d+=\d+,", line.strip())]
+        if len(entries) != 1:
+            problems.append("%s has %d member rows, expected one" % (tf, len(entries)))
+            continue
+        m = re.match(r"^\d+=(\d+),([A-Za-z][\w]*)", entries[0])
+        if not m or m.group(2) != "ZEP" or int(m.group(1)) != size:
+            problems.append("%s is %r, expected %d ZEP" % (tf, entries[0], size))
+
+    for tid in KIROV_TEAM_TYPES:
+        max_line = next((line.strip() for line in sections.get(tid, [])
+                         if line.strip().lower().startswith("max=")), None)
+        if max_line != "Max=%d" % KIROV_TEAM_MAX:
+            problems.append("%s is %r, expected Max=%d"
+                            % (tid, max_line, KIROV_TEAM_MAX))
+
+    if problems:
+        raise SystemExit("Kirov team tuning missing: " + "; ".join(problems[:4]))
+    return len(KIROV_TEAM_SIZES) + len(KIROV_TEAM_TYPES)
 
 
 #: 168 retail triggers + the 3 always-eligible ones.
@@ -3621,7 +3704,7 @@ def main():
 
     os.makedirs(args.out, exist_ok=True)
     buildings = build_rules(args.rules_dir, args.out)
-    switched, recovered, preserved, boost, attack = build_aimd(
+    switched, recovered, preserved, boost, attack, kirov = build_aimd(
         args.rules_dir, args.out, args.assembly_teams)
 
     # The mod's own CSF rows: `UIName=` is a label, so the two renamed delivery
@@ -3653,6 +3736,7 @@ def main():
     cluster_bombs = assert_nuke_gunship3(rules_lines, aimd_lines)
     assert_ui_labels(rules_lines, csf_labels)
     assert_air_and_aa_boosted(aimd_lines)
+    assert_kirov_teams(aimd_lines)
     assert_attack_triggers_boosted(aimd_lines)
     counts = assert_build_counts(rules_lines)
     assert_no_walls(rules_lines)
