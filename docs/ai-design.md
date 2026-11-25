@@ -160,7 +160,7 @@ PCV  Prerequisite=YAWEAP,YAGRND    ; YADEPT 在原版被注释掉
 ```ini
 [ZAIATK01-G]
 Name=SuperAI Charge
-0=53,0      ; 到敌方基地外 AISafeDistance=20 格（Move，途中可被动索敌）
+0=53,0      ; 到敌方基地外 AISafeDistance=8 格（Move，途中可被动索敌）
 1=0,6      ; 用 quarry 6 选目标并进攻
 2=49,0     ; 立即推进到下一步
 3=0,2
@@ -169,9 +169,11 @@ Name=SuperAI Charge
 ```
 
 - `53` 是 `team_action_gather_at_enemy_base`：把队伍移动到「敌方基地中心朝向我方
-  20 格（`AISafeDistance`）」的可通行格；这一段是 `Mission::Move`。电脑队伍只要
+  8 格（`AISafeDistance`）」的可通行格；这一段是 `Mission::Move`。电脑队伍只要
   `Aggressive=yes` 且 `Suicide=no`，就会在 Move 上运行被动索敌（引擎
   `target_scan.rs`），所以行军途中会向进入射程的敌人开火并继续前进。
+  原版 `20` 是从**敌方**基地中心量的，双方基地靠近时这个点会落进自家基地，
+  队伍等于在家门口集结 → 新基地堵车；`8` 仍在敌方基地墙外。
 - `0` 是 `team_action_attack_quarry`，参数是 threat quarry 选择器；它用**队长当前
   位置**重新选点（`direct_greatest_threat` 的距离基准 D0 = 队长坐标），不需要预先集结。
 - `49` 是「直接推进」动作，用来把攻击步骤串起来。
@@ -184,7 +186,7 @@ Name=SuperAI Charge
 少 1024 分，距离项上最近者严格胜出；最终评分仍会叠加 A–D 四项，所以不是「绝对最近
 优先」，但不会再退化成「最老工厂」。
 
-**局限（数据层近似的边界）**：`53` 的目的地是敌方**基地中心**外 20 格，不是最近的
+**局限（数据层近似的边界）**：`53` 的目的地是敌方**基地中心**外 8 格，不是最近的
 工厂；途中索敌半径仍由 `GuardRange=` / 武器射程决定（犀牛没有 `GuardRange`，只有约
 5.75 格），所以是「打到枪口上的敌人」而不是全图追敌；没有交战后回到原路径的
 attack-move 语义（那需要引擎改动，本次不做）；被动索敌会多抽 `RandomRanged(0,2)`，
@@ -204,9 +206,10 @@ attack-move 语义（那需要引擎改动，本次不做）；被动索敌会�
   结果是 AI 造了铁幕/超时空却永远不放，且日志里毫无痕迹。
   详见 [playbook §13.1.4](ai-tuning-playbook.md#1314-根因24-把放超武的队伍脚本一起覆盖掉了)。
 
-> 这三类例外现在都有构建期断言守着：MCV 队伍必须仍用部署脚本（`assert_mcv_triggers_well_formed`
-> 一带），超武队伍必须仍用含 55/56/57 的脚本（`assert_superweapon_teams_intact`）；
-> 另新增 `assert_attack_script`，钉住 `[General] TargetDistanceCoefficientDefault=-0.4`
+> 这三类例外现在都有构建期断言守着：MCV 队伍必须 `Max=1` 且仍用部署脚本
+> （`assert_mcv_team_max`），超武队伍必须仍用含 55/56/57 的脚本
+> （`assert_superweapon_teams_intact`）；另 `assert_attack_script` 钉住
+> `[General] TargetDistanceCoefficientDefault=-0.4`、`AISafeDistance=8`
 > 与 `ZAIATK01-G` 的六步（含 `0=53,0`）。
 
 ### 3.3 触发器权重
@@ -222,8 +225,11 @@ attack-move 语义（那需要引擎改动，本次不做）；被动索敌会�
 | 3 条零售 `… MCV - H` | 建造厂 **== 0** | `5000` | 救急：厂全没了 → 只造基地车 |
 | 3 条新增 `… MCV - Expand` | 建造厂 **< 3** | `5000` | 扩建：不满 3 座就补基地车去展开 |
 
-3 支 MCV 队伍的 `Max` 从零售 `1` 改成 **`2`**，所以可以同时有两台基地车在编。
-每户因此会稳定铺到 **3 个基地**，任意一座被拆都会重新补齐 —— 扩建就这样长期转着。
+3 支 MCV 队伍的 `Max` **保持零售的 `1`**：同一户同时只跑 1 台扩张基地车。
+（2.5–3.13.10 曾改成 `2`；两台车同时上路会奔向同一块空地、互相挡住部署
+（日志 `MCV deploy blocked`），这是新基地堵车的一部分，现已改回 `1`。）
+每户仍会稳定铺到 **3 个基地**：`< 3` 触发器在当前车展开后再抽下一台，
+任意一座被拆都会重新补齐 —— 扩建就这样长期转着，只是串行而不是并行。
 
 `5000` 就是引擎的 `PRIORITY_WEIGHT`：一旦命中，**清空该次抽签里的其它所有触发器**。
 用在这里正是「立刻只造基地车」的意思，是这套机制能成立的关键。

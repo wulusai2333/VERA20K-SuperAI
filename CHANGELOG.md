@@ -17,15 +17,30 @@
   `-0.4` 让距离项在整张地图（最大对角 707 格）上单调，距离项最近者严格胜出
   （最终评分仍叠加 A–D 四项）。
 - **新行为**：`[ZAIATK01-G]` 从 5 步变 6 步——`0=53,0` 先到敌方基地外
-  `AISafeDistance=20` 格（`Mission::Move`；其中 **123 支** `Suicide=no` 队伍会途中
+  `AISafeDistance=8` 格（本版由 20 调到 8，见下；`Mission::Move`；其中 **123 支**
+  `Suicide=no` 队伍会途中
   被动索敌并开火，**28 支** `Suicide=yes` 特种队只行军不开火），`1=0,6` 起保持
   原攻击序列。仍是 **151 支队伍**，MCV/超武队伍脚本不变。
 - **守卫/文档**：`tools/build_mod.py` 新增 `assert_attack_script`（钉住系数与六步），
   `tools/check_retail.py` 登记该键；`docs/ai-design.md` §3.2 与
   `docs/boundaries-and-lessons.md` 同步；`mod.ini` 版本未动。
-- **局限**：数据层近似——`53` 只到敌方基地中心外 20 格，不是最近工厂；途中索敌半径
+- **局限**：数据层近似——`53` 只到敌方基地中心外 8 格，不是最近工厂；途中索敌半径
   仍是 `GuardRange=`/武器射程（犀牛约 5.75 格）；不是真正的 attack-move（交战后不回
   原路径）；旧存档/回放会分歧。
+
+**新基地堵车：集结点 20→8 格、扩张 MCV 同时 1 台**
+
+- **原版改动**：`[General] AISafeDistance` 由 `20` 改为 `8`。动作 `53` 的集结点是
+  「离**敌方**基地中心多少格」，原版 20 在双方基地靠近时会落回自家基地，出征队伍在
+  家门口集结 → 新基地堵车；`8` 仍在敌方基地墙外。
+- **数据改动**：3 支 MCV 队伍的 `Max` 由 `2` 改回零售的 `1`，同一户同时只跑 1 台
+  扩张基地车（两台同时上路会奔向同一块空地、互相挡住部署，日志 `MCV deploy blocked`）。
+  扩建仍按「建造厂 < 3」触发器逐台补齐到 3 座，只是串行而不是并行。
+- **守卫**：`assert_attack_script` 新增 `AISafeDistance=8` 断言；新增
+  `assert_mcv_team_max`（3 支 MCV 队伍 `Max=1` 且仍用 `043F23CC-G`）；
+  `tools/check_retail.py` 登记 `aisafedistance`。
+- **文档**：`docs/ai-design.md` §3.2/§3.3、`docs/boundaries-and-lessons.md` 登记表、
+  `docs/ai-tuning-playbook.md` §9.2 与 `README.md` 的基地数量说明同步。
 
 ## 3.13.10 — 集束炮艇：每发母弹只裂 1 颗，4 母 + 4 子 = 8 个弹头
 

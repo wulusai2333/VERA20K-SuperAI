@@ -22,8 +22,9 @@ RETAIL_VALUE_EDITS = {
     # AI tuning (the point of this mod).
     "General": {
         "aiextrarefineries", "aipickwalldefensepercent", "airestrictreplacetime",
-        "aislaveminernumber", "buildspeed", "dissolveunfilledteamdelay",
-        "maximumaidefensiveteams", "minimumaidefensiveteams", "multiplayeraicm",
+        "aisafedistance", "aislaveminernumber", "buildspeed",
+        "dissolveunfilledteamdelay", "maximumaidefensiveteams",
+        "minimumaidefensiveteams", "multiplayeraicm",
         "targetdistancecoefficientdefault", "teamdelays", "totalaiteamcap",
         "usemindefenserule",
     },

@@ -143,6 +143,15 @@ RULES_EDITS = {
     # top, so this is "distance matters", not "always the geometrically nearest
     # candidate").  `assert_attack_script` pins the value.
     "TargetDistanceCoefficientDefault": ("-10", "-0.4"),
+    # Action 53 (`team_action_gather_at_enemy_base`) walks the team to the
+    # passable cell `AISafeDistance` cells from the ENEMY base CENTRE, on the
+    # side facing home.  Retail 20 is measured from the enemy centre, so on the
+    # crowded maps this mod ships -- three yards per house, bases a few cells
+    # apart -- that "staging point" lands inside our own base and the column
+    # mills around at home instead of forming up outside the enemy (the
+    # new-base congestion this build fixes).  8 stays outside the enemy base
+    # wall and still leaves a drive to it.  `assert_attack_script` pins it.
+    "AISafeDistance": ("20", "8"),
 }
 
 #: Per-section key rewrites, applied inside the named section only.
@@ -341,13 +350,16 @@ MCV_DEPLOY_SCRIPT = "043F23CC-G"
 #: Our no-assembly attack script.
 #:
 #: The first action is 53, gather at the enemy base: it walks the team to the
-#: passable cell ``AISafeDistance=`` (20) cells from the enemy base centre, on
-#: the side facing the team's own base.  That leg is on ``MissionType::Move``,
-#: the only mission on which an AI team with ``Aggressive=yes`` / ``Suicide=no``
-#: gets the passive target scan at all (``target_scan.rs``), so the column
-#: fires at what it meets on the way in.  The scan radius is ``GuardRange=`` or,
-#: without it, the weapon range (a Rhino has no GuardRange -> ~5.75 cells): this
-#: is "shoot what is on the road", not a full map-wide attack-move.
+#: passable cell ``AISafeDistance=`` (8) cells from the enemy base centre, on
+#: the side facing the team's own base.  Retail's 20 put that point inside our
+#: own base whenever the two bases are close (three yards per house), so the
+#: column staged at home; 8 is outside the enemy wall.  That leg is on
+#: ``MissionType::Move``, the only mission on which an AI team with
+#: ``Aggressive=yes`` / ``Suicide=no`` gets the passive target scan at all
+#: (``target_scan.rs``), so the column fires at what it meets on the way in.
+#: The scan radius is ``GuardRange=`` or, without it, the weapon range (a Rhino
+#: has no GuardRange -> ~5.75 cells): that is "shoot what is on the road", not
+#: a full map-wide attack-move.
 #:
 #: The remaining actions are the retail charge sequence: 0 = attack quarry
 #: (6 = enemy factories, 2/1/5 = the other retail quarry classes), 49 = advance.
@@ -2312,12 +2324,14 @@ def build_aimd(source_dir, out_dir, assembly_teams=False):
                 doc.replace_value(fields["script"][1], "Script", MCV_DEPLOY_SCRIPT)
             if "aggressive" in fields:
                 doc.replace_value(fields["aggressive"][1], "Aggressive", "no")
-            # Two MCVs may be in flight at once, so the expansion triggers can
-            # put up a second base while the first is still driving to its
-            # spot.  `at_max_teams` blocks at `teams >= Max` per house, so the
-            # retail 1 meant one MCV at a time, ever.
+            # `at_max_teams` blocks at `teams >= Max` per house.  Keep the
+            # retail 1: two expansion MCVs on the road at once drive to the
+            # same free patch and block each other's deploy (`MCV deploy
+            # blocked`), which is exactly the new-base congestion this build
+            # fixes.  Expansion still reaches three yards -- the `< 3` trigger
+            # draws the next MCV once this one has deployed.
             if "max" in fields:
-                doc.replace_value(fields["max"][1], "Max", "2")
+                doc.replace_value(fields["max"][1], "Max", "1")
             continue
         if tid in super_script_teams:
             preserved += 1
@@ -2370,7 +2384,7 @@ def build_aimd(source_dir, out_dir, assembly_teams=False):
     # An AI trigger can only compare the count of ONE object type
     # (`owned_count_holds`), so "yards + MCVs < 3" cannot be written directly.
     # The approximation: count the YARDS and require `< 3`, and cap the MCVs in
-    # flight with the team's `Max=2` (above).  The sum therefore converges:
+    # flight with the team's `Max=1` (above).  The sum therefore converges:
     # 1 yard -> build an MCV -> deploy -> 2 yards -> ... -> 3 yards, stop.
     # A destroyed yard drops the count and the chain restarts, which is what
     # keeps expansion alive for the whole match.
@@ -2503,10 +2517,64 @@ def assert_mcv_triggers_well_formed(aimd_lines):
     return mcv
 
 
-def assert_attack_script(rules_lines, aimd_lines):
-    """The charge script and the distance coefficient are the whole mechanism.
+def assert_mcv_team_max(aimd_lines):
+    """The three expansion MCVs must stay serialised and deploy-bound.
 
-    Two silent regressions this refuses to ship:
+    ``at_max_teams`` blocks a team at ``teams >= Max`` per house, so ``Max=1``
+    means one MCV on the road at a time.  Two at once drive to the same free
+    patch and block each other's deploy (``MCV deploy blocked`` in the log) --
+    the new-base congestion this build fixes.  Dropping the deploy script
+    leaves the MCV parked forever.  Neither shows up at load time, so both are
+    pinned here.
+    """
+    bodies = {}
+    section = None
+    for line in aimd_lines:
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            section = stripped[1:-1].strip()
+            bodies[section] = []
+            continue
+        if section is not None and stripped and not stripped.startswith(";"):
+            bodies[section].append(stripped)
+
+    def fields_of(tid):
+        out = {}
+        for entry in bodies.get(tid, []):
+            if "=" in entry:
+                key, value = entry.split("=", 1)
+                out[key.strip().lower()] = value.strip()
+        return out
+
+    team_ids = [entry.split("=", 1)[1].strip()
+                for entry in bodies.get("TeamTypes", []) if "=" in entry]
+    mcv = [tid for tid in team_ids
+           if re.search(r"(^|\W)MCV(\W|$)",
+                        fields_of(tid).get("name", ""), re.I)]
+    if len(mcv) != 3:
+        raise SystemExit(
+            "expected the 3 retail MCV teams (Allied/Soviet/Yuri), found %d: %s"
+            % (len(mcv), ", ".join(sorted(mcv))))
+    for tid in sorted(mcv):
+        fields = fields_of(tid)
+        if fields.get("max") != "1":
+            raise SystemExit(
+                "[%s] %s Max=%r, expected 1: two expansion MCVs in flight drive "
+                "to the same free patch and block each other's deploy"
+                % (tid, fields.get("name", "?"), fields.get("max")))
+        if fields.get("script") != MCV_DEPLOY_SCRIPT:
+            raise SystemExit(
+                "[%s] %s Script=%r, expected the retail move-and-deploy %s; "
+                "without it the expansion MCV never deploys"
+                % (tid, fields.get("name", "?"), fields.get("script"),
+                   MCV_DEPLOY_SCRIPT))
+    return len(mcv)
+
+
+def assert_attack_script(rules_lines, aimd_lines):
+    """The charge script, its gather distance and the threat coefficient.
+
+    Three silent regressions this refuses to ship:
 
     * **the coefficient** -- at retail ``-10`` the threat score reaches zero
       at ~39 cells and ``finish_score`` clamps every farther factory to 1
@@ -2514,6 +2582,11 @@ def assert_attack_script(rules_lines, aimd_lines):
       the oldest enemy factory again, not the nearest one.  The value is
       spelled out here instead of read back from :data:`RULES_EDITS`, so a
       wrong edit cannot validate itself;
+    * **the gather distance** -- step 0 stages the team ``AISafeDistance``
+      cells from the ENEMY base centre.  Retail 20 puts that point inside our
+      own base whenever the two bases are close (three yards per house), so
+      the column piles up at home; 8 is outside the enemy wall.  Pinned
+      literally for the same reason as the coefficient;
     * **the script shape** -- dropping the opening ``53`` removes the only
       Move leg (and with it the passive scan that lets the column engage on
       the way in); adding or reordering a step changes how many quarries a
@@ -2534,6 +2607,15 @@ def assert_attack_script(rules_lines, aimd_lines):
             "ties and the oldest one wins (the far-side charge this mod is "
             "fixing). -0.4 keeps all candidates positive out to ~977 cells."
             % (coefficient,))
+
+    gather = read_ini_value(rules_lines, "General", "AISafeDistance")
+    if gather != "8":
+        raise SystemExit(
+            "[General] AISafeDistance=%r, expected '8'.  Step 0 of [%s] "
+            "gathers at this distance from the ENEMY base centre; retail 20 "
+            "lands inside our own base when the two bases are close, so the "
+            "team stages at home (the new-base congestion this fixes)."
+            % (gather, ATTACK_SCRIPT))
 
     expected = ["0=53,0", "1=0,6", "2=49,0", "3=0,2", "4=0,1", "5=0,5"]
     actual = []
@@ -3107,6 +3189,7 @@ def main():
     assert_defense_gate_consistent(rules_lines, aimd_lines)
     assert_mcv_recovery_fillable(rules_lines, aimd_lines)
     mcv_triggers = assert_mcv_triggers_well_formed(aimd_lines)
+    assert_mcv_team_max(aimd_lines)
     assert_superweapon_teams_intact(aimd_lines)
     assert_attack_script(rules_lines, aimd_lines)
     assert_player_nuke_section(rules_lines)

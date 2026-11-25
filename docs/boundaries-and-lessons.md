@@ -70,7 +70,7 @@
 
 > 机器可读版本在 `tools/check_retail.py` 的 `RETAIL_VALUE_EDITS` / `RETAIL_KEY_ADDITIONS`
 > 两张白名单里；**构建会强制校验**，任何未登记的原版改动都会让构建失败。
-> 当前实测：**19 个键被改值（5 个段）、69 个键被追加、17 个新增段、0 个删除**。
+> 当前实测：**20 个键被改值（5 个段）、69 个键被追加、17 个新增段、0 个删除**。
 
 > 3.11.6 起 `[NASAM]` / `[NAFLAK]` **已还原为零售的 `0/0/25`**（原先给它们加地面分数，
 > 只是让 AI 拿打不到地面的房子去应付地面威胁）。AI 的防空数量因此回落到零售水平 ——
@@ -84,7 +84,7 @@
 
 | 段 | 改动内容 | 性质 |
 | --- | --- | --- |
-| `[General]` | 13 个键（`BuildSpeed`、`TeamDelays`、`MultiplayerAICM`、`AISlaveMinerNumber`、`AIRestrictReplaceTime`、`DissolveUnfilledTeamDelay`、`TargetDistanceCoefficientDefault` 等） | AI 调优 |
+| `[General]` | 14 个键（`BuildSpeed`、`TeamDelays`、`MultiplayerAICM`、`AISlaveMinerNumber`、`AIRestrictReplaceTime`、`DissolveUnfilledTeamDelay`、`TargetDistanceCoefficientDefault`、`AISafeDistance` 等） | AI 调优 |
 | `[AI]` | 3 个键（`AirstripRatio`、`AirstripLimit`、`Paranoid`） | AI 调优 |
 | `[GADEPT]` / `[NADEPT]` / `[YADEPT]` | 各 1 键（`AIBuildThis`） | **改原版单位数值**（保留，用户确认需要） |
 
@@ -101,6 +101,20 @@
   `[ZAIATK01-G]` 六步；`docs/ai-design.md` §3.2 写明机制与局限。
 - 回滚：删掉 `RULES_EDITS` 里这一条（或把新值改回 `-10`）并重建，同时删掉
   `tools/check_retail.py` 的对应白名单项；`[ZAIATK01-G]` 的 `0=53,0` 也是单行回滚。
+
+**`AISafeDistance` 的影响面（13→14 键）**：
+
+- 作用范围：动作 `53`（`team_action_gather_at_enemy_base`）的集结点，值是「离**敌方**
+  基地中心多少格」。所有用 `53` 的队伍都读它：`[ZAIATK01-G]`（151 支进攻队）与
+  9 支保留零售脚本的超武队伍。
+- 原值 `20` 的问题：量的是**敌方**基地中心，而本模组每户铺 3 座基地、双方基地常常
+  只隔十几格，20 格会落回**自家基地内部**，出征队伍等于在家门口集结 → 新基地堵车。
+- 新值 `8`：仍在敌方基地墙外，队伍会真正开出去，而不是在自家基地里绕。
+- 不改的东西：单位/武器/建筑数值、触发器、脚本步骤；无随机数，同状态同选择。
+- 验证：`tools/build_mod.py` 的 `assert_attack_script` 钉住 `[General] AISafeDistance=8`
+  与 `[ZAIATK01-G]` 六步；`docs/ai-design.md` §3.2 写明机制与局限。
+- 回滚：删掉 `RULES_EDITS` 里这一条（或把新值改回 `20`）并重建，同时删掉
+  `tools/check_retail.py` 的 `aisafedistance` 白名单项。
 
 **给原版段追加键（12 个段，只加不改）**：
 `[General] AINearestEnemy`；`[GACNST]/[NACNST]/[YACNST] SpySat`；
