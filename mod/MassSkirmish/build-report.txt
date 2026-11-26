@@ -1,0 +1,42 @@
+MassSkirmish build report
+profile=stage1 base_target=4 sw_copies=3
+rules_dir=F:\Games\red2
+
+profile='stage1'
+base_target=4
+sw_copies=3
+build_limit_removed=['GACNST', 'NACNST', 'YACNST', 'AMCV', 'SMCV', 'PCV', 'NAMISL', 'GAWEAT', 'YAPPET', 'YAGNTC', 'GACSPH', 'NAIRON']
+yards_ai_build_this='yes'
+air_restrict_replace_time=15
+buildingtypes_dense={'GACNST': 2, 'NACNST': 25, 'YACNST': 300}
+aibuildcounts={'GAPILE': 2, 'NAHAND': 2, 'YABRCK': 2, 'GAWEAP': 3, 'NAWEAP': 3, 'YAWEAP': 3, 'GAAIRC': 2, 'AMRADR': 2}
+
+taskforces=135
+teamtypes=166
+scripttypes=89
+aitriggers=183
+mixed_taskforces=['0617909C-G']
+mcv_teams=3
+superweapon_teams=9
+decap_actions=[53, 46, 46, 46, 0, 0, 0, 0, 49]
+base_target=4
+5000_triggers=12
+ground_scaled=100
+aircraft_per_difficulty=[4, 4, 8]
+
+log:
+  split TF 0CE4DA9C-G -> 0CE4DA9C-G + ZAI-AIR-0CE4DA9C-G
+  keep transport TF 0617909C-G (mixed by design)
+  split TF 0ACDD81C-G -> 0ACDD81C-G + ZAI-AIR-0ACDD81C-G
+  doubled 100 ground task forces (scale=2, cap=20)
+  added heavy air team ZAI-HVY-0CAC9EFC-G (8xORCA, 1 triggers)
+  boosted 20 pure-air teams (orca='0CAC9EFC-G' heavy='ZAI-HVY-0CAC9EFC-G')
+  kept retail scripts on 7 airport-aircraft teams: 09B50C8C-G, 0CA7122C-G, 0CAC9EFC-G, 0CACFEFC-G, 0CB1CDEC-G, 0CB246CC-G, ZAI-HVY-0CAC9EFC-G
+  assigned ZAIATK-CY to 125 teams
+  split=2 ground=100 assigned=125 mcv=3 nation=10 cond4=56 always=6 counter=6
+
+mod.ini bytes=892 sha256=87e46fd3ab409ac7367d641720c678f720e3de02ab51dd60d80ccc4c55642585
+rulesmd.ini bytes=742090 sha256=028e3ed598a1543f49bcd8d78c38f16441ebe3c05d394b4636ca390c1e2b0230
+aimd.ini bytes=144460 sha256=60fe5c2629cc95bf9a03c5f1908d3bde6444ad06c46e157739ccbcba6e8a6c86
+artmd.ini bytes=336535 sha256=e1f0378394313c04ebbd5073f47785ee3e46f1b3c62d65724e8f3c310ee7ba31
+mpmodesmd.ini bytes=964 sha256=62d3b5382891ff78b2104e869be8dd0fd8cd2497292d0979774d2397347327ad

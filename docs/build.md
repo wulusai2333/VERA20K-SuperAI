@@ -197,7 +197,7 @@ done
 ## 3. 校验
 
 ```bash
-python tools/check.py --game-dir "<游戏目录>"
+python tools/check.py --game-dir "<游戏目录>" --mod SuperAI
 ```
 
 它会对模组和 `maps/` 下所有 `.yrm` 跑 `--probe`，打印 `starts` 与错误。
@@ -274,7 +274,7 @@ python tools/probe_rules.py --game-dir "<游戏目录>" --selftest
 ## 5. 安装到游戏
 
 ```bash
-python tools/install.py --game-dir "<游戏目录>" --enable
+python tools/install.py --game-dir "<游戏目录>" --enable --mod SuperAI
 ```
 
 见 [install.md](install.md)。
@@ -290,3 +290,21 @@ python tools/install.py --game-dir "<游戏目录>" --enable
 
 如果地图本身有 `[Triggers]`，`add_triggers` 会拒绝覆盖。
 需要先合并原有触发器，或删掉该段再构建。
+
+## 7. Mass Skirmish（默认模组）
+
+从**纯净官方** `rulesmd.ini` / `aimd.ini` / `artmd.ini` / `mpmodesmd.ini`
+生成独立模组 `mod/MassSkirmish`，**它就是现在的默认模组**（`install.py` / `check.py`
+不带 `--mod` 时指向它），不覆盖 `mod/SuperAI`：
+
+```powershell
+python tools/build_mass_skirmish.py --rules-dir F:\Games\red2 --out mod\MassSkirmish --profile stage1
+python tools/install.py --game-dir F:\Games\VERA20K --no-maps
+python tools/check.py --game-dir F:\Games\VERA20K --only-map SuperAI-IceLake-120-NoOre.yrm
+```
+
+- `--profile stage1`：4 座厂 + 每类 3 座超武，先跑通。
+- `--profile max`：20 厂 / 每类 20 超武的 `AIBuildCounts` **计划目标**；`BuildLimit` 已移除，不是硬上限。
+- `GACNST/NACNST/YACNST` 保持 `AIBuildThis=yes`（基地计划种子）；设为 `no` 会让 AI 只造电厂/防御，已实测失败。
+- `tools/build_mod.py` 是旧 SuperAI 的 builder，不是 Mass Skirmish 的真相源。
+- 参数与引擎证据见 [mass-skirmish-design.md](mass-skirmish-design.md)。

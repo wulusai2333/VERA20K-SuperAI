@@ -52,14 +52,18 @@ def main():
         pass
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--game-dir", required=True)
+    parser.add_argument("--mod", default="MassSkirmish",
+                        help="mod folder name (default: MassSkirmish)")
     parser.add_argument("--maps", default=os.path.join(ROOT, "maps"))
+    parser.add_argument("--only-map", default=None,
+                        help="probe only this map (filename under --maps, or an absolute path)")
     args = parser.parse_args()
 
     game_dir = os.path.abspath(args.game_dir)
     data_dir = ra2_dir(game_dir)
 
-    print("rules / AI")
-    report = probe(game_dir, ["--ra2-dir", data_dir, "--mod", "SuperAI"])
+    print("rules / AI (%s)" % args.mod)
+    report = probe(game_dir, ["--ra2-dir", data_dir, "--mod", args.mod])
     settings = report["rules_parts"]["settings"]
     mod = settings.get("mod")
     if isinstance(mod, dict):
@@ -84,31 +88,43 @@ def main():
     except ImportError as exc:  # tools/ not importable: skip, do not fail
         print("  SKIP ares.csf (%s)" % exc)
     else:
-        installed = os.path.join(game_dir, "Mods", "SuperAI", "ares.csf")
-        source = os.path.join(ROOT, "mod", "SuperAI", "ares.csf")
-        try:
-            labels = csf.read(installed)
-        except (OSError, ValueError) as exc:
-            failures += 1
-            print("  FAIL %s (%s)" % (installed, exc))
+        installed = os.path.join(game_dir, "Mods", args.mod, "ares.csf")
+        source = os.path.join(ROOT, "mod", args.mod, "ares.csf")
+        if not os.path.isfile(installed):
+            print("  SKIP ares.csf (not installed for %s)" % args.mod)
+        elif not os.path.isfile(source):
+            print("  SKIP ares.csf (no repository copy for %s)" % args.mod)
         else:
-            print("  csf  %-10s %d label(s): %s"
-                  % (os.path.basename(installed), len(labels),
-                     ", ".join("%s=%s" % pair for pair in sorted(labels.items()))))
             try:
-                expected = csf.read(source)
+                labels = csf.read(installed)
             except (OSError, ValueError) as exc:
                 failures += 1
-                print("  FAIL repository copy %s (%s)" % (source, exc))
+                print("  FAIL %s (%s)" % (installed, exc))
             else:
-                if expected != labels:
+                print("  csf  %-10s %d label(s): %s"
+                      % (os.path.basename(installed), len(labels),
+                         ", ".join("%s=%s" % pair for pair in sorted(labels.items()))))
+                try:
+                    expected = csf.read(source)
+                except (OSError, ValueError) as exc:
                     failures += 1
-                    print("  FAIL installed ares.csf differs from %s" % source)
+                    print("  FAIL repository copy %s (%s)" % (source, exc))
+                else:
+                    if expected != labels:
+                        failures += 1
+                        print("  FAIL installed ares.csf differs from %s" % source)
 
     print("maps")
-    for path in sorted(glob.glob(os.path.join(args.maps, "*.yrm"))):
+    if args.only_map:
+        path = args.only_map
+        if not os.path.isabs(path):
+            path = os.path.join(args.maps, path)
+        paths = [path]
+    else:
+        paths = sorted(glob.glob(os.path.join(args.maps, "*.yrm")))
+    for path in paths:
         try:
-            report = probe(game_dir, ["--ra2-dir", data_dir, "--mod", "SuperAI",
+            report = probe(game_dir, ["--ra2-dir", data_dir, "--mod", args.mod,
                                       "--map", os.path.abspath(path)])
             info = report["map"]
             print("  OK   %-34s %8d bytes  starts=%s"

@@ -271,10 +271,10 @@ python tools/build_mod.py --rules-dir "<原版规则目录>" --out %TEMP%/rebuil
 #    （用 Get-FileHash -Algorithm SHA256 比对三个文件）
 
 # 4. 无窗口加载校验（规则语法、地图、Ares）
-python tools/check.py --game-dir "<游戏目录>"
+python tools/check.py --game-dir "<游戏目录>" --mod SuperAI
 
 # 5. 装进游戏
-python tools/install.py --game-dir "<游戏目录>"
+python tools/install.py --game-dir "<游戏目录>" --mod SuperAI
 
 # 6. 打一局，然后判读日志结构（不看强弱，只看有没有建对）
 python tools/analyze_log.py --log "<游戏目录>/logs/ra2.log" --session last

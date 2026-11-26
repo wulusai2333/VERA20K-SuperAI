@@ -16,6 +16,9 @@ dist/
 Thumbs.db
 desktop.ini
 
+# Research scratch space: temporary, never committed.
+.research_ra2_ai/
+
 # Game-side and developer-only material: never publish these.
 logs/
 replays/

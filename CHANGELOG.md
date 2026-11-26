@@ -2,6 +2,22 @@
 
 本项目在 2026-11-22 从零迭代到 2.0，同日继续到 3.7；以下是可复现的功能节点。
 
+## Unreleased — Mass Skirmish 转正为默认模组
+
+- **入库**：`mod/MassSkirmish` 与 `tools/build_mass_skirmish.py` / `tools/mass_skirmish_aimd.py`
+  一并入库，构建起点是**纯净官方** `rulesmd.ini` / `aimd.ini` / `artmd.ini` / `mpmodesmd.ini`；
+  profile `stage1` = 4 座厂 / 每类 3 座超武的 `AIBuildCounts` **计划目标**。
+  产物可逐字节复现，SHA256 记在 `mod/MassSkirmish/build-report.txt`。
+- **破坏性变更**：`tools/install.py` 与 `tools/check.py` **不带 `--mod` 时现在指向
+  `MassSkirmish`**（原先是 `SuperAI`）。旧命令要继续用 SuperAI 必须显式加 `--mod SuperAI`，
+  否则装/校验的是新模组。
+- **新参数**：`tools/install.py`、`tools/check.py` 新增 `--mod <名字>`
+  （`--enable` 按该名字写 `mod = "<名字>"`，`check.py` 的 `rules / AI` 行会打印名字）；
+  `check.py` 另加 `--only-map`，只对一张图跑 probe。
+- **文档**：`README.md`、`docs/install.md`、`docs/build.md`、`docs/ai-tuning-playbook.md`、
+  `docs/mass-skirmish-design.md` 同步「默认 = Mass Skirmish AI，旧 SuperAI 需显式
+  `--mod SuperAI`」的口径；设计取舍见 `docs/mass-skirmish-design.md`。
+
 ## Unreleased — 5 分钟按户错峰 All to Hunt、空指部 2/3 座、国家特色权重钉死
 
 - **地图 All to Hunt**：保持 **5 分钟**、每户一条触发器、

@@ -3,18 +3,25 @@
 [![repo](https://img.shields.io/badge/GitHub-VERA20K--SuperAI-blue)](https://github.com/wulusai2333/VERA20K-SuperAI)
 [![mod version](https://img.shields.io/badge/mod-v3.13.5-green)](CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
+[![Mass Skirmish](https://img.shields.io/badge/Mass%20Skirmish-v0.1.0-orange)](mod/MassSkirmish/mod.ini)
+
+> **默认模组：Mass Skirmish AI**（`mod/MassSkirmish`，0.1.0 / Stage 1）。它由**纯净官方** INI 生成，
+> `tools/install.py` / `tools/check.py` 不带 `--mod` 时装的就是它；本页其余特性表描述旧的调参模组
+> **SuperAI**（`mod/SuperAI`），要装它需显式 `--mod SuperAI`。设计取舍见
+> [docs/mass-skirmish-design.md](docs/mass-skirmish-design.md)。
 
 把《红色警戒 2：尤里的复仇》遭遇战里的电脑，变成一个**会铺满地图、几乎全员冲锋、永不囤兵**的对手；
 再附上一套专门为「看 AI 打 AI」设计的地图包（平地图 + 冰湖图）。
 
-当前版本 **3.13.5**：电脑会被打到就立刻重建、把基地铺到 3 个、超武（核弹/闪电/心灵/基因/铁幕/超时空）
+旧的调参模组 **SuperAI** 当前版本 **3.13.5**：电脑会被打到就立刻重建、把基地铺到 3 个、超武（核弹/闪电/心灵/基因/铁幕/超时空）
 充满即用；本模组**不造围墙**，冷酷难度给到 3 兵营 / 5 战车工厂。玩家手里有四个核弹超武，
 分别显示 **核弹攻击 / 核弹炮艇 / 空中炮艇 / 集束炮艇**。
 
 本项目面向 [VERA20k](https://github.com/YuriPlanet/vera20k)（YR 的开源重制引擎），
-由两部分组成：
+由三部分组成：
 
-- **SuperAI 模组**：只改规则与 AI 脚本，不替换任何美术资源。
+- **Mass Skirmish AI 模组**（**默认**，`mod/MassSkirmish`）：纯净官方 INI 生成，只改规则与 AI 脚本，不替换任何美术资源。
+- **SuperAI 调参模组**（`mod/SuperAI`，需 `--mod SuperAI`）：旧调参模组，只改规则与 AI 脚本，不替换任何美术资源。
 - **SuperAI 地图包**：7 张地图，从 1v7 观战图到 30 人 / 120 人超大混战图（含一张纯平雪地 120 人图）。
 
 > English summary: a fan-made mod + spectator map pack for VERA20k. It gives the
@@ -110,13 +117,14 @@
 git clone https://github.com/wulusai2333/VERA20K-SuperAI.git
 cd VERA20K-SuperAI
 python -m pip install -r tools/requirements.txt   # 只有 lzokay，重建地图时才需要
-python tools/install.py --game-dir "<游戏目录>" --enable
+python tools/install.py --game-dir "<游戏目录>" --enable                 # 默认装 Mass Skirmish AI
+python tools/install.py --game-dir "<游戏目录>" --enable --mod SuperAI   # 旧调参模组
 python tools/check.py   --game-dir "<游戏目录>"   # 可选：无头校验模组与 7 张地图
 ```
 
-`--enable` 会备份并改写 `config.toml` 里的 `mod = "SuperAI"`。
-也可以手动把 `mod/SuperAI` 复制到 `<游戏目录>/Mods/`、把 `maps/*.yrm` 复制到 `Maps/`，
-再在 **选项 → 模组** 里选择「超级AI」。
+`--enable` 会备份并改写 `config.toml` 里的 `mod = "MassSkirmish"`（装旧调参模组时是
+`mod = "SuperAI"`）。也可以手动把 `mod/MassSkirmish` 复制到 `<游戏目录>/Mods/`、把
+`maps/*.yrm` 复制到 `Maps/`，再在 **选项 → 模组** 里选择「Mass Skirmish AI」（旧调参模组选「超级AI」）。
 
 启动后：
 
@@ -132,8 +140,9 @@ python tools/check.py   --game-dir "<游戏目录>"   # 可选：无头校验模
 
 ```
 VERA20K-SuperAI/
-├── mod/SuperAI/           # 模组：mod.ini + rulesmd/artmd/aimd.ini
-├── maps/                  # 6 张 .yrm
+├── mod/MassSkirmish/      # 默认模组：纯净官方 INI 生成的 Stage 1 计划
+├── mod/SuperAI/           # 旧调参模组：mod.ini + rulesmd/artmd/aimd.ini
+├── maps/                  # 7 张 .yrm
 ├── tools/
 │   ├── build_mod.py       # 从原版 rules 目录重建模组
 │   ├── build_maps.py      # 重建/改造地图（ice / ice120 / flat / uniform / info）
