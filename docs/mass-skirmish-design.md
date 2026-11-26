@@ -2,6 +2,8 @@
 
 > 已转正为默认模组。本文只描述**已实现并跑通单图 probe**的 Stage 1；
 > Stage 2 的实机帧率/观感联调尚未执行，文末列出观测清单。
+>
+> 设计取舍服从 [philosophy.md](philosophy.md) 的**观赏性优先**原则。
 
 ## 1. 目标
 
@@ -179,6 +181,9 @@ Name=Mass Skirmish Decap
 | 重建延迟 | `AIRestrictReplaceTime=15`（1 秒） |
 | Stage 1 计划目标 | 4 厂 / 每类 3 超武 |
 | 单图 probe | `SuperAI-IceLake-120-NoOre.yrm`，exit 0，starts=120 |
+
+> 注：上表是加入重空队 `ZAI-HVY-*` 之前的构建计数；当前构建的计数以
+> `mod/MassSkirmish/build-report.txt` 为准（TF=135 / Team=166 / Script=89 / Trigger=183）。
 
 ## 5. 风险与 Stage 2 观测清单
 

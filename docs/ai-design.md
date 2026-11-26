@@ -2,6 +2,9 @@
 
 这份文档解释模组**改了什么、为什么这样改**，以及哪些地方撞到了引擎的硬限制。
 
+本文是旧调参模组 **Super AI** 的设计文档；默认模组是 **Mass Skirmish**，
+两条线共同的理念见 [philosophy.md](philosophy.md)。
+
 > 具体怎么调、哪些键是死的、怎么验证一局，见
 > [ai-tuning-playbook.md](ai-tuning-playbook.md)。那份文档是操作手册，
 > 这份是设计说明。

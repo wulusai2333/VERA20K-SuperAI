@@ -1,45 +1,117 @@
-# Super AI for VERA20k
+# VERA20K-SuperAI —— 为「看 AI 打 AI」而生的混战模组
 
 [![repo](https://img.shields.io/badge/GitHub-VERA20K--SuperAI-blue)](https://github.com/wulusai2333/VERA20K-SuperAI)
-[![mod version](https://img.shields.io/badge/mod-v3.13.5-green)](CHANGELOG.md)
+[![Super AI](https://img.shields.io/badge/Super%20AI-v3.13.10-green)](CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 [![Mass Skirmish](https://img.shields.io/badge/Mass%20Skirmish-v0.1.0-orange)](mod/MassSkirmish/mod.ini)
 
-> **默认模组：Mass Skirmish AI**（`mod/MassSkirmish`，0.1.0 / Stage 1）。它由**纯净官方** INI 生成，
-> `tools/install.py` / `tools/check.py` 不带 `--mod` 时装的就是它；本页其余特性表描述旧的调参模组
-> **SuperAI**（`mod/SuperAI`），要装它需显式 `--mod SuperAI`。设计取舍见
-> [docs/mass-skirmish-design.md](docs/mass-skirmish-design.md)。
+> **VERA20K-SuperAI 不是竞技 AI。** 它面向「电子斗蛐蛐」与观战：把 8 / 30 / 120 家电脑放进同一张地图，
+> 让它们带满编部队互相撞在一起。不追求胜率最高、微操极致或冷冰冰的最优解，更在意多方势力交火时的
+> **进攻欲望、兵种碰撞与战场观赏性** —— 每局要打得**热闹、胶着、充满戏剧张力**。
+>
+> 一局"好"的判据不是谁赢，而是：前 5 分钟打起来了、10 分钟还在拉锯、有一家挨打后翻了回来、
+> 满屏一直有仗在打。为此我们刻意接受非最优：铺满地图持续进攻、超武充满就放、全员冲锋 FFA 乱战。
+>
+> 默认模组是 **Mass Skirmish AI**（`mod/MassSkirmish`，0.1.0 / Stage 1，纯净官方 INI 生成）：
+> `tools/install.py` / `tools/check.py` 不带 `--mod` 就装/验它；旧的调参模组 **Super AI**（3.13.10）
+> 需显式 `--mod SuperAI`。完整理念见 [docs/philosophy.md](docs/philosophy.md)。
 
-把《红色警戒 2：尤里的复仇》遭遇战里的电脑，变成一个**会铺满地图、几乎全员冲锋、永不囤兵**的对手；
-再附上一套专门为「看 AI 打 AI」设计的地图包（平地图 + 冰湖图）。
-
-旧的调参模组 **SuperAI** 当前版本 **3.13.5**：电脑会被打到就立刻重建、把基地铺到 3 个、超武（核弹/闪电/心灵/基因/铁幕/超时空）
-充满即用；本模组**不造围墙**，冷酷难度给到 3 兵营 / 5 战车工厂。玩家手里有四个核弹超武，
-分别显示 **核弹攻击 / 核弹炮艇 / 空中炮艇 / 集束炮艇**。
-
-本项目面向 [VERA20k](https://github.com/YuriPlanet/vera20k)（YR 的开源重制引擎），
-由三部分组成：
-
-- **Mass Skirmish AI 模组**（**默认**，`mod/MassSkirmish`）：纯净官方 INI 生成，只改规则与 AI 脚本，不替换任何美术资源。
-- **SuperAI 调参模组**（`mod/SuperAI`，需 `--mod SuperAI`）：旧调参模组，只改规则与 AI 脚本，不替换任何美术资源。
-- **SuperAI 地图包**：7 张地图，从 1v7 观战图到 30 人 / 120 人超大混战图（含一张纯平雪地 120 人图）。
-
-> English summary: a fan-made mod + spectator map pack for VERA20k. It gives the
-> skirmish AI x1001 starting credits, an aggressive global build speed, a graded
-> per-type building plan at the retail three-difficulty rhythm (no AIBuildCounts
-> tuning), retail base defences (25/20/6; 25/22/6 for Soviet/Yuri), instant rebuild of any destroyed building
-> (`AIRestrictReplaceTime=0`) which is also how the base grows, a 10-team cap with
-> retail-sized task forces, and a custom team script that skips the retail
-> "regroup at base" steps. Repair depots are now AI-buildable, which is what
-> finally lets the AI rebuild a lost MCV — its rebuild triggers carry the engine's
-> 5000 priority weight, so a yardless house does exactly that. Maps are uniform
-> flat stages with map triggers for full-map reveal, a permanent Iron Curtain on
-> the spectator
-> slot, and a periodic All-to-Hunt sweep.
+> English summary: a spectator-first AI mass-battle mod for VERA20k. It is not a
+> competitive AI — it does not chase the highest win rate, perfect micro, or the
+> coldest optimal solution. It optimises for aggression, unit collisions and how
+> the battle reads on screen: 8 / 30 / 120 computer players on one map, colliding
+> at full army strength. A good match has a fight inside five minutes, a
+> tug-of-war at ten, a comeback after somebody gets mauled, and something burning
+> all the time. The default mod is **Mass Skirmish AI** (no `--mod` needed);
+> the older tuning mod **Super AI** needs `--mod SuperAI`.
 
 ![Super AI Flat 200](previews/flat200.png)
 
-## 特性
+## 这不是竞技 AI
+
+它不追求胜率最高，不追求微操极致，也不追求冷冰冰的最优解。它面向**「电子斗蛐蛐」与观战场景**：
+把 8 / 30 / 120 家电脑放进同一张地图，让它们带满编部队互相撞在一起。更在意的是多方势力交火时的
+**进攻欲望、兵种碰撞与战场观赏性** —— 每局要打得**热闹、胶着、充满戏剧张力**（拉锯、翻盘、
+满屏单位互撞、基地被打穿又重新铺起来）。
+
+一局"好"的判据不是谁赢，而是：
+
+- **前 5 分钟有没有打起来** —— 开局不能是各建各的家。
+- **10 分钟有没有拉锯** —— 一边倒不算好局。
+- **有没有哪一家挨打后翻回来** —— 翻盘是最好看的部分。
+- **满屏是不是一直有仗在打** —— 中间空两三分钟，观感就断了。
+
+为此我们刻意接受非最优：铺满地图持续进攻、超武充满就放（被打掉就重建）、全员冲锋 FFA 乱战、
+观战位无敌 + 全图常亮 + 错峰 All to Hunt、数据改动可复现可审计。完整版见
+[docs/philosophy.md](docs/philosophy.md)。
+
+如果你要的是能赢的 AI，这个项目不是；要的是一局值得录下来、看着爽的混战，那它就是了。
+
+## 两个模组
+
+本项目面向 [VERA20k](https://github.com/YuriPlanet/vera20k)（YR 的开源重制引擎），
+由两个模组与一套地图包组成。两个模组都只改规则与 AI 脚本，不替换任何美术资源：
+
+| 项 | Mass Skirmish AI | Super AI |
+| --- | --- | --- |
+| 定位 | **默认模组** | 旧调参模组 |
+| 版本 / 阶段 | `0.1.0` / Stage 1 | `3.13.10` |
+| 数据来源 | **纯净官方** `rulesmd` / `aimd` / `artmd` / `mpmodesmd.ini`，经 `tools/build_mass_skirmish.py` 生成，**不覆盖** `mod/SuperAI` | 零售数据上的数值与流程改造，经 `tools/build_mod.py` 生成 |
+| 规模 | 120 人混战 | 8 / 30 / 120 人观战图 |
+| 安装 / 校验 | 不带 `--mod`（`tools/install.py` / `tools/check.py` 默认就是它） | 显式 `--mod SuperAI` |
+
+- **SuperAI 地图包**：7 张地图，从 1v7 观战图到 30 人 / 120 人超大混战图（含一张纯平雪地 120 人图）。
+
+## 快速开始
+
+前置：VERA20k 本体 + 一份可用的 YR 游戏数据（`ra2.mix` 等），Ares 设为 **Auto** 或 **On**。
+
+```bash
+git clone https://github.com/wulusai2333/VERA20K-SuperAI.git
+cd VERA20K-SuperAI
+python -m pip install -r tools/requirements.txt   # 只有 lzokay，重建地图时才需要
+python tools/install.py --game-dir "<游戏目录>" --enable                 # 默认装 Mass Skirmish AI
+python tools/install.py --game-dir "<游戏目录>" --enable --mod SuperAI   # 旧调参模组
+python tools/check.py   --game-dir "<游戏目录>"   # 可选：无头校验模组与 7 张地图
+```
+
+`--enable` 会备份并改写 `config.toml` 里的 `mod = "MassSkirmish"`（装旧调参模组时是
+`mod = "SuperAI"`）。也可以手动把 `mod/MassSkirmish` 复制到 `<游戏目录>/Mods/`、把
+`maps/*.yrm` 复制到 `Maps/`，再在 **选项 → 模组** 里选择「Mass Skirmish AI」（旧调参模组选「超级AI」）。
+
+启动后：
+
+1. **单人游戏 → 遭遇战**
+2. 地图选 **Super AI Ice Lake 1v7 No Ore**（或任意一张 Flat 图）
+3. 自己坐 **Start 1**，加 7 个电脑、难度 **冷酷**、队伍 **关闭（FFA）**
+4. 游戏选项：基地开、快速游戏 **关**、战争迷雾 **关**、资金 10000–100000
+5. 开始。1 秒后全图自动点亮，基地车自动套铁幕，不需要输入任何指令
+
+详细步骤见 [docs/spectator-guide.md](docs/spectator-guide.md)。
+
+## Mass Skirmish AI（默认模组）
+
+`mod/MassSkirmish`，0.1.0 / Stage 1。构建起点是**纯净官方** `rulesmd` / `aimd` / `artmd` /
+`mpmodesmd.ini`，由 `tools/build_mass_skirmish.py`（+ `tools/mass_skirmish_aimd.py`）生成，
+只改规则与 AI 脚本、不替换任何美术资源，**不覆盖** `mod/SuperAI`。
+
+`--profile stage1` 的关键参数（全部是**计划目标**，不是实时硬上限）：
+
+| 项 | stage1 值 |
+| --- | --- |
+| 建造厂目标 | **4 座**（`build-report.txt` 的 `base_target=4`） |
+| 超武 `AIBuildCounts` | **每类 3 座**（计划目标，不阻止 AI 继续建） |
+| 维修厂 | `AIBuildThis=yes`（解锁 MCV，基地被打掉才能重建） |
+| 重建节流 | `AIRestrictReplaceTime=15`（15 fps 下 1 秒，只是节流） |
+
+产物可逐字节复现：`mod/MassSkirmish/build-report.txt` 记录构建参数、计数与五个文件的 SHA256，
+重复构建逐字节一致。设计取舍见 [docs/mass-skirmish-design.md](docs/mass-skirmish-design.md)。
+
+## Super AI（旧调参模组）
+
+旧的调参模组 **SuperAI** 当前版本 **3.13.10**：电脑会被打到就立刻重建、把基地铺到 3 个、超武（核弹/闪电/心灵/基因/铁幕/超时空）
+充满即用；本模组**不造围墙**，冷酷难度给到 3 兵营 / 5 战车工厂。玩家手里有四个核弹超武，
+分别显示 **核弹攻击 / 核弹炮艇 / 空中炮艇 / 集束炮艇**。
 
 ### 经济与建造
 
@@ -47,7 +119,6 @@
 | --- | --- | --- |
 | AI 开局资金 | `MultiplayerAICM=400,0,0` | **×1001**（按当前资金追加 1000 倍；10 万开局 → 约 1 亿） |
 | 全局建造速度 | `BuildSpeed=.7` | **`.025`（玩家同样生效）**<br>注：该键的读取路径未在引擎抽取源码中确认，见 [playbook §1.5](docs/ai-tuning-playbook.md#15-死键清单) |
-- [docs/boundaries-and-lessons.md](docs/boundaries-and-lessons.md)：边界手册 —— 动手前先确认改动属于地图/玩家/全局哪一级，附已验证的正确路径与黑名单
 | 建筑规划 | 每种 1 个 | **只给 6 个生产建筑**：冷酷 **3 个兵营 / 5 个战车工厂**（`AIBuildCounts=3,1,1` / `5,1,1`），中等/简单保持 1 个 |
 | 基地防御 | 25 / 20 / 6（苏、尤里 25 / 22 / 6） | **原版值，未改**；想要更大基地就只调这里（防御节点沿周长向外找位置） |
 | **空军** | 11 支空军队伍全部 `Max=1`（同时最多一支）、每支 1–4 架、权重 40–70；且触发器会因战损失败把权重砸到 30 的地板（「打完很久不造」的真因） | 机场型飞机（入侵者/黑鹰）**每队 4 架、`Max=3`**（4 架正好一座空指部的 4 个位，超了会起飞坠毁）、`AirstripLimit` 0→4（抽取源码里没有该键的读取者，机库增加未实测，见 playbook §16）；基洛夫 6–8 架 `Max=6`；火箭飞行兵每队 6 人 `Max=6`；权重 **×3 并钉死**（三档同值，钳制区间退化为一点，失败不再衰减）；空队伍解散延迟 900→2400 |
@@ -82,7 +153,9 @@
 | 守家队伍 | 2 支 | **0 支**（全部队伍都是进攻队；`UseMinDefenseRule=no` 必须配套，否则 AI 一兵不发） |
 | 中后期囤兵 | 无处理 | **地图触发器每 60 秒 All to Hunt** |
 
-### 地图
+- [docs/boundaries-and-lessons.md](docs/boundaries-and-lessons.md)：边界手册 —— 动手前先确认改动属于地图/玩家/全局哪一级，附已验证的正确路径与黑名单
+
+## 地图包
 
 | 地图 | 可玩区 | 出生点 | 玩家位 | 触发器 |
 | --- | --- | --- | --- | --- |
@@ -109,62 +182,22 @@
 （`tile 696` / 高度 1），用最远点采样铺开，相邻间距 11–19 格（大致相等，且按你的要求
 不预留扩张空间）。
 
-## 快速开始
-
-前置：VERA20k 本体 + 一份可用的 YR 游戏数据（`ra2.mix` 等），Ares 设为 **Auto** 或 **On**。
-
-```bash
-git clone https://github.com/wulusai2333/VERA20K-SuperAI.git
-cd VERA20K-SuperAI
-python -m pip install -r tools/requirements.txt   # 只有 lzokay，重建地图时才需要
-python tools/install.py --game-dir "<游戏目录>" --enable                 # 默认装 Mass Skirmish AI
-python tools/install.py --game-dir "<游戏目录>" --enable --mod SuperAI   # 旧调参模组
-python tools/check.py   --game-dir "<游戏目录>"   # 可选：无头校验模组与 7 张地图
-```
-
-`--enable` 会备份并改写 `config.toml` 里的 `mod = "MassSkirmish"`（装旧调参模组时是
-`mod = "SuperAI"`）。也可以手动把 `mod/MassSkirmish` 复制到 `<游戏目录>/Mods/`、把
-`maps/*.yrm` 复制到 `Maps/`，再在 **选项 → 模组** 里选择「Mass Skirmish AI」（旧调参模组选「超级AI」）。
-
-启动后：
-
-1. **单人游戏 → 遭遇战**
-2. 地图选 **Super AI Ice Lake 1v7 No Ore**（或任意一张 Flat 图）
-3. 自己坐 **Start 1**，加 7 个电脑、难度 **冷酷**、队伍 **关闭（FFA）**
-4. 游戏选项：基地开、快速游戏 **关**、战争迷雾 **关**、资金 10000–100000
-5. 开始。1 秒后全图自动点亮，基地车自动套铁幕，不需要输入任何指令
-
-详细步骤见 [docs/spectator-guide.md](docs/spectator-guide.md)。
-
-## 项目结构
-
-```
-VERA20K-SuperAI/
-├── mod/MassSkirmish/      # 默认模组：纯净官方 INI 生成的 Stage 1 计划
-├── mod/SuperAI/           # 旧调参模组：mod.ini + rulesmd/artmd/aimd.ini
-├── maps/                  # 7 张 .yrm
-├── tools/
-│   ├── build_mod.py       # 从原版 rules 目录重建模组
-│   ├── build_maps.py      # 重建/改造地图（ice / ice120 / flat / uniform / info）
-│   ├── veramap.py         # 地图 INI + IsoMapPack5 读写库
-│   ├── install.py         # 安装到 VERA20k
-│   ├── check.py           # 无窗口加载校验
-│   ├── analyze_log.py     # 从 ra2.log 统计 AI 实际建成了什么
-│   └── sed/               # 随机地图生成参数
-├── docs/                  # 安装、观战、AI 设计、AI 调参、地图格式、排障、构建
-└── previews/              # 地图预览
-```
-
-AI 设计取舍见 [docs/ai-design.md](docs/ai-design.md)，每个键该调到哪、怎么用日志验收见
-[docs/ai-tuning-playbook.md](docs/ai-tuning-playbook.md)。
-
 ## 已验证
+
+### Mass Skirmish AI（默认模组）
+
+| 项目 | 结果 |
+| --- | --- |
+| 单图无头 probe | `tools/check.py --only-map SuperAI-IceLake-120-NoOre.yrm` → `all maps OK`，`349638 bytes  starts=120` |
+| 产物可复现 | 五个文件重复构建**逐字节一致**，SHA256 记在 [`mod/MassSkirmish/build-report.txt`](mod/MassSkirmish/build-report.txt) |
+
+### Super AI（旧调参模组）
 
 | 项目 | 结果 |
 | --- | --- |
 | 模组重建 | `rulesmd.ini` / `artmd.ini` / `aimd.ini` 与发布版**逐字节一致** |
 | 地图重建 | Ice Lake 三张、Flat 30、Flat 120 逐字节一致；Flat 200 仅差一处空行换行符 |
-| 无窗口加载 | 6 张图 `--probe` 均 exit 0，出生点 120 / 8 / 30 / 120 / 8 / 8（按文件名排序） |
+| 无窗口加载 | 7 张图 `--probe` 均 exit 0（`--mod SuperAI`，2026-11-26 实测），出生点按文件名排序 120 / 8 / 30 / 120 / 120 / 8 / 8 |
 | 8 人局 | 隐藏窗口 100 秒：**1029 栋建筑**，防御 320 栋，全程无掉速 |
 | 30 人局 | 29 AI + 玩家，**30 个 MCV 全部生成**，30 秒 1182 栋 |
 | 120 人局 | 119 AI + 玩家，**120 个 MCV 全部生成**，30 秒 3418 栋 |
@@ -175,6 +208,24 @@ AI 设计取舍见 [docs/ai-design.md](docs/ai-design.md)，每个键该调到�
 2.2 起 `AIBuildCounts` 改成分级，2.4 直接清空回到原版节奏，它们不再代表当前配置。
 
 ## 已知限制
+
+### Mass Skirmish AI（默认模组）
+
+以下 6 条都出自 [docs/mass-skirmish-design.md](docs/mass-skirmish-design.md) 与
+[`mod/MassSkirmish/build-report.txt`](mod/MassSkirmish/build-report.txt)，按原文口径写，不美化：
+
+- **`AIBuildCounts` 是基地计划目标，不是实时硬上限**。AI 会继续建，建筑被打掉还会重建。
+- **`BuildLimit` 已从 3 个建造厂 / 3 辆 MCV / 6 个超武删除**：VERA20k 的 AI 工厂不执行它，
+  它只限制玩家侧边栏；删掉这 12 处后，玩家侧也不再受这些上限约束。
+- **建造厂必须保持 `AIBuildThis=yes`**：它是 AI 基地计划的种子，设为 `no` 会让 AI 只造电厂/防御，
+  已实测失败并回退。
+- **`AIRestrictReplaceTime=15`（1 秒）只是节流，不是硬上限**：它只延迟"丢失建筑节点的重新规划"，
+  不阻止 AI 工厂新建。
+- **扩厂触发器的条件（stage1 `< 4`，max 档 `< 20`）是目标，不是上限**。
+- **Stage 2 的实机帧率 / 观感联调尚未执行**。这是最重要的一条诚实声明：现有数据只到"单图无头
+  probe 通过"与"重复构建逐字节一致"，还没有一局实机的帧率与观感结论。
+
+### Super AI（旧调参模组）
 
 这些是配置解决不了、或者必须满足前置条件的边界，写在这里避免误解：
 
@@ -217,17 +268,29 @@ AI 设计取舍见 [docs/ai-design.md](docs/ai-design.md)，每个键该调到�
 - 需要完整的 YR 规则与 AI 文件作为基底，仓库中的 `rulesmd.ini` 等即为完整替换文件。
 - 本项目不包含任何原版美术、音频或影片资源；地图仅包含地形与触发器数据。
 
-## 发布到 GitHub
+## 项目结构
 
-仓库已经初始化并提交（`main` 分支）。创建远端后：
-
-```bash
-git remote add origin git@github.com:<你的账号>/VERA20K-SuperAI.git
-git push -u origin main
+```
+VERA20K-SuperAI/
+├── mod/MassSkirmish/      # 默认模组：纯净官方 INI 生成的 Stage 1 计划
+├── mod/SuperAI/           # 旧调参模组：mod.ini + rulesmd/artmd/aimd.ini
+├── maps/                  # 7 张 .yrm
+├── tools/
+│   ├── build_mass_skirmish.py  # 从纯净官方 INI 生成 Mass Skirmish（默认模组）
+│   ├── mass_skirmish_aimd.py   # Mass Skirmish 的 AI 脚本生成器
+│   ├── build_mod.py       # 从原版 rules 目录重建模组
+│   ├── build_maps.py      # 重建/改造地图（ice / ice120 / flat / uniform / info）
+│   ├── veramap.py         # 地图 INI + IsoMapPack5 读写库
+│   ├── install.py         # 安装到 VERA20k
+│   ├── check.py           # 无窗口加载校验
+│   ├── analyze_log.py     # 从 ra2.log 统计 AI 实际建成了什么
+│   └── sed/               # 随机地图生成参数
+├── docs/                  # 安装、观战、AI 设计、AI 调参、地图格式、排障、构建
+└── previews/              # 地图预览
 ```
 
-建议仓库描述写明「VERA20k / Yuri's Revenge fan mod + spectator maps」，
-并在 README 保留许可与第三方地图来源说明。
+AI 设计取舍见 [docs/ai-design.md](docs/ai-design.md)，每个键该调到哪、怎么用日志验收见
+[docs/ai-tuning-playbook.md](docs/ai-tuning-playbook.md)。
 
 ## 许可
 

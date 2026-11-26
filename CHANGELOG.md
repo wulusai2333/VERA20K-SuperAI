@@ -18,6 +18,19 @@
   `docs/mass-skirmish-design.md` 同步「默认 = Mass Skirmish AI，旧 SuperAI 需显式
   `--mod SuperAI`」的口径；设计取舍见 `docs/mass-skirmish-design.md`。
 
+## Unreleased — 文档：按「电子斗蛐蛐」理念重写
+
+- **README 重排**：首屏换成理念块（不是竞技 AI、默认模组 Mass Skirmish、旧模组需 `--mod SuperAI`），
+  新增「这不是竞技 AI」与「两个模组」对照表；已验证 / 已知限制按模组拆成两组；
+  删掉初始化期残留的「发布到 GitHub」整节；顺带校正 SuperAI 版本号 3.13.5 → 3.13.10（仓库 mod.ini 实为 3.13.10），
+  并把「已验证」的 6 张图更正为 7 张（`--mod SuperAI` 全图 probe 实测 exit 0）。
+- **新增 `docs/philosophy.md`**：项目理念 —— 为「看」而造、不为「赢」而造；一局"好"的判据、
+  刻意接受的非最优、非目标。
+- **文档互相指回理念**：`docs/spectator-guide.md`、`docs/ai-design.md`、
+  `docs/mass-skirmish-design.md` 开头各加一句指向 `docs/philosophy.md`，明确观赏性优先。
+- **未改**：SuperAI 的事实内容（特性表、地图表、已验证数字、已知限制 11 条）原样保留，
+  Mass Skirmish 的 Stage 1 / Stage 2 如实说明与关键参数口径一字未动。
+
 ## Unreleased — 5 分钟按户错峰 All to Hunt、空指部 2/3 座、国家特色权重钉死
 
 - **地图 All to Hunt**：保持 **5 分钟**、每户一条触发器、
